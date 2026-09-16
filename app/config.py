@@ -28,3 +28,17 @@ SKEW_ANGLE_NOOP_THRESHOLD: float = 0.1  # skip rotation entirely below this, to 
 DENOISE_STRENGTH: float = 10.0
 ADAPTIVE_THRESH_BLOCK_SIZE: int = 35  # must be odd and > 1
 ADAPTIVE_THRESH_C: int = 11
+
+# Module 6 — Field Extraction
+
+FIELD_CROP_MARGIN_PX: int = 8  # small fixed margin absorbing sub-pixel jitter, per the reference doc
+
+# The template schema has no per-field PSM slot, so this stands in for it:
+# a fixed data_type -> Tesseract --psm mapping. 7 (single line) and 8
+# (single word) are the reference doc's own examples. Anything not listed
+# here falls back to DEFAULT_PSM, never silently to one of these.
+PSM_BY_DATA_TYPE: dict[str, int] = {
+    "string": 7,
+    "enum": 8,
+}
+DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mode

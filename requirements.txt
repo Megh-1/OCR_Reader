@@ -8,3 +8,6 @@ Pillow
 pydantic>=2
 pytest
 httpx
+numpy
+opencv-python-headless
+pytesseract

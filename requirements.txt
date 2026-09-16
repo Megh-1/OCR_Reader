@@ -11,3 +11,6 @@ httpx
 numpy
 opencv-python-headless
 pytesseract
+sqlalchemy>=2
+psycopg[binary]
+alembic

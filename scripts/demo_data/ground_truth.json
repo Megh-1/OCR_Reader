@@ -1,0 +1,14 @@
+{
+  "sample_01.jpg": {
+    "template_id": "accuracy_harness_demo",
+    "fields": {
+      "person_name": "Name: ALICE SMITH"
+    }
+  },
+  "sample_02.jpg": {
+    "template_id": "accuracy_harness_demo",
+    "fields": {
+      "person_name": "Name: BOB JONES"
+    }
+  }
+}

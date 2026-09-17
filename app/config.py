@@ -40,6 +40,22 @@ DENOISE_STRENGTH: float = 10.0
 ADAPTIVE_THRESH_BLOCK_SIZE: int = 35  # must be odd and > 1
 ADAPTIVE_THRESH_C: int = 11
 
+# Module 5 — Document Type Identification
+
+# Anchor cropping had no margin at all until a real photo exposed why that's
+# a problem: a zero-slack crop is fragile against Tesseract's page
+# segmentation getting thrown off by a few stray edge pixels (residual
+# tilt, sub-pixel rounding) - confirmed by direct experiment on a real
+# card, where the same anchor's OCR score oscillated wildly (good/0/good)
+# at small margins and only stabilized once the margin was generous. Wider
+# than FIELD_CROP_MARGIN_PX because anchor lines are typically much wider
+# than a single field value, so the same absolute pixel margin matters less
+# relative to their size - and because this was calibrated at whatever
+# resolution Module 2 actually normalizes to, which varies (see
+# MAX_UPSCALE_FACTOR above); a real-world value from one sample, not a
+# theoretically-derived constant.
+ANCHOR_CROP_MARGIN_PX: int = 40
+
 # Module 6 — Field Extraction
 
 FIELD_CROP_MARGIN_PX: int = 8  # small fixed margin absorbing sub-pixel jitter, per the reference doc

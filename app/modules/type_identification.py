@@ -24,9 +24,10 @@ import pytesseract
 from PIL import Image
 from rapidfuzz import fuzz
 
+from app.config import ANCHOR_CROP_MARGIN_PX
 from app.modules.template_store import get_latest_template, list_known_doc_types
 from app.schemas.template import TemplateAnchor, TemplateOut
-from app.utils.geometry import relative_bbox_to_pixels
+from app.utils.geometry import clamped_crop_box
 
 
 @dataclass
@@ -39,9 +40,14 @@ class IdentificationResult:
 
 
 def _score_anchor(image: Image.Image, anchor: TemplateAnchor) -> float:
-    """OCRs the anchor's region and fuzzy-scores it against the expected text. 0-100 scale."""
-    left, top, right, bottom = relative_bbox_to_pixels(anchor.bbox, image.width, image.height)
-    crop = image.crop((left, top, right, bottom))
+    """
+    OCRs the anchor's region and fuzzy-scores it against the expected text.
+    0-100 scale. Crops with a margin (config.ANCHOR_CROP_MARGIN_PX), not a
+    bare bbox - see that constant's own comment for why a zero-slack crop
+    turned out to be fragile against real-world tilt/rounding.
+    """
+    box = clamped_crop_box(anchor.bbox, image.width, image.height, ANCHOR_CROP_MARGIN_PX)
+    crop = image.crop(box)
     text = pytesseract.image_to_string(crop).strip()
     return fuzz.ratio(text, anchor.text)
 

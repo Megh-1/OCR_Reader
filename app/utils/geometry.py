@@ -28,6 +28,30 @@ def relative_bbox_to_pixels(
     )
 
 
+def clamped_crop_box(
+    bbox: tuple[float, float, float, float], image_width: int, image_height: int, margin: int
+) -> tuple[int, int, int, int]:
+    """
+    relative_bbox_to_pixels() + a fixed margin on each side, then clamped to
+    the image's actual bounds. A box near an edge, expanded by the margin,
+    can extend past (0,0)-(width,height) - crop() on out-of-bounds
+    coordinates doesn't raise, but silently reading past the real image
+    edge is exactly the kind of thing that must never happen unnoticed.
+
+    Shared by anchor cropping (Module 5) and field cropping (Module 6) -
+    both need the same margin-then-clamp behavior, just calibrated with
+    different margin sizes for their different crop-content characteristics
+    (a wide anchor line needs more slack than a small field value - see
+    each caller's own margin constant for why).
+    """
+    left, top, right, bottom = relative_bbox_to_pixels(bbox, image_width, image_height)
+    left = max(0, left - margin)
+    top = max(0, top - margin)
+    right = min(image_width, right + margin)
+    bottom = min(image_height, bottom + margin)
+    return (left, top, right, bottom)
+
+
 def _clamp01(v: float) -> float:
     return min(1.0, max(0.0, v))
 

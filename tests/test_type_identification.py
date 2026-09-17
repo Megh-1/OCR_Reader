@@ -5,8 +5,10 @@ from uuid import uuid4
 import pytest
 from PIL import Image
 
+import app.config as config
 import app.modules.type_identification as type_identification
 from app.modules.type_identification import identify_document_type
+from app.schemas.template import TemplateAnchor
 from app.utils.geometry import relative_bbox_to_pixels
 
 
@@ -157,3 +159,39 @@ def test_no_hint_matching_two_templates_is_ambiguous_not_a_guess(client, monkeyp
     assert result.reason == "ambiguous_match"
     assert result.template_id is None  # must not arbitrarily pick doc_a or doc_b
     assert set(result.per_anchor_scores.keys()) == {doc_a, doc_b}
+
+
+def test_anchor_crop_has_exact_margin_applied(monkeypatch):
+    # Discovered against a real photo: a zero-slack anchor crop is fragile
+    # against Tesseract's page segmentation getting thrown off by a few
+    # stray edge pixels (residual tilt, rounding) - config.ANCHOR_CROP_MARGIN_PX
+    # exists specifically to absorb that.
+    image = Image.new("RGB", (1000, 800), color=255)
+    image.crop = Mock(wraps=image.crop)
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(return_value=""))
+
+    anchor = TemplateAnchor(text="HEADER", bbox=(0.1, 0.2, 0.5, 0.6), match_threshold=0.85)
+    type_identification._score_anchor(image, anchor)
+
+    # relative_bbox_to_pixels((0.1,0.2,0.5,0.6), 1000, 800) = (100,160,500,480),
+    # then +/- config.ANCHOR_CROP_MARGIN_PX on each side. Nowhere near an
+    # edge, so no clamping should be in play here - a pure arithmetic check.
+    margin = config.ANCHOR_CROP_MARGIN_PX
+    expected_box = (100 - margin, 160 - margin, 500 + margin, 480 + margin)
+    image.crop.assert_called_once_with(expected_box)
+
+
+def test_anchor_crop_near_edge_is_clamped_not_out_of_bounds(monkeypatch):
+    image = Image.new("RGB", (200, 150), color=255)
+    image.crop = Mock(wraps=image.crop)
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(return_value=""))
+
+    # Flush against the top-left corner - expanding by the margin would
+    # push past (0,0) if this weren't clamped.
+    anchor = TemplateAnchor(text="HEADER", bbox=(0.0, 0.0, 0.2, 0.1), match_threshold=0.85)
+    type_identification._score_anchor(image, anchor)  # must not raise
+
+    called_box = image.crop.call_args[0][0]
+    left, top, right, bottom = called_box
+    assert left >= 0 and top >= 0
+    assert right <= image.width and bottom <= image.height

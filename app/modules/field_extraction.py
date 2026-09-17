@@ -20,7 +20,7 @@ from pytesseract import Output
 from app.config import DEFAULT_PSM, FIELD_CROP_MARGIN_PX, PSM_BY_DATA_TYPE
 from app.modules.template_store import get_template_version
 from app.schemas.template import TemplateField, TemplateOut
-from app.utils.geometry import relative_bbox_to_pixels
+from app.utils.geometry import clamped_crop_box
 
 
 @dataclass
@@ -30,24 +30,6 @@ class FieldExtractionResult:
     word_confidences: list[float]
     aggregate_confidence: float
     psm_used: int
-
-
-def _clamped_crop_box(
-    bbox: tuple[float, float, float, float], image_width: int, image_height: int, margin: int
-) -> tuple[int, int, int, int]:
-    """
-    relative_bbox_to_pixels() + a fixed margin on each side, then clamped to
-    the image's actual bounds. A field box near an edge, expanded by the
-    margin, can extend past (0,0)-(width,height) - crop() on out-of-bounds
-    coordinates doesn't raise, but silently reading past the real image
-    edge, is exactly the kind of thing that must never happen unnoticed.
-    """
-    left, top, right, bottom = relative_bbox_to_pixels(bbox, image_width, image_height)
-    left = max(0, left - margin)
-    top = max(0, top - margin)
-    right = min(image_width, right + margin)
-    bottom = min(image_height, bottom + margin)
-    return (left, top, right, bottom)
 
 
 def _words_and_confidences(data: dict) -> tuple[list[str], list[float]]:
@@ -68,7 +50,7 @@ def _aggregate_confidence(confidences: list[float]) -> float:
 
 
 def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionResult:
-    box = _clamped_crop_box(field.bbox, image.width, image.height, FIELD_CROP_MARGIN_PX)
+    box = clamped_crop_box(field.bbox, image.width, image.height, FIELD_CROP_MARGIN_PX)
     crop = image.crop(box)
 
     psm = PSM_BY_DATA_TYPE.get(field.data_type, DEFAULT_PSM)

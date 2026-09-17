@@ -1,0 +1,38 @@
+# NOT run as part of this change - see Dockerfile's header note.
+#
+# The postgres service is a separate, isolated Postgres SERVER from the
+# native Windows Postgres this project also uses for local (non-Docker) dev
+# - they don't share data, and this maps to host port 5433, not 5432, so
+# the two coexist rather than one replacing the other. Inside the compose
+# network the app container reaches postgres via the service name on its
+# normal internal port (5432), unaffected by that host-side remap.
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: idp
+      POSTGRES_PASSWORD: idp
+      POSTGRES_DB: idp_pipeline
+    ports:
+      - "5433:5432" # host 5433 - leaves the native Windows Postgres's 5432 alone
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idp -d idp_pipeline"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

@@ -42,3 +42,10 @@ PSM_BY_DATA_TYPE: dict[str, int] = {
     "enum": 8,
 }
 DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mode
+
+# Optional absolute path to the tesseract binary, for environments where
+# it's installed but not reliably on PATH (seen on this machine: a
+# winget-installed Tesseract that never added itself to PATH). Leave unset
+# to trust PATH resolution, which is what the Docker image relies on -
+# this is a local-environment escape hatch, not something to depend on.
+TESSERACT_CMD: str | None = os.environ.get("TESSERACT_CMD")

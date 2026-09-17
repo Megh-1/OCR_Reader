@@ -27,17 +27,48 @@ export function formatErrorDetail(detail) {
   return ['Unknown error'];
 }
 
-export async function createTemplate(payload) {
-  const res = await fetch('/templates', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
+async function requestJson(url, options) {
+  const res = await fetch(url, options);
   const body = await res.json().catch(() => null);
 
   if (!res.ok) {
     throw new ApiValidationError(res.status, body?.detail ?? body);
   }
   return body;
+}
+
+export function createTemplate(payload) {
+  return requestJson('/templates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getTemplateVersion(templateId, version) {
+  return requestJson(`/templates/${encodeURIComponent(templateId)}/versions/${version}`);
+}
+
+export function getExtractionResult(resultId) {
+  return requestJson(`/results/${resultId}`);
+}
+
+export function listReviewQueue(status = 'pending') {
+  return requestJson(`/review?status=${encodeURIComponent(status)}`);
+}
+
+export function resolveFieldReview(queueId, confirmedValue) {
+  return requestJson(`/review/${queueId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirmed_value: confirmedValue }),
+  });
+}
+
+export function resolveNewTemplateNeeded(queueId, createdTemplateId) {
+  return requestJson(`/review/${queueId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ created_template_id: createdTemplateId }),
+  });
 }

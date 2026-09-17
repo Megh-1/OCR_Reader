@@ -9,6 +9,8 @@ export default defineConfig({
     // requests - avoids needing CORS middleware on the backend for local dev.
     proxy: {
       '/templates': 'http://localhost:8000',
+      '/review': 'http://localhost:8000',
+      '/results': 'http://localhost:8000',
     },
   },
 })

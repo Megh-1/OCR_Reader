@@ -191,3 +191,246 @@ canvas {
   background: #1f4a2e;
   border: 1px solid #3a3;
 }
+
+/* ---- Top nav ---- */
+
+.top-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.top-nav button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid #444;
+  background: #2b2b33;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.top-nav button.active {
+  background: #333340;
+  border-color: #666;
+  color: #eee;
+}
+
+/* ---- Review queue: two-pane layout ---- */
+
+.review {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.review-queue-list {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 720px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.queue-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-width: 0; /* flex children don't shrink below content size by default - this is what makes ellipsis below possible */
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #26262e;
+  color: #eee;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.queue-item:hover {
+  border-color: #555;
+}
+
+.queue-item.selected {
+  border-color: #888;
+  background: #2f2f38;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #10121a;
+}
+
+.queue-item-label {
+  font-weight: 600;
+  font-size: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-item-time {
+  font-size: 12px;
+  color: #999;
+}
+
+.review-detail-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  position: relative;
+  padding: 24px;
+  border-radius: 8px;
+  background: #202028;
+  border: 1px solid #333;
+}
+
+/* ---- Empty state ---- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.empty-state-large {
+  padding: 80px 16px;
+}
+
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #1f4a2e;
+  color: #6fd68f;
+  font-size: 20px;
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ---- Review detail ---- */
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.detail-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.detail-canvas-pane canvas {
+  border: 1px solid #444;
+  border-radius: 4px;
+  max-width: 100%;
+  height: auto;
+}
+
+.detail-form {
+  flex: 1 1 260px;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-form.wide {
+  max-width: 480px;
+}
+
+.field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #999;
+  font-weight: 600;
+}
+
+.mono-value {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 14px;
+}
+
+.mono-value.block {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: #16161c;
+  border: 1px solid #333;
+  word-break: break-word;
+}
+
+.mono-input {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background: #2b2b33;
+  color: #eee;
+  font-size: 14px;
+}
+
+.reason-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note {
+  max-width: 44ch;
+}
+
+.error-text {
+  color: #e88;
+}
+
+.toast {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: #1f4a2e;
+  border: 1px solid #3a3;
+  font-size: 13px;
+  font-weight: 600;
+}

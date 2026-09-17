@@ -56,3 +56,26 @@ export function rectToRelativeBBox(rect, image) {
     clamp01((rectTop + rectHeight - imgTop) / imgHeight),
   ];
 }
+
+/**
+ * The inverse of rectToRelativeBBox: given a stored [x1,y1,x2,y2] relative
+ * bbox and the image object actually on the canvas, returns the canvas-space
+ * {left, top, width, height} to draw a highlight rect at. Same rule as the
+ * forward conversion - multiplied by the image's own rendered position/size,
+ * never the canvas's, so it lands on the right spot regardless of any
+ * letterboxing.
+ */
+export function relativeBBoxToRect(bbox, image) {
+  const [x1, y1, x2, y2] = bbox;
+  const imgLeft = image.left;
+  const imgTop = image.top;
+  const imgWidth = image.getScaledWidth();
+  const imgHeight = image.getScaledHeight();
+
+  return {
+    left: imgLeft + x1 * imgWidth,
+    top: imgTop + y1 * imgHeight,
+    width: (x2 - x1) * imgWidth,
+    height: (y2 - y1) * imgHeight,
+  };
+}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Canvas, FabricImage, Rect } from 'fabric';
-import { computeContainFit, rectToRelativeBBox } from './geometry';
+import { Rect } from 'fabric';
+import { rectToRelativeBBox } from './geometry';
+import { useDocumentCanvas } from './useDocumentCanvas';
 import { ApiValidationError, createTemplate, formatErrorDetail } from './api';
 
 const CANVAS_W = 900;
@@ -29,17 +30,15 @@ function createDefaultBoxRecord(id, type) {
 }
 
 export default function TemplateDesigner() {
-  const canvasElRef = useRef(null);
-  const fabricCanvasRef = useRef(null);
-  const imageRef = useRef(null);
   const rectsRef = useRef(new Map()); // boxId -> fabric.Rect
   const drawModeRef = useRef(null);
 
-  const [imageReady, setImageReady] = useState(false);
   const [drawMode, setDrawMode] = useState(null); // null | 'anchor' | 'field'
   const [boxes, setBoxes] = useState([]);
   const [templateId, setTemplateId] = useState('bits_goa_id_card');
   const [submitState, setSubmitState] = useState({ status: 'idle' });
+
+  const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(SAMPLE_IMAGE_URL, CANVAS_W, CANVAS_H);
 
   // Updates the ref synchronously, in the same tick as the click that
   // changes it - the event handlers below read drawModeRef.current, and a
@@ -52,37 +51,18 @@ export default function TemplateDesigner() {
     setDrawMode(mode);
   }
 
+  // Interactive box-drawing, layered on top of the shared canvas+image setup
+  // from useDocumentCanvas. That hook's own effect runs first (it's called
+  // above, earlier in this component), so fabricCanvasRef.current is always
+  // already populated by the time this effect body runs.
   useEffect(() => {
-    const canvas = new Canvas(canvasElRef.current, {
-      width: CANVAS_W,
-      height: CANVAS_H,
-      backgroundColor: '#f4f4f4',
-      selection: true,
-    });
-    fabricCanvasRef.current = canvas;
-
-    FabricImage.fromURL(SAMPLE_IMAGE_URL).then((img) => {
-      const fit = computeContainFit(img.width, img.height, CANVAS_W, CANVAS_H);
-      img.set({
-        left: fit.left,
-        top: fit.top,
-        scaleX: fit.scale,
-        scaleY: fit.scale,
-        originX: 'left',
-        originY: 'top',
-        selectable: false,
-        evented: false,
-      });
-      canvas.add(img); // added first -> renders behind every rect drawn after it
-      imageRef.current = img;
-      canvas.renderAll();
-      setImageReady(true);
-    });
+    const canvas = fabricCanvasRef.current;
+    if (!canvas) return;
 
     let drawingRect = null;
     let startPoint = null;
 
-    canvas.on('mouse:down', (opt) => {
+    function handleMouseDown(opt) {
       const mode = drawModeRef.current;
       if (!mode) return;
       const pointer = canvas.getScenePoint(opt.e);
@@ -99,9 +79,9 @@ export default function TemplateDesigner() {
         ...style,
       });
       canvas.add(drawingRect);
-    });
+    }
 
-    canvas.on('mouse:move', (opt) => {
+    function handleMouseMove(opt) {
       if (!drawingRect || !startPoint) return;
       const pointer = canvas.getScenePoint(opt.e);
       drawingRect.set({
@@ -111,9 +91,9 @@ export default function TemplateDesigner() {
         height: Math.abs(pointer.y - startPoint.y),
       });
       canvas.requestRenderAll();
-    });
+    }
 
-    canvas.on('mouse:up', () => {
+    function handleMouseUp() {
       const finishedRect = drawingRect;
       drawingRect = null;
       startPoint = null;
@@ -130,11 +110,18 @@ export default function TemplateDesigner() {
       rectsRef.current.set(id, finishedRect);
       setBoxes((prev) => [...prev, createDefaultBoxRecord(id, mode)]);
       setMode(null); // one box per click of "Draw anchor/field", then back to select
-    });
+    }
+
+    canvas.on('mouse:down', handleMouseDown);
+    canvas.on('mouse:move', handleMouseMove);
+    canvas.on('mouse:up', handleMouseUp);
 
     return () => {
-      canvas.dispose();
+      canvas.off('mouse:down', handleMouseDown);
+      canvas.off('mouse:move', handleMouseMove);
+      canvas.off('mouse:up', handleMouseUp);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateBox(id, patch) {

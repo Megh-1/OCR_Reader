@@ -73,6 +73,22 @@ def test_resolution_normalization_matches_target_dpi(monkeypatch: pytest.MonkeyP
     assert resized.shape == (200, 400)  # source_dpi 150 -> target 300 is a 2x scale
 
 
+def test_resolution_normalization_caps_implausible_upscale(monkeypatch: pytest.MonkeyPatch):
+    # A real phone photo's meaningless embedded "72 DPI" tag, taken at face
+    # value against TARGET_DPI=300, computes a ~4.17x upscale - enough to
+    # turn an already-high-resolution photo into a decompression-bomb-sized
+    # image. MAX_UPSCALE_FACTOR must cap this regardless of what source_dpi
+    # claims, not just for suspiciously tiny values.
+    monkeypatch.setattr(preprocessing, "TARGET_DPI", 300.0)
+    monkeypatch.setattr(preprocessing, "MAX_UPSCALE_FACTOR", 2.0)
+    image = np.zeros((100, 200), dtype=np.uint8)
+
+    resized, final_dpi = preprocessing.normalize_resolution(image, source_dpi=72.0)
+
+    assert resized.shape == (200, 400)  # capped at 2x, not the uncapped ~4.17x (417, 833)
+    assert final_dpi == 144.0  # honest about what was actually achieved (72 * 2.0), not the nominal 300
+
+
 def test_pathological_image_triggers_osd_fallback(monkeypatch: pytest.MonkeyPatch):
     calls = {"count": 0}
 

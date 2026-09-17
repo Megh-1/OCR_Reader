@@ -18,6 +18,17 @@ DATABASE_URL: str = os.environ.get(
 TARGET_DPI: float = 300.0
 DEFAULT_SOURCE_DPI: float = 72.0  # assumed when a source image carries no DPI metadata
 
+# Caps TARGET_DPI/source_dpi regardless of what source_dpi claims to be.
+# Real-world discovery: phone cameras near-universally embed a meaningless
+# legacy "72 DPI" JFIF tag with no relation to the actual pixel density of
+# whatever was photographed - trusting it verbatim on an already-high-
+# resolution photo computes a ~4x upscale, which on a modern phone photo
+# is easily enough to trip Pillow's decompression-bomb safety limit before
+# the image ever reaches Module 5. This still lets genuinely low-quality
+# scans get upscaled up to this factor, which is this step's actual job
+# per the reference doc - it just refuses to trust an implausible claim.
+MAX_UPSCALE_FACTOR: float = 2.0
+
 # Skew estimation (contour-based, with an OSD fallback).
 MIN_CONTOUR_AREA_FRACTION: float = 0.01  # below this, the contour mass isn't trusted
 SKEW_DILATE_KERNEL_SIZE: int = 5
@@ -48,4 +59,15 @@ DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mod
 # winget-installed Tesseract that never added itself to PATH). Leave unset
 # to trust PATH resolution, which is what the Docker image relies on -
 # this is a local-environment escape hatch, not something to depend on.
-TESSERACT_CMD: str | None = os.environ.get("TESSERACT_CMD")
+#
+# The filesystem-existence fallback (not just the env var) exists because
+# environment variable changes on this machine have repeatedly failed to
+# reach freshly-spawned processes this session (PATH edits invisible to
+# already-running shells, etc.) - a direct file check at import time is
+# immune to that class of problem, unlike an env var someone forgot to
+# (or couldn't) set for a given process. Inert on Linux/Docker, where the
+# path simply won't exist and this falls through to None.
+_DEFAULT_WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESSERACT_CMD: str | None = os.environ.get("TESSERACT_CMD") or (
+    _DEFAULT_WINDOWS_TESSERACT if os.path.exists(_DEFAULT_WINDOWS_TESSERACT) else None
+)

@@ -26,3 +26,28 @@ def relative_bbox_to_pixels(
         round(x2 * image_width),
         round(y2 * image_height),
     )
+
+
+def _clamp01(v: float) -> float:
+    return min(1.0, max(0.0, v))
+
+
+def pixels_to_relative_bbox(
+    bbox_px: tuple[float, float, float, float], image_width: int, image_height: int
+) -> tuple[float, float, float, float]:
+    """
+    The other direction: an absolute pixel (left, top, right, bottom) bbox
+    for an image of the given dimensions, converted to a relative [x1, y1,
+    x2, y2] bbox (0.0-1.0) for storing in a template. Until now only the
+    frontend (template designer UI, in JS) had this direction - this is the
+    server-side equivalent, for anything that needs to build a template
+    from detected pixel coordinates (e.g. an OCR-assisted authoring tool)
+    without going through the browser.
+    """
+    left, top, right, bottom = bbox_px
+    return (
+        _clamp01(left / image_width),
+        _clamp01(top / image_height),
+        _clamp01(right / image_width),
+        _clamp01(bottom / image_height),
+    )

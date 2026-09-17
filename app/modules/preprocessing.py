@@ -39,6 +39,7 @@ from app.config import (
     ADAPTIVE_THRESH_C,
     DEFAULT_SOURCE_DPI,
     DENOISE_STRENGTH,
+    MAX_UPSCALE_FACTOR,
     MIN_CONTOUR_AREA_FRACTION,
     SKEW_ANGLE_NOOP_THRESHOLD,
     SKEW_DILATE_ITERATIONS,
@@ -186,15 +187,23 @@ def denoise_and_enhance(gray: np.ndarray) -> np.ndarray:
 
 def normalize_resolution(image: np.ndarray, source_dpi: float) -> tuple[np.ndarray, float]:
     """
-    Rescales `image` from `source_dpi` to TARGET_DPI. This is the
-    highest-stakes step in the module: every downstream template's field
-    boxes are relative percentages of page dimensions, so an inconsistent
-    scale factor here breaks every template silently, later, downstream.
+    Rescales `image` from `source_dpi` toward TARGET_DPI, capped at
+    MAX_UPSCALE_FACTOR regardless of what source_dpi claims to be - see
+    config.MAX_UPSCALE_FACTOR: real phone-camera photos near-universally
+    embed a meaningless "72 DPI" tag, and trusting that verbatim on an
+    already-high-resolution photo computes an upscale large enough to trip
+    Pillow's decompression-bomb guard before the image reaches Module 5.
+    This is the highest-stakes step in the module: every downstream
+    template's field boxes are relative percentages of page dimensions, so
+    an inconsistent scale factor here breaks every template silently,
+    later, downstream. The returned DPI reflects what was actually
+    achieved, not the nominal target, so it stays honest when the cap
+    kicks in.
     """
-    scale = TARGET_DPI / source_dpi
+    scale = min(TARGET_DPI / source_dpi, MAX_UPSCALE_FACTOR)
     interpolation = cv2.INTER_CUBIC if scale > 1 else cv2.INTER_AREA
     resized = cv2.resize(image, None, fx=scale, fy=scale, interpolation=interpolation)
-    return resized, TARGET_DPI
+    return resized, source_dpi * scale
 
 
 def _infer_source_dpi(pil_image: Image.Image, explicit_dpi: Optional[float]) -> float:

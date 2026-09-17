@@ -1,0 +1,206 @@
+"""
+Module 9 backend - review queue + resolution.
+
+Standalone functions Module 5/8 COULD call to enqueue a rejection or a
+flagged field for human review - nothing calls them yet. That wiring is a
+separate task; this module's job is just: enqueue, resolve, list.
+
+resolve_field_review does a REAL write into Module 8's extraction_results
+table (not just marking the queue row done), inside the same transaction
+as marking the queue entry resolved, so a failure partway through can't
+leave the queue "resolved" while the underlying result is still wrong, or
+the result silently corrected while the queue row is stuck pending.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
+from sqlalchemy import select
+
+from app.db import SessionLocal
+from app.models.extraction_result import ExtractionResultRecord
+from app.models.review_queue import ReviewQueueRecord
+from app.modules.template_store import get_latest_template
+from app.schemas.review_queue import (
+    FieldReviewPayload,
+    FieldReviewResolution,
+    NewTemplateNeededPayload,
+    NewTemplateNeededResolution,
+    ReviewQueueEntry,
+    ReviewResolutionRequest,
+)
+
+router = APIRouter()
+
+
+class ReviewQueueError(Exception):
+    """Base class for this module's own rejections."""
+
+
+class ReviewEntryNotFoundError(ReviewQueueError):
+    pass
+
+
+class ReviewTypeMismatchError(ReviewQueueError):
+    pass
+
+
+class TemplateNotFoundError(ReviewQueueError):
+    pass
+
+
+def _enqueue(entry_type: str, payload: dict) -> int:
+    with SessionLocal() as session:
+        record = ReviewQueueRecord(
+            entry_type=entry_type,
+            status="pending",
+            created_at=datetime.now(timezone.utc),
+            resolved_at=None,
+            payload=payload,
+            resolution=None,
+        )
+        session.add(record)
+        session.commit()
+        session.refresh(record)
+        return record.id
+
+
+def enqueue_field_review(extraction_result_id: int, field_id: str, original_value: str, reasons: list[str]) -> int:
+    # Constructing this model is the fail-fast validation: a malformed call
+    # (wrong types, missing pieces) errors here, not as a mystery later.
+    payload = FieldReviewPayload(
+        extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value, reasons=reasons
+    )
+    return _enqueue("field_review", payload.model_dump(mode="json"))
+
+
+def enqueue_new_template_needed(attempted_type_hint: Optional[str], rejection_reason: str) -> int:
+    payload = NewTemplateNeededPayload(attempted_type_hint=attempted_type_hint, rejection_reason=rejection_reason)
+    return _enqueue("new_template_needed", payload.model_dump(mode="json"))
+
+
+def resolve_field_review(queue_id: int, confirmed_value: str) -> None:
+    with SessionLocal() as session:
+        row = session.get(ReviewQueueRecord, queue_id)
+        if row is None:
+            raise ReviewEntryNotFoundError(f"No review queue entry with id {queue_id}")
+        if row.entry_type != "field_review":
+            raise ReviewTypeMismatchError(
+                f"queue id {queue_id} is entry_type={row.entry_type!r}, not 'field_review'"
+            )
+
+        payload = FieldReviewPayload.model_validate(row.payload)
+
+        result_row = session.get(ExtractionResultRecord, payload.extraction_result_id)
+        if result_row is None:
+            raise ReviewQueueError(f"extraction result {payload.extraction_result_id} not found")
+        if payload.field_id not in result_row.fields:
+            raise ReviewQueueError(
+                f"field {payload.field_id!r} not found in extraction result {payload.extraction_result_id}"
+            )
+
+        # Real write into Module 8's data - reassign the whole dict so
+        # SQLAlchemy detects the JSONB column actually changed.
+        updated_fields = dict(result_row.fields)
+        updated_field = dict(updated_fields[payload.field_id])
+        updated_field["value"] = confirmed_value
+        updated_field["needs_review"] = False
+        updated_fields[payload.field_id] = updated_field
+        result_row.fields = updated_fields
+
+        row.status = "resolved"
+        row.resolved_at = datetime.now(timezone.utc)
+        row.resolution = FieldReviewResolution(confirmed_value=confirmed_value).model_dump(mode="json")
+
+        session.commit()  # one transaction: both writes land together or neither does
+
+
+def resolve_new_template_needed(queue_id: int, created_template_id: str) -> None:
+    with SessionLocal() as session:
+        row = session.get(ReviewQueueRecord, queue_id)
+        if row is None:
+            raise ReviewEntryNotFoundError(f"No review queue entry with id {queue_id}")
+        if row.entry_type != "new_template_needed":
+            raise ReviewTypeMismatchError(
+                f"queue id {queue_id} is entry_type={row.entry_type!r}, not 'new_template_needed'"
+            )
+
+        # Never trust the string blindly - it must genuinely exist.
+        if get_latest_template(created_template_id) is None:
+            raise TemplateNotFoundError(f"template_id {created_template_id!r} does not exist in the template store")
+
+        row.status = "resolved"
+        row.resolved_at = datetime.now(timezone.utc)
+        row.resolution = NewTemplateNeededResolution(created_template_id=created_template_id).model_dump(mode="json")
+
+        session.commit()
+
+
+def _list_entries(status: Optional[str], entry_type: Optional[str]) -> list[ReviewQueueEntry]:
+    with SessionLocal() as session:
+        stmt = select(ReviewQueueRecord)
+        if status is not None:
+            stmt = stmt.where(ReviewQueueRecord.status == status)
+        if entry_type is not None:
+            stmt = stmt.where(ReviewQueueRecord.entry_type == entry_type)
+        rows = session.execute(stmt).scalars().all()
+        return [ReviewQueueEntry.model_validate(row, from_attributes=True) for row in rows]
+
+
+def list_pending(entry_type: Optional[str] = None) -> list[ReviewQueueEntry]:
+    return _list_entries(status="pending", entry_type=entry_type)
+
+
+@router.post("/review/field-review", status_code=201)
+def post_field_review(payload: FieldReviewPayload) -> dict:
+    queue_id = enqueue_field_review(
+        extraction_result_id=payload.extraction_result_id,
+        field_id=payload.field_id,
+        original_value=payload.original_value,
+        reasons=payload.reasons,
+    )
+    return {"id": queue_id}
+
+
+@router.post("/review/new-template-needed", status_code=201)
+def post_new_template_needed(payload: NewTemplateNeededPayload) -> dict:
+    queue_id = enqueue_new_template_needed(
+        attempted_type_hint=payload.attempted_type_hint, rejection_reason=payload.rejection_reason
+    )
+    return {"id": queue_id}
+
+
+@router.get("/review", response_model=list[ReviewQueueEntry])
+def list_review_queue(status: Optional[str] = "pending", entry_type: Optional[str] = None) -> list[ReviewQueueEntry]:
+    return _list_entries(status=status, entry_type=entry_type)
+
+
+@router.patch("/review/{queue_id}")
+def patch_review(queue_id: int, body: ReviewResolutionRequest) -> dict:
+    with SessionLocal() as session:
+        row = session.get(ReviewQueueRecord, queue_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No review queue entry with id {queue_id}")
+
+    try:
+        if row.entry_type == "field_review":
+            if body.confirmed_value is None:
+                raise HTTPException(status_code=422, detail="confirmed_value is required to resolve a field_review entry")
+            resolve_field_review(queue_id, body.confirmed_value)
+        elif row.entry_type == "new_template_needed":
+            if body.created_template_id is None:
+                raise HTTPException(
+                    status_code=422, detail="created_template_id is required to resolve a new_template_needed entry"
+                )
+            resolve_new_template_needed(queue_id, body.created_template_id)
+        else:
+            raise HTTPException(status_code=500, detail=f"unrecognized entry_type {row.entry_type!r}")
+    except ReviewEntryNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except (ReviewTypeMismatchError, TemplateNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    return {"id": queue_id, "status": "resolved"}

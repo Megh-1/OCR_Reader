@@ -29,6 +29,54 @@ def make_flagged_extraction_result(unique_doc_type, field_id="name", value="J0hn
     return persist_result(compiled)
 
 
+def test_overall_status_only_flips_to_complete_once_all_flagged_fields_are_resolved(unique_doc_type):
+    summary = ValidationSummary(
+        accepted={},
+        flagged={
+            "name": make_validation_result("name", value="J0hn", confidence=40.0, accepted=False, reasons=["low_confidence"]),
+            "code": make_validation_result("code", value="Z9", confidence=30.0, accepted=False, reasons=["format_invalid"]),
+        },
+    )
+    compiled = compile_output(unique_doc_type, 1, summary)
+    result_id = persist_result(compiled)
+
+    name_queue_id = enqueue_field_review(result_id, "name", "J0hn", ["low_confidence"])
+    code_queue_id = enqueue_field_review(result_id, "code", "Z9", ["format_invalid"])
+
+    session = SessionLocal()
+    try:
+        assert session.get(ExtractionResultRecord, result_id).overall_status == "needs_review"
+    finally:
+        session.close()
+
+    # Resolve only the first flagged field - the second is still flagged,
+    # so the result as a whole must stay needs_review.
+    resolve_field_review(name_queue_id, "John")
+
+    session = SessionLocal()
+    try:
+        row = session.get(ExtractionResultRecord, result_id)
+        assert row.fields["name"]["needs_review"] is False
+        assert row.fields["code"]["needs_review"] is True  # untouched
+        assert row.overall_status == "needs_review"
+    finally:
+        session.close()
+
+    # Resolve the second and last flagged field - now nothing in this
+    # result is still flagged, so overall_status flips to complete, done
+    # in the same transaction as this write-back.
+    resolve_field_review(code_queue_id, "O+")
+
+    session = SessionLocal()
+    try:
+        row = session.get(ExtractionResultRecord, result_id)
+        assert row.fields["name"]["needs_review"] is False
+        assert row.fields["code"]["needs_review"] is False
+        assert row.overall_status == "complete"
+    finally:
+        session.close()
+
+
 def test_resolve_field_review_actually_updates_extraction_result(unique_doc_type):
     result_id = make_flagged_extraction_result(unique_doc_type)
     queue_id = enqueue_field_review(result_id, "name", "J0hn D0e", ["low_confidence"])

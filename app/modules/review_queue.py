@@ -111,6 +111,13 @@ def resolve_field_review(queue_id: int, confirmed_value: str) -> None:
         updated_fields[payload.field_id] = updated_field
         result_row.fields = updated_fields
 
+        # Re-check every field in this result, not just the one just fixed -
+        # only flip the result's own status back once nothing in it is still
+        # flagged. Same transaction as the write above: both land together
+        # or neither does.
+        if not any(f["needs_review"] for f in updated_fields.values()):
+            result_row.overall_status = "complete"
+
         row.status = "resolved"
         row.resolved_at = datetime.now(timezone.utc)
         row.resolution = FieldReviewResolution(confirmed_value=confirmed_value).model_dump(mode="json")

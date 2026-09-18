@@ -97,6 +97,11 @@ _AWB_FLOOR = 0.60  # photographed forms read lower than a flat scan; see notes b
 
 AIR_WAYBILL = TemplateIn(
     template_id="air_waybill",
+    # 612x792pt US Letter. Supplying the true ratio stops the perspective warp
+    # from having to infer it from foreshortened edges, which is what slid
+    # field boxes off their cells on angled photos. ruled_form erases the
+    # grid's printed borders, without which "65" reads as "Jos".
+    hints={"page_aspect_ratio": 612 / 792, "ruled_form": True},
     anchors=[
         {
             "text": "Not Negotiable Air Waybill",
@@ -111,63 +116,63 @@ AIR_WAYBILL = TemplateIn(
     ],
     fields=[
         # --- identity -------------------------------------------------------
-        {"id": "awb_number", "label": "AWB Number", "bbox": [0.720, 0.012, 0.890, 0.040],
+        {"id": "awb_number", "label": "AWB Number", "bbox": [0.7304, 0.0158, 0.8756, 0.0374],
          "data_type": "string", "validation_regex": r"^\d{3}-?\s?\d{8}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "carrier", "label": "Carrier", "bbox": [0.575, 0.062, 0.750, 0.098],
+        {"id": "carrier", "label": "Carrier", "bbox": [0.5899, 0.0663, 0.7325, 0.0941],
          "data_type": "string", "validation_regex": r"^[A-Za-z ]{3,40}$", "confidence_floor": _AWB_FLOOR},
 
         # --- parties --------------------------------------------------------
-        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.098, 0.046, 0.330, 0.062],
+        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.1013, 0.0486, 0.3114, 0.0672],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "shipper_address", "label": "Shipper Address", "bbox": [0.098, 0.060, 0.520, 0.102],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.098, 0.138, 0.320, 0.157],
+        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.1013, 0.1395, 0.2117, 0.1581],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "consignee_address", "label": "Consignee Address", "bbox": [0.098, 0.150, 0.470, 0.204],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "agent_name", "label": "Issuing Agent", "bbox": [0.098, 0.228, 0.380, 0.244],
+        {"id": "agent_name", "label": "Issuing Agent", "bbox": [0.1013, 0.2304, 0.3663, 0.2506],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "agent_iata_code", "label": "Agent IATA Code", "bbox": [0.105, 0.288, 0.215, 0.310],
+        {"id": "agent_iata_code", "label": "Agent IATA Code", "bbox": [0.1095, 0.2898, 0.2073, 0.3099],
          "data_type": "string", "validation_regex": r"^[\d/\-]{6,20}$", "confidence_floor": _AWB_FLOOR},
 
         # --- routing --------------------------------------------------------
-        {"id": "airport_of_departure", "label": "Airport of Departure", "bbox": [0.105, 0.319, 0.270, 0.341],
+        {"id": "airport_of_departure", "label": "Airport of Departure", "bbox": [0.1095, 0.3213, 0.2581, 0.3415],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "airport_of_destination", "label": "Airport of Destination", "bbox": [0.096, 0.379, 0.170, 0.401],
+        {"id": "airport_of_destination", "label": "Airport of Destination", "bbox": [0.098, 0.3819, 0.1535, 0.4013],
          "data_type": "string", "validation_regex": r"^[A-Za-z .]{3,30}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "destination_code", "label": "Destination Code", "bbox": [0.098, 0.348, 0.142, 0.370],
+        {"id": "destination_code", "label": "Destination Code", "bbox": [0.0997, 0.3504, 0.1409, 0.3705],
          "data_type": "string", "validation_regex": r"^[A-Z]{3}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "first_carrier_code", "label": "First Carrier", "bbox": [0.142, 0.348, 0.175, 0.370],
+        {"id": "first_carrier_code", "label": "First Carrier", "bbox": [0.1422, 0.3504, 0.1714, 0.3705],
          "data_type": "string", "validation_regex": r"^[A-Z0-9]{2}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "flight_date", "label": "Flight / Date", "bbox": [0.300, 0.379, 0.420, 0.401],
+        {"id": "flight_date", "label": "Flight / Date", "bbox": [0.3072, 0.3819, 0.4148, 0.4005],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
 
         # --- charge declarations --------------------------------------------
-        {"id": "currency", "label": "Currency", "bbox": [0.520, 0.348, 0.562, 0.370],
+        {"id": "currency", "label": "Currency", "bbox": [0.5229, 0.3504, 0.5601, 0.3705],
          "data_type": "string", "validation_regex": r"^[A-Z]{3}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "charges_code", "label": "Charges Code", "bbox": [0.562, 0.348, 0.598, 0.370],
+        {"id": "charges_code", "label": "Charges Code", "bbox": [0.5637, 0.3504, 0.5913, 0.3705],
          "data_type": "string", "validation_regex": r"^[A-Z]{2}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "declared_value_carriage", "label": "Declared Value for Carriage", "bbox": [0.686, 0.348, 0.736, 0.370],
+        {"id": "declared_value_carriage", "label": "Declared Value for Carriage", "bbox": [0.6895, 0.3504, 0.7317, 0.3705],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "declared_value_customs", "label": "Declared Value for Customs", "bbox": [0.833, 0.348, 0.882, 0.370],
+        {"id": "declared_value_customs", "label": "Declared Value for Customs", "bbox": [0.8366, 0.3504, 0.8777, 0.3705],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "accounting_information", "label": "Accounting Information", "bbox": [0.530, 0.228, 0.690, 0.244],
+        {"id": "accounting_information", "label": "Accounting Information", "bbox": [0.5343, 0.2304, 0.6797, 0.2506],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
 
         # --- cargo line -----------------------------------------------------
-        {"id": "pieces_rcp", "label": "No. of Pieces (RCP)", "bbox": [0.098, 0.495, 0.130, 0.519],
+        {"id": "pieces_rcp", "label": "No. of Pieces (RCP)", "bbox": [0.1013, 0.4981, 0.1204, 0.5182],
          "data_type": "string", "validation_regex": r"^\d{1,4}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "gross_weight", "label": "Gross Weight", "bbox": [0.138, 0.495, 0.180, 0.519],
+        {"id": "gross_weight", "label": "Gross Weight", "bbox": [0.1422, 0.4981, 0.1706, 0.5182],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,10}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "rate_class", "label": "Rate Class", "bbox": [0.242, 0.495, 0.270, 0.519],
+        {"id": "rate_class", "label": "Rate Class", "bbox": [0.2444, 0.4981, 0.2657, 0.5182],
          "data_type": "enum", "validation_regex": r"^[A-Z]$", "confidence_floor": _AWB_FLOOR},
-        {"id": "chargeable_weight", "label": "Chargeable Weight", "bbox": [0.350, 0.495, 0.392, 0.519],
+        {"id": "chargeable_weight", "label": "Chargeable Weight", "bbox": [0.3546, 0.4981, 0.3831, 0.5182],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,10}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "rate_charge", "label": "Rate / Charge", "bbox": [0.448, 0.495, 0.498, 0.519],
+        {"id": "rate_charge", "label": "Rate / Charge", "bbox": [0.4526, 0.4981, 0.4904, 0.5182],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "total_charge", "label": "Total", "bbox": [0.558, 0.495, 0.628, 0.519],
+        {"id": "total_charge", "label": "Total", "bbox": [0.5637, 0.4981, 0.6202, 0.5182],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "nature_of_goods", "label": "Nature and Quantity of Goods", "bbox": [0.705, 0.491, 0.960, 0.513],
+        {"id": "nature_of_goods", "label": "Nature and Quantity of Goods", "bbox": [0.7092, 0.4943, 0.956, 0.5129],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "hs_code", "label": "HS Code", "bbox": [0.705, 0.516, 0.862, 0.538],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
@@ -175,19 +180,19 @@ AIR_WAYBILL = TemplateIn(
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
 
         # --- totals ---------------------------------------------------------
-        {"id": "prepaid_weight_charge", "label": "Prepaid Weight Charge", "bbox": [0.098, 0.713, 0.162, 0.737],
+        {"id": "prepaid_weight_charge", "label": "Prepaid Weight Charge", "bbox": [0.1013, 0.7165, 0.1578, 0.7367],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "total_other_charges_agent", "label": "Total Other Charges Due Agent", "bbox": [0.098, 0.802, 0.168, 0.826],
+        {"id": "total_other_charges_agent", "label": "Total Other Charges Due Agent", "bbox": [0.1013, 0.8049, 0.1631, 0.825],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "total_other_charges_carrier", "label": "Total Other Charges Due Carrier", "bbox": [0.098, 0.833, 0.175, 0.857],
+        {"id": "total_other_charges_carrier", "label": "Total Other Charges Due Carrier", "bbox": [0.1013, 0.8365, 0.1725, 0.8566],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
-        {"id": "total_prepaid", "label": "Total Prepaid", "bbox": [0.098, 0.896, 0.185, 0.920],
+        {"id": "total_prepaid", "label": "Total Prepaid", "bbox": [0.1013, 0.8971, 0.1818, 0.9172],
          "data_type": "string", "validation_regex": r"^[\d.,]{1,12}$", "confidence_floor": _AWB_FLOOR},
 
         # --- execution ------------------------------------------------------
-        {"id": "executed_date", "label": "Executed On (Date)", "bbox": [0.432, 0.910, 0.552, 0.932],
+        {"id": "executed_date", "label": "Executed On (Date)", "bbox": [0.4363, 0.9123, 0.5418, 0.9324],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "executed_place", "label": "Executed At (Place)", "bbox": [0.615, 0.910, 0.735, 0.932],
+        {"id": "executed_place", "label": "Executed At (Place)", "bbox": [0.6225, 0.9123, 0.7242, 0.9324],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
     ],
 )

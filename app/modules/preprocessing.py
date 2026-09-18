@@ -165,7 +165,9 @@ def _has_distinct_border(gray: np.ndarray, quad: np.ndarray) -> bool:
     return abs(inside_mean - outside_mean) >= DOC_DETECT_MIN_BORDER_CONTRAST
 
 
-def four_point_transform(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
+def four_point_transform(
+    image: np.ndarray, corners: np.ndarray, target_aspect: Optional[float] = None
+) -> np.ndarray:
     """
     Warps the quadrilateral at `corners` onto a flat rectangle - correcting
     rotation, perspective and framing in one operation, and cropping away
@@ -174,10 +176,22 @@ def four_point_transform(image: np.ndarray, corners: np.ndarray) -> np.ndarray:
     Output dimensions come from the longest opposing edges, so a page
     photographed at an angle keeps roughly its true proportions instead of
     being squashed toward the foreshortened side.
+
+    `target_aspect` (width/height) replaces that estimate with the page's
+    real ratio when the caller knows it. Measured edges are foreshortened by
+    the very perspective being corrected, so the estimate lands a few percent
+    out - harmless for reading the page, but every template bbox is a
+    percentage of page width, so a few percent of horizontal error is enough
+    to slide a field box off its cell. Pixel count is preserved, so only the
+    ratio changes and no detail is scaled away.
     """
     top_left, top_right, bottom_right, bottom_left = corners
     output_width = round(max(np.linalg.norm(bottom_right - bottom_left), np.linalg.norm(top_right - top_left)))
     output_height = round(max(np.linalg.norm(top_right - bottom_right), np.linalg.norm(top_left - bottom_left)))
+
+    if target_aspect is not None:
+        output_height = round(math.sqrt(output_width * output_height / target_aspect))
+        output_width = round(output_height * target_aspect)
 
     destination = np.array(
         [[0, 0], [output_width - 1, 0], [output_width - 1, output_height - 1], [0, output_height - 1]],
@@ -431,7 +445,12 @@ def _infer_source_dpi(pil_image: Image.Image, explicit_dpi: Optional[float]) -> 
     return DEFAULT_SOURCE_DPI
 
 
-def preprocess_image(image_bytes: bytes, source_dpi: Optional[float] = None) -> ProcessedImage:
+def preprocess_image(
+    image_bytes: bytes,
+    source_dpi: Optional[float] = None,
+    target_aspect: Optional[float] = None,
+    remove_rules: bool = False,
+) -> ProcessedImage:
     """
     Entry point handed off from Module 1's page image bytes. Returns the
     cleaned image plus metadata (skew angle corrected, whether the OSD
@@ -452,7 +471,7 @@ def preprocess_image(image_bytes: bytes, source_dpi: Optional[float] = None) -> 
     corners = detect_document_quad(gray)
     document_detected = corners is not None
     if document_detected:
-        bgr = four_point_transform(bgr, corners)
+        bgr = four_point_transform(bgr, corners, target_aspect)
         gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
     # The warp already squared the page up, so residual skew is sub-degree at
@@ -468,7 +487,8 @@ def preprocess_image(image_bytes: bytes, source_dpi: Optional[float] = None) -> 
     # Same rotation, same scale factor, same source - so both renderings come
     # out at identical dimensions and a template's relative bboxes address the
     # same pixels in either one.
-    field_resized, _ = normalize_resolution(equalize_local_contrast(remove_ruled_lines(rotated_gray)), dpi)
+    field_source = remove_ruled_lines(rotated_gray) if remove_rules else rotated_gray
+    field_resized, _ = normalize_resolution(equalize_local_contrast(field_source), dpi)
 
     return ProcessedImage(
         image_bytes=encode_image(resized),

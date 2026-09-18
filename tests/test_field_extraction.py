@@ -51,9 +51,13 @@ def test_field_near_edge_crop_is_clamped_not_out_of_bounds(monkeypatch):
     left, top, right, bottom = called_box
     assert left >= 0 and top >= 0
     assert right <= image.width and bottom <= image.height
-    # relative_bbox_to_pixels(...) = (180,135,200,150); +margin(8) would be
-    # (172,127,208,158) - clamped to the image's actual 200x150 bounds.
-    assert called_box == (172, 127, 200, 150)
+    # relative_bbox_to_pixels(...) = (180,135,200,150). Expanded by whatever
+    # margin is configured, the right/bottom edges would run past the image's
+    # real 200x150 bounds; clamping is what keeps them on it. Computed from
+    # the config value rather than hardcoded, since the margin is a measured
+    # tunable and this test is about the clamping, not about its size.
+    margin = config.FIELD_CROP_MARGIN_PX
+    assert called_box == (180 - margin, 135 - margin, 200, 150)
     assert result.raw_text == ""
 
 

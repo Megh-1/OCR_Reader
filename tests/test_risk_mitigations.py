@@ -111,18 +111,6 @@ def test_type_hint_alone_never_authorizes_extraction():
 # Mitigation: relative (%) coordinates + resolution normalization.
 
 
-@pytest.mark.xfail(
-    reason=(
-        "KNOWN TRADE-OFF, not a flake. Module 2's ruled-line removal is what makes a "
-        "grid form (air waybill) readable - it was the single largest source of wrong "
-        "values there - but the ID card is not a ruled form, and at reduced resolution "
-        "the removal clips glyph strokes: id_number degrades to '2I24\\\\A7 PS04:76G'. "
-        "It reads exactly right at full resolution. The fix is to apply line removal "
-        "per document type rather than unconditionally, which Module 2 cannot do today "
-        "because it runs before Module 5 knows the type."
-    ),
-    strict=False,
-)
 @needs_real_card
 def test_same_document_at_half_resolution_extracts_identical_values():
     """The whole reason bboxes are stored as percentages. Halving the input
@@ -255,3 +243,70 @@ def test_anchor_threshold_sits_in_the_gap_between_match_and_non_match():
     # Slack on both sides, not a threshold balanced on a knife edge.
     assert min(match_scores) - threshold >= 10.0
     assert threshold - max(other_scores) >= 10.0
+
+
+# --- Two-pass preprocessing --------------------------------------------------
+# Module 2 runs before Module 5 has identified anything, so it cannot know
+# facts that are specific to a document type. The pipeline resolves that by
+# preprocessing twice: once generically to identify, then again with the
+# confirmed template's hints applied.
+
+
+def test_template_hints_default_to_previous_behaviour():
+    """A template that says nothing about itself must be processed exactly as
+    before hints existed - this is what keeps the ID card, authored long
+    before this mechanism, unaffected by it."""
+    from app.schemas.template import TemplateHints
+
+    hints = TemplateHints()
+    assert hints.page_aspect_ratio is None
+    assert hints.ruled_form is False
+
+
+def test_ruled_form_hint_controls_line_removal():
+    """Rule removal is the largest accuracy gain on a grid form and is
+    measurably harmful on a document that has no rules, where the same
+    morphology clips glyph strokes. So it must be driven by the template,
+    never applied globally."""
+    import numpy as np
+
+    from app.modules.preprocessing import preprocess_image
+
+    # A page with one long horizontal rule - unambiguously a rule, since it
+    # spans far more of the width than any glyph could.
+    page = np.full((400, 600), 255, np.uint8)
+    page[200, 50:550] = 0
+    buffer = io.BytesIO()
+    Image.fromarray(page, mode="L").save(buffer, format="PNG")
+    page_bytes = buffer.getvalue()
+
+    kept = np.array(Image.open(io.BytesIO(preprocess_image(page_bytes).field_image_bytes)))
+    erased = np.array(Image.open(io.BytesIO(preprocess_image(page_bytes, remove_rules=True).field_image_bytes)))
+
+    # Compared, not thresholded: local contrast equalization runs after rule
+    # removal and amplifies whatever residual is left, so an absolute cutoff
+    # would be measuring CLAHE rather than the removal.
+    dark_kept = int((kept < 128).sum())
+    dark_erased = int((erased < 128).sum())
+    assert dark_kept > 0, "without the hint the rule must survive"
+    assert dark_erased < dark_kept * 0.1, (
+        f"with the hint the rule must be erased ({dark_erased} dark px left of {dark_kept})"
+    )
+
+
+def test_page_aspect_hint_overrides_the_warp_estimate():
+    """A perspective warp infers output proportions from edge lengths that
+    the perspective itself foreshortened. Supplying the true ratio replaces
+    that estimate, so a page comes back at its real shape."""
+    import numpy as np
+
+    from app.modules.preprocessing import four_point_transform
+
+    image = np.full((400, 600, 3), 255, np.uint8)
+    corners = np.array([[10, 10], [590, 40], [580, 380], [20, 350]], dtype="float32")
+
+    estimated = four_point_transform(image, corners)
+    forced = four_point_transform(image, corners, target_aspect=612 / 792)
+
+    assert abs(forced.shape[1] / forced.shape[0] - 612 / 792) < 0.01
+    assert abs(estimated.shape[1] / estimated.shape[0] - 612 / 792) > 0.01

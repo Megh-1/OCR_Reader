@@ -45,12 +45,49 @@ class TemplateField(BaseModel):
     _check_bbox = field_validator("bbox")(_validate_bbox)
 
 
+class TemplateHints(BaseModel):
+    """
+    What Module 2 would need to know about a document to process it well, but
+    cannot know on its own: Module 2 runs before Module 5 has identified
+    anything. The pipeline resolves this by preprocessing twice - once
+    generically to identify the type, then again with that type's hints
+    applied - so these are per-document-type preprocessing parameters, not
+    extraction rules.
+
+    Both default to "behave as before", so a template that omits them is
+    unaffected.
+    """
+
+    page_aspect_ratio: Optional[float] = PydField(default=None, gt=0.0)
+    """
+    True width/height of the physical page (e.g. 612/792 for US Letter).
+
+    A perspective warp has to guess output dimensions from the quadrilateral's
+    measured edge lengths, and those edges are foreshortened by the very
+    perspective being corrected - so the recovered page comes out with an
+    aspect ratio off by several percent, which shifts every relative bbox
+    sideways. Knowing the real ratio removes the guess.
+    """
+
+    ruled_form: bool = False
+    """
+    Whether this document is a ruled grid form (air waybill, invoice table,
+    passbook) whose printed cell borders must be erased before OCR.
+
+    Not a global setting because it is genuinely document-specific: erasing
+    rules is the largest single accuracy gain on a grid form, and measurably
+    harmful on a document that has no rules, where the same morphology clips
+    glyph strokes instead.
+    """
+
+
 class TemplateIn(BaseModel):
     """POST /templates request body. version and created_at are server-assigned, never client-supplied."""
 
     template_id: str
     anchors: list[TemplateAnchor] = PydField(min_length=1)
     fields: list[TemplateField] = PydField(default_factory=list)
+    hints: TemplateHints = PydField(default_factory=TemplateHints)
 
 
 class TemplateOut(BaseModel):
@@ -61,3 +98,5 @@ class TemplateOut(BaseModel):
     anchors: list[TemplateAnchor]
     fields: list[TemplateField]
     created_at: date
+    # Defaulted so template versions written before hints existed still load.
+    hints: TemplateHints = PydField(default_factory=TemplateHints)

@@ -139,7 +139,19 @@ REVIEW_IMAGE_JPEG_QUALITY: int = 82
 # border. Edge-trimmed only - see _trim_rule_artifacts.
 RULE_ARTIFACT_CHARS: str = r"|_~[]{}()/\:;`^"
 
-FIELD_CROP_MARGIN_PX: int = 8  # small fixed margin absorbing sub-pixel jitter, per the reference doc
+# Zero, measured. The reference doc suggests a small margin to absorb
+# sub-pixel jitter, and that was right when template boxes were drawn loosely
+# by hand. Once a template's boxes are tight to the value - derived from a
+# document's own geometry rather than eyeballed - any expansion reaches into
+# the neighbouring cell and drags its printed label into the crop. On the air
+# waybill this one value moved exact field recovery from ~45% to ~70%
+# (per variant, /29: 12,14,14,16,14,8 at 8px against 25,17,20,19,23,17 at 0),
+# and the ID card, whose boxes were drawn by hand, is unharmed: its three
+# fields read identically at 0, 4 and 8.
+#
+# Anchors are the opposite case and keep their generous margin - see
+# ANCHOR_CROP_MARGIN_PX, where a zero-slack crop was measurably unstable.
+FIELD_CROP_MARGIN_PX: int = 0
 
 # The template schema has no per-field PSM slot, so this stands in for it:
 # a fixed data_type -> Tesseract --psm mapping. 7 (single line) and 8

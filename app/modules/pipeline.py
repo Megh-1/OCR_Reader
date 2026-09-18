@@ -45,6 +45,8 @@ class ProcessDocumentResponse(BaseModel):
 
 
 def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) -> PageResult:
+    # Pass 1 - generic. Module 2 has no idea what this document is yet, which
+    # is the whole reason a second pass exists.
     processed = preprocess_image(page_bytes)
 
     identification = identify_document_type(processed.image_bytes, type_hint)
@@ -56,6 +58,19 @@ def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) 
     # get_template_version, not get_latest_template - extract_fields/validate_fields
     # both need the EXACT version Module 5 just confirmed against.
     template = get_template_version(identification.template_id, identification.version)
+
+    # Pass 2 - now that the type is known, redo preprocessing with this
+    # document type's own parameters. Anchor verification only needed the page
+    # to be findable and legible, which pass 1 delivers; field extraction needs
+    # the page's true proportions (so percentage bboxes land on the right
+    # cells) and, on a grid form, its printed rules erased. Both are
+    # per-document-type facts that pass 1 could not have known.
+    hints = template.hints
+    if hints.page_aspect_ratio is not None or hints.ruled_form:
+        processed = preprocess_image(
+            page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form
+        )
+
     # field_image_bytes, not image_bytes: the binarized rendering that makes
     # anchors detectable destroys the stroke detail character recognition
     # needs (see ProcessedImage).

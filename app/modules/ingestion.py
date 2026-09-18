@@ -8,7 +8,7 @@ import magic
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import Image
 
-from app.config import ALLOWED_MIME_TYPES, MAX_PAGES, MAX_UPLOAD_BYTES
+from app.config import ALLOWED_MIME_TYPES, MAX_PAGES, MAX_UPLOAD_BYTES, PDF_RENDER_DPI
 from app.models.ingestion import IngestionMetadata
 
 router = APIRouter()
@@ -43,7 +43,7 @@ def render_pdf_pages(buffer: bytes) -> list[bytes]:
             raise IngestionError("too_many_pages", f"PDF has {doc.page_count} pages, max is {MAX_PAGES}")
 
         try:
-            pages = [page.get_pixmap().tobytes("png") for page in doc]
+            pages = [page.get_pixmap(dpi=PDF_RENDER_DPI).tobytes("png") for page in doc]
         except Exception as exc:
             raise IngestionError("corrupt_file", f"Could not render PDF page: {exc}") from exc
     finally:

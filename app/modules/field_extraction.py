@@ -17,7 +17,7 @@ import pytesseract
 from PIL import Image
 from pytesseract import Output
 
-from app.config import DEFAULT_PSM, FIELD_CROP_MARGIN_PX, PSM_BY_DATA_TYPE
+from app.config import DEFAULT_PSM, FIELD_CROP_MARGIN_PX, PSM_BY_DATA_TYPE, RULE_ARTIFACT_CHARS
 from app.modules.template_store import get_template_version
 from app.schemas.template import TemplateField, TemplateOut
 from app.utils.geometry import clamped_crop_box
@@ -49,6 +49,26 @@ def _aggregate_confidence(confidences: list[float]) -> float:
     return sum(confidences) / len(confidences) if confidences else 0.0
 
 
+def _trim_rule_artifacts(text: str) -> str:
+    """
+    Strips leftover form-rule marks from the ENDS of a read value.
+
+    A field on a ruled form sits inside a printed cell, so a crop of it tends
+    to catch a fragment of the surrounding rule, which Tesseract renders as a
+    stray "|", "_", "~" or bracket - "170" comes back as "| 170", "500.00" as
+    "~ 500.00". Module 2 erases full-length rules before OCR; this removes the
+    short fragments that survive at a crop boundary, where a rule is too short
+    to be recognizable as one.
+
+    Deliberately edge-only, and deliberately limited to characters that never
+    legitimately begin or end a field value. It cannot repair a misread INSIDE
+    a value, which is the whole point: undoing an artifact our own cropping
+    introduced is not the same as guessing at content, and a genuine OCR error
+    still reaches Module 7 intact and still gets flagged.
+    """
+    return text.strip(RULE_ARTIFACT_CHARS + " ")
+
+
 def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionResult:
     box = clamped_crop_box(field.bbox, image.width, image.height, FIELD_CROP_MARGIN_PX)
     crop = image.crop(box)
@@ -60,7 +80,7 @@ def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionRe
 
     return FieldExtractionResult(
         field_id=field.id,
-        raw_text=" ".join(words),
+        raw_text=_trim_rule_artifacts(" ".join(words)),
         word_confidences=confidences,
         aggregate_confidence=_aggregate_confidence(confidences),
         psm_used=psm,

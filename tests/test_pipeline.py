@@ -4,6 +4,7 @@ from unittest.mock import Mock
 from PIL import Image
 
 import app.modules.field_extraction as field_extraction
+from tests.test_field_extraction import ocr_responses
 import app.modules.type_identification as type_identification
 from app.db import SessionLocal
 from app.models.extraction_result import ExtractionResultRecord
@@ -134,10 +135,10 @@ def test_one_flagged_field_enqueues_exactly_one_field_review(client, unique_doc_
         field_extraction.pytesseract,
         "image_to_data",
         Mock(
-            side_effect=[
-                {"text": ["Valid", "Name"], "conf": [95, 95]},  # good_field
-                {"text": ["not", "digits"], "conf": [95, 95]},  # bad_field
-            ]
+            side_effect=ocr_responses(
+                ("string", {"text": ["Valid", "Name"], "conf": [95, 95]}),  # good_field
+                ("string", {"text": ["not", "digits"], "conf": [95, 95]}),  # bad_field
+            )
         ),
     )
 

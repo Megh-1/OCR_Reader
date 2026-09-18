@@ -17,7 +17,13 @@ import pytesseract
 from PIL import Image
 from pytesseract import Output
 
-from app.config import DEFAULT_PSM, FIELD_CROP_MARGIN_PX, PSM_BY_DATA_TYPE, RULE_ARTIFACT_CHARS
+from app.config import (
+    DEFAULT_PSM,
+    FIELD_CROP_MARGIN_PX,
+    PSM_BY_DATA_TYPE,
+    PSM_CANDIDATES,
+    RULE_ARTIFACT_CHARS,
+)
 from app.modules.template_store import get_template_version
 from app.schemas.template import TemplateField, TemplateOut
 from app.utils.geometry import clamped_crop_box
@@ -69,20 +75,59 @@ def _trim_rule_artifacts(text: str) -> str:
     return text.strip(RULE_ARTIFACT_CHARS + " ")
 
 
+def _read_at_psm(crop: Image.Image, psm: int) -> tuple[str, list[float], float]:
+    data = pytesseract.image_to_data(crop, output_type=Output.DICT, config=f"--psm {psm}")
+    words, confidences = _words_and_confidences(data)
+    return _trim_rule_artifacts(" ".join(words)), confidences, _aggregate_confidence(confidences)
+
+
 def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionResult:
+    """
+    Reads one field, trying several page-segmentation modes and keeping
+    whichever Tesseract was most confident about.
+
+    A single fixed PSM per data type - the reference doc's suggestion, and
+    what this did originally - assumes one segmentation suits every field of a
+    given type. Measured on a real air waybill it does not, and the mode that
+    wins varies field by field with no property of the field predicting it:
+    the consignee reads exactly at PSM 6 but becomes "VTS CLIMA LLG" at 7,
+    while the flight number reads exactly at 4 and becomes "EKO565/27FEB" at
+    6. Since Tesseract reports its own confidence, the mode can be chosen per
+    field from evidence instead of guessed in advance from the schema.
+
+    Empty reads are discarded before comparing, because an empty result can
+    carry a high confidence drawn from non-text layout elements - PSM 4
+    returned nothing at confidence 95 on a field two other modes read
+    perfectly.
+
+    The template's declared PSM is tried first and wins ties, so a field whose
+    declared mode is already right behaves exactly as before.
+    """
     box = clamped_crop_box(field.bbox, image.width, image.height, FIELD_CROP_MARGIN_PX)
     crop = image.crop(box)
 
-    psm = PSM_BY_DATA_TYPE.get(field.data_type, DEFAULT_PSM)
-    data = pytesseract.image_to_data(crop, output_type=Output.DICT, config=f"--psm {psm}")
+    declared_psm = PSM_BY_DATA_TYPE.get(field.data_type, DEFAULT_PSM)
+    candidate_modes = [declared_psm] + [psm for psm in PSM_CANDIDATES if psm != declared_psm]
 
-    words, confidences = _words_and_confidences(data)
+    best: tuple[str, list[float], float, int] | None = None
+    for psm in candidate_modes:
+        text, confidences, aggregate = _read_at_psm(crop, psm)
+        if not text:
+            continue
+        if best is None or aggregate > best[2]:
+            best = (text, confidences, aggregate, psm)
 
+    if best is None:  # every mode came back empty - a genuinely blank region
+        return FieldExtractionResult(
+            field_id=field.id, raw_text="", word_confidences=[], aggregate_confidence=0.0, psm_used=declared_psm
+        )
+
+    text, confidences, aggregate, psm = best
     return FieldExtractionResult(
         field_id=field.id,
-        raw_text=_trim_rule_artifacts(" ".join(words)),
+        raw_text=text,
         word_confidences=confidences,
-        aggregate_confidence=_aggregate_confidence(confidences),
+        aggregate_confidence=aggregate,
         psm_used=psm,
     )
 

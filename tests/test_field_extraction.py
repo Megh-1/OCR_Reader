@@ -20,6 +20,21 @@ def make_field(bbox, data_type="string", field_id="f1") -> TemplateField:
     )
 
 
+def ocr_responses(*per_field):
+    """Repeats each field's mocked OCR response once per segmentation mode
+    extract_field will try, since it now reads each crop at several and keeps
+    the most confident. Derived from config rather than hardcoded, so adding
+    a candidate mode does not silently break these tests."""
+    from app.config import DEFAULT_PSM, PSM_BY_DATA_TYPE, PSM_CANDIDATES
+
+    out = []
+    for data_type, response in per_field:
+        declared = PSM_BY_DATA_TYPE.get(data_type, DEFAULT_PSM)
+        modes = [declared] + [p for p in PSM_CANDIDATES if p != declared]
+        out.extend([response] * len(modes))
+    return out
+
+
 def test_normal_field_crop_coordinates_are_exact(monkeypatch):
     image = Image.new("RGB", (1000, 800), color=255)
     image.crop = Mock(wraps=image.crop)
@@ -70,7 +85,7 @@ def test_string_field_uses_psm_7(monkeypatch):
     result = field_extraction.extract_field(image, field)
 
     assert result.psm_used == 7
-    assert mock_ocr.call_args.kwargs["config"] == "--psm 7"
+    assert mock_ocr.call_args_list[0].kwargs["config"] == "--psm 7"  # declared mode tried first
 
 
 def test_enum_field_uses_psm_8(monkeypatch):
@@ -82,7 +97,7 @@ def test_enum_field_uses_psm_8(monkeypatch):
     result = field_extraction.extract_field(image, field)
 
     assert result.psm_used == 8
-    assert mock_ocr.call_args.kwargs["config"] == "--psm 8"
+    assert mock_ocr.call_args_list[0].kwargs["config"] == "--psm 8"  # declared mode tried first
 
 
 def test_unrecognized_data_type_falls_back_to_psm_6_not_7(monkeypatch):
@@ -95,7 +110,7 @@ def test_unrecognized_data_type_falls_back_to_psm_6_not_7(monkeypatch):
 
     assert result.psm_used == 6
     assert result.psm_used != 7  # proves this is the real fallback branch, not an accidental default
-    assert mock_ocr.call_args.kwargs["config"] == "--psm 6"
+    assert mock_ocr.call_args_list[0].kwargs["config"] == "--psm 6"  # declared mode tried first
 
 
 def test_confidence_aggregation_excludes_negative_one_entries():
@@ -143,10 +158,10 @@ def test_full_run_returns_one_result_per_field_keyed_correctly(client, unique_do
         field_extraction.pytesseract,
         "image_to_data",
         Mock(
-            side_effect=[
-                {"text": ["John", "Doe"], "conf": [90, 92]},
-                {"text": ["O+"], "conf": [88]},
-            ]
+            side_effect=ocr_responses(
+                ("string", {"text": ["John", "Doe"], "conf": [90, 92]}),
+                ("enum", {"text": ["O+"], "conf": [88]}),
+            )
         ),
     )
 

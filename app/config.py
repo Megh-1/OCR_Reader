@@ -163,6 +163,14 @@ PSM_BY_DATA_TYPE: dict[str, int] = {
 }
 DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mode
 
+# Segmentation modes tried per field, best-confidence wins (see extract_field).
+# 4 (variable-size columns), 6 (uniform block) and 7 (single line) are the
+# three that actually won on a real document. The sparse-text modes 11 and 12
+# are deliberately absent: they return confident FRAGMENTS - on the shipper
+# field, "R SYSTEMS PVT LT" at confidence 90 against the full correct string
+# at 89 - so including them would let a truncation outrank a complete read.
+PSM_CANDIDATES: tuple[int, ...] = (4, 6, 7)
+
 # Optional absolute path to the tesseract binary, for environments where
 # it's installed but not reliably on PATH (seen on this machine: a
 # winget-installed Tesseract that never added itself to PATH). Leave unset

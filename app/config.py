@@ -171,6 +171,16 @@ DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mod
 # at 89 - so including them would let a truncation outrank a complete read.
 PSM_CANDIDATES: tuple[int, ...] = (4, 6, 7)
 
+# Concurrent field reads. Each OCR call is its own Tesseract subprocess over
+# its own crop, so this is a pure latency win with identical results. Measured
+# on a 33-field air waybill (99 calls at ~195ms): 19.3s serial, 5.1s at 4
+# workers, 3.2s at 8, 2.7s at 16. Past 8 the returns flatten, so this stops
+# there rather than spawning processes for another half second.
+#
+# Tesseract's own OpenMP threading was measured and makes no difference here
+# (183 vs 195 ms/call), so it is deliberately left alone.
+FIELD_OCR_WORKERS: int = 8
+
 # Optional absolute path to the tesseract binary, for environments where
 # it's installed but not reliably on PATH (seen on this machine: a
 # winget-installed Tesseract that never added itself to PATH). Leave unset

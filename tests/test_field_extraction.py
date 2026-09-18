@@ -173,3 +173,43 @@ def test_full_run_returns_one_result_per_field_keyed_correctly(client, unique_do
     assert results["name"].aggregate_confidence == 91.0
     assert results["code"].raw_text == "O+"
     assert results["code"].psm_used == 8
+
+
+def test_many_fields_extract_concurrently_without_racing_on_image_decode(client, unique_doc_type, monkeypatch):
+    """Regression guard for a real crash, not a hypothetical one.
+
+    extract_fields reads fields on a thread pool. PIL decodes lazily, so the
+    first crop() is what actually loads the image - and with several workers
+    entering load() at once on the same freshly-opened object, PIL died on an
+    internal assertion. Enough fields here to guarantee the pool runs more
+    than one worker concurrently.
+    """
+    fields = [
+        {
+            "id": f"field_{i}", "label": f"Field {i}",
+            "bbox": [0.05, 0.02 + i * 0.03, 0.45, 0.04 + i * 0.03],
+            "data_type": "string", "validation_regex": None, "confidence_floor": 0.75,
+        }
+        for i in range(20)
+    ]
+    resp = client.post(
+        "/templates",
+        json={
+            "template_id": unique_doc_type,
+            "anchors": [{"text": "X", "bbox": [0.0, 0.0, 0.1, 0.1], "match_threshold": 0.85}],
+            "fields": fields,
+        },
+    )
+    assert resp.status_code == 201
+    version = resp.json()["version"]
+
+    monkeypatch.setattr(
+        field_extraction.pytesseract,
+        "image_to_data",
+        Mock(return_value={"text": ["VALUE"], "conf": [90]}),
+    )
+
+    results = field_extraction.extract_fields(unique_doc_type, version, blank_image_bytes((400, 900)))
+
+    assert set(results.keys()) == {f"field_{i}" for i in range(20)}
+    assert all(r.raw_text == "VALUE" for r in results.values())

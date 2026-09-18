@@ -56,6 +56,15 @@ ADAPTIVE_THRESH_C: int = 11
 # theoretically-derived constant.
 ANCHOR_CROP_MARGIN_PX: int = 40
 
+# Module 8 — Output Compiler
+
+# A stored page render only has to be legible to a human in the review
+# canvas (a few hundred px wide), not to OCR - full-resolution pages run to
+# tens of megabytes each. Every bbox is a relative percentage, so a
+# downscaled render addresses exactly the same regions.
+REVIEW_IMAGE_MAX_WIDTH: int = 1400
+REVIEW_IMAGE_JPEG_QUALITY: int = 82
+
 # Module 6 — Field Extraction
 
 FIELD_CROP_MARGIN_PX: int = 8  # small fixed margin absorbing sub-pixel jitter, per the reference doc

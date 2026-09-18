@@ -56,7 +56,22 @@ class SkewEstimate:
 
 @dataclass
 class ProcessedImage:
-    image_bytes: bytes
+    """
+    Two renderings of the same page, at identical dimensions so one template's
+    relative bboxes map to the same region in either.
+
+    They exist separately because anchor verification and field extraction
+    want opposite things from an image, which measurement on a real photo made
+    unavoidable: binarization is the only reason header text in a design-heavy
+    title band is detectable at all (grayscale scored 0 on the anchor), but it
+    shreds the stroke detail character recognition depends on (two of three
+    fields misread, one at confidence 39 - both read exactly right, at
+    confidence 84-88, off the grayscale). Serving both from one image means
+    picking which module to break.
+    """
+
+    image_bytes: bytes  # binarized - Module 5 anchor verification
+    field_image_bytes: bytes  # grayscale, full stroke detail - Module 6 field extraction
     skew_angle_corrected: float
     osd_fallback_used: bool
     final_dpi: float
@@ -237,8 +252,14 @@ def preprocess_image(image_bytes: bytes, source_dpi: Optional[float] = None) -> 
     cleaned = denoise_and_enhance(rotated_gray)
     resized, final_dpi = normalize_resolution(cleaned, dpi)
 
+    # Same rotation, same scale factor, same source - so both renderings come
+    # out at identical dimensions and a template's relative bboxes address the
+    # same pixels in either one.
+    field_resized, _ = normalize_resolution(rotated_gray, dpi)
+
     return ProcessedImage(
         image_bytes=encode_image(resized),
+        field_image_bytes=encode_image(field_resized),
         skew_angle_corrected=skew.angle,
         osd_fallback_used=skew.used_osd_fallback,
         final_dpi=final_dpi,

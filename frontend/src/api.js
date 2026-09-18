@@ -72,3 +72,14 @@ export function resolveNewTemplateNeeded(queueId, createdTemplateId) {
     body: JSON.stringify({ created_template_id: createdTemplateId }),
   });
 }
+
+/**
+ * Multipart, not JSON - no Content-Type header is set here on purpose, so
+ * the browser fills in the multipart boundary itself.
+ */
+export function processDocument(file, typeHint) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (typeHint) formData.append('type_hint', typeHint);
+  return requestJson('/documents/process', { method: 'POST', body: formData });
+}

@@ -15,10 +15,13 @@ here is not this module's job.
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
+from PIL import Image
 
+from app.config import REVIEW_IMAGE_JPEG_QUALITY, REVIEW_IMAGE_MAX_WIDTH
 from app.db import SessionLocal
 from app.models.extraction_result import ExtractionResultRecord
 from app.modules.validation import ValidationSummary
@@ -56,7 +59,7 @@ def compile_output(template_id: str, version: int, validation_summary: Validatio
     )
 
 
-def persist_result(compiled_result: CompiledResult) -> int:
+def persist_result(compiled_result: CompiledResult, page_image: bytes | None = None) -> int:
     """
     Inserts one log-entry row. Uses Pydantic's typed serialization
     (model_dump(mode="json")) rather than manually re-building the fields
@@ -65,6 +68,10 @@ def persist_result(compiled_result: CompiledResult) -> int:
     would store as a quoted string value rather than a real nested object;
     model_dump(mode="json") produces the equivalent JSON-safe Python dict
     that a JSONB column actually expects.
+
+    `page_image` is optional: callers that have the page this ran against
+    pass it so Module 9's reviewer can see the real document, but a result
+    is perfectly valid without one.
     """
     fields_json = compiled_result.model_dump(mode="json")["fields"]
 
@@ -75,11 +82,31 @@ def persist_result(compiled_result: CompiledResult) -> int:
             extracted_at=compiled_result.extracted_at,
             overall_status=compiled_result.overall_status,
             fields=fields_json,
+            page_image=page_image,
         )
         session.add(record)
         session.commit()
         session.refresh(record)
         return record.id
+
+
+def make_review_render(image_bytes: bytes, max_width: int = REVIEW_IMAGE_MAX_WIDTH) -> bytes:
+    """
+    Downscales a page to something sensible to store and serve for review.
+    Full-resolution pages run to tens of megabytes; the review canvas is a
+    few hundred pixels wide, and every stored bbox is a relative percentage,
+    so a smaller render addresses exactly the same regions.
+    """
+    image = Image.open(io.BytesIO(image_bytes))
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+    if image.width > max_width:
+        height = round(image.height * max_width / image.width)
+        image = image.resize((max_width, height), Image.LANCZOS)
+
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=REVIEW_IMAGE_JPEG_QUALITY)
+    return buffer.getvalue()
 
 
 def _record_to_compiled_result(record: ExtractionResultRecord) -> CompiledResult:
@@ -101,3 +128,15 @@ def get_result(result_id: int) -> CompiledResult:
     if record is None:
         raise HTTPException(status_code=404, detail=f"No result found for id {result_id}")
     return _record_to_compiled_result(record)
+
+
+@router.get("/results/{result_id}/image")
+def get_result_image(result_id: int) -> Response:
+    """The page this extraction ran against, for Module 9's review view."""
+    with SessionLocal() as session:
+        record = session.get(ExtractionResultRecord, result_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No result found for id {result_id}")
+    if record.page_image is None:
+        raise HTTPException(status_code=404, detail=f"Result {result_id} has no stored page image")
+    return Response(content=record.page_image, media_type="image/jpeg")

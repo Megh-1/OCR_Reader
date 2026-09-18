@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from app.modules.field_extraction import extract_fields
 from app.modules.ingestion import IngestionError, ingest_file
-from app.modules.output_compiler import compile_output, persist_result
+from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import preprocess_image
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed
 from app.modules.template_store import get_template_version
@@ -56,11 +56,17 @@ def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) 
     # get_template_version, not get_latest_template - extract_fields/validate_fields
     # both need the EXACT version Module 5 just confirmed against.
     template = get_template_version(identification.template_id, identification.version)
-    extractions = extract_fields(identification.template_id, identification.version, processed.image_bytes)
+    # field_image_bytes, not image_bytes: the binarized rendering that makes
+    # anchors detectable destroys the stroke detail character recognition
+    # needs (see ProcessedImage).
+    extractions = extract_fields(identification.template_id, identification.version, processed.field_image_bytes)
     summary = validate_fields(template, extractions)
 
     compiled = compile_output(identification.template_id, identification.version, summary)
-    result_id = persist_result(compiled)
+    # Store the grayscale rendering, not the binarized one - this is what a
+    # human reviewer will look at, and it's also the image the field values
+    # under review were actually read from.
+    result_id = persist_result(compiled, page_image=make_review_render(processed.field_image_bytes))
 
     field_review_ids = [
         enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons)

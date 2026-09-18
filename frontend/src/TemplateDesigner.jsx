@@ -37,8 +37,31 @@ export default function TemplateDesigner() {
   const [boxes, setBoxes] = useState([]);
   const [templateId, setTemplateId] = useState('bits_goa_id_card');
   const [submitState, setSubmitState] = useState({ status: 'idle' });
+  const [imageUrl, setImageUrl] = useState(SAMPLE_IMAGE_URL);
+  const uploadedUrlRef = useRef(null); // tracks the current blob: URL so it can be revoked, not the sample URL
 
-  const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(SAMPLE_IMAGE_URL, CANVAS_W, CANVAS_H);
+  const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(imageUrl, CANVAS_W, CANVAS_H);
+
+  // A previously-drawn box's bbox is relative to the OLD image's pixel
+  // dimensions - carrying it over onto a new image would silently mismap it
+  // to the wrong region. Swapping documents always starts the box list over.
+  function handleImageUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (uploadedUrlRef.current) URL.revokeObjectURL(uploadedUrlRef.current);
+    const url = URL.createObjectURL(file);
+    uploadedUrlRef.current = url;
+    setImageUrl(url);
+    rectsRef.current = new Map();
+    setBoxes([]);
+    setSubmitState({ status: 'idle' });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (uploadedUrlRef.current) URL.revokeObjectURL(uploadedUrlRef.current);
+    };
+  }, []);
 
   // Updates the ref synchronously, in the same tick as the click that
   // changes it - the event handlers below read drawModeRef.current, and a
@@ -213,6 +236,11 @@ export default function TemplateDesigner() {
       </div>
 
       <div className="side-panel">
+        <label className="template-id-label">
+          Document image
+          <input type="file" accept="image/*" onChange={handleImageUpload} />
+        </label>
+
         <label className="template-id-label">
           Template ID
           <input

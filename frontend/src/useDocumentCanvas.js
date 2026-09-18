@@ -16,6 +16,7 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
   const fabricCanvasRef = useRef(null);
   const imageRef = useRef(null);
   const [imageReady, setImageReady] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     const canvas = new Canvas(canvasElRef.current, {
@@ -26,26 +27,34 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
     });
     fabricCanvasRef.current = canvas;
     setImageReady(false);
+    setImageFailed(false);
 
     let cancelled = false;
-    FabricImage.fromURL(imageUrl).then((img) => {
-      if (cancelled) return;
-      const fit = computeContainFit(img.width, img.height, canvasW, canvasH);
-      img.set({
-        left: fit.left,
-        top: fit.top,
-        scaleX: fit.scale,
-        scaleY: fit.scale,
-        originX: 'left',
-        originY: 'top',
-        selectable: false,
-        evented: false,
+    FabricImage.fromURL(imageUrl)
+      .then((img) => {
+        if (cancelled) return;
+        const fit = computeContainFit(img.width, img.height, canvasW, canvasH);
+        img.set({
+          left: fit.left,
+          top: fit.top,
+          scaleX: fit.scale,
+          scaleY: fit.scale,
+          originX: 'left',
+          originY: 'top',
+          selectable: false,
+          evented: false,
+        });
+        canvas.add(img); // added first -> renders behind anything drawn after it
+        imageRef.current = img;
+        canvas.renderAll();
+        setImageReady(true);
+      })
+      // A missing or unreadable image is a normal case here (a result stored
+      // before page images were persisted), not a crash - callers decide
+      // whether to fall back to another URL or just show nothing.
+      .catch(() => {
+        if (!cancelled) setImageFailed(true);
       });
-      canvas.add(img); // added first -> renders behind anything drawn after it
-      imageRef.current = img;
-      canvas.renderAll();
-      setImageReady(true);
-    });
 
     return () => {
       cancelled = true;
@@ -53,5 +62,5 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
     };
   }, [imageUrl, canvasW, canvasH]);
 
-  return { canvasElRef, fabricCanvasRef, imageRef, imageReady };
+  return { canvasElRef, fabricCanvasRef, imageRef, imageReady, imageFailed };
 }

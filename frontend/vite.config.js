@@ -11,6 +11,7 @@ export default defineConfig({
       '/templates': 'http://localhost:8000',
       '/review': 'http://localhost:8000',
       '/results': 'http://localhost:8000',
+      '/documents': 'http://localhost:8000',
     },
   },
 })

@@ -14,12 +14,11 @@ import {
 
 const CANVAS_W = 700;
 const CANVAS_H = 560;
-// Stand-in: nothing in this pipeline persists the original scanned image
-// per extraction result yet (Module 8 only stores extracted values), so
-// there's no real per-result image to fetch. This reuses Module 3's sample
-// document so the highlight-box geometry is genuinely demonstrable; wiring
-// a real stored-image reference is a backend change outside this task.
-const SAMPLE_IMAGE_URL = '/sample-document.png';
+// Module 8 stores a review-sized render of the page each extraction ran
+// against, so the reviewer sees the actual document. Results written before
+// that column existed have no image and fall back to the sample.
+const FALLBACK_IMAGE_URL = '/sample-document.png';
+const resultImageUrl = (resultId) => `/results/${resultId}/image`;
 
 const TYPE_META = {
   field_review: { label: 'Field Review', color: '#14b8a6' },
@@ -151,8 +150,17 @@ function FieldReviewDetail({ entry, onResolved }) {
   const [bboxState, setBboxState] = useState({ status: 'loading' });
   const [submitState, setSubmitState] = useState({ status: 'idle' });
 
-  const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(SAMPLE_IMAGE_URL, CANVAS_W, CANVAS_H);
+  const [imageUrl, setImageUrl] = useState(() => resultImageUrl(payload.extraction_result_id));
+  const { canvasElRef, fabricCanvasRef, imageRef, imageReady, imageFailed } = useDocumentCanvas(
+    imageUrl,
+    CANVAS_W,
+    CANVAS_H,
+  );
   const highlightRectRef = useRef(null);
+
+  useEffect(() => {
+    if (imageFailed && imageUrl !== FALLBACK_IMAGE_URL) setImageUrl(FALLBACK_IMAGE_URL);
+  }, [imageFailed, imageUrl]);
 
   useEffect(() => {
     let cancelled = false;

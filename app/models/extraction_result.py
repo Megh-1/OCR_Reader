@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String
+from typing import Optional
+
+from sqlalchemy import DateTime, Integer, LargeBinary, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,3 +25,7 @@ class ExtractionResultRecord(Base):
     extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     overall_status: Mapped[str] = mapped_column(String, nullable=False)
     fields: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    # A review-sized JPEG render of the page this ran against, so Module 9's
+    # reviewer sees the actual document. Nullable - rows predating this
+    # column, and any caller that doesn't supply one, simply have no preview.
+    page_image: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)

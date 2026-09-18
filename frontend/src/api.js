@@ -45,6 +45,14 @@ export function createTemplate(payload) {
   });
 }
 
+export function listTemplates() {
+  return requestJson('/templates');
+}
+
+export function getTemplate(templateId) {
+  return requestJson(`/templates/${encodeURIComponent(templateId)}`);
+}
+
 export function getTemplateVersion(templateId, version) {
   return requestJson(`/templates/${encodeURIComponent(templateId)}/versions/${version}`);
 }

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Rect } from 'fabric';
-import { rectToRelativeBBox } from './geometry';
+import { rectToRelativeBBox, relativeBBoxToRect } from './geometry';
 import { useDocumentCanvas } from './useDocumentCanvas';
-import { ApiValidationError, createTemplate, formatErrorDetail } from './api';
+import { ApiValidationError, createTemplate, formatErrorDetail, getTemplate, listTemplates } from './api';
 
 const CANVAS_W = 900;
 const CANVAS_H = 700;
@@ -38,6 +38,8 @@ export default function TemplateDesigner() {
   const [templateId, setTemplateId] = useState('bits_goa_id_card');
   const [submitState, setSubmitState] = useState({ status: 'idle' });
   const [imageUrl, setImageUrl] = useState(SAMPLE_IMAGE_URL);
+  const [knownTemplates, setKnownTemplates] = useState([]);
+  const [loadState, setLoadState] = useState({ status: 'idle' });
   const uploadedUrlRef = useRef(null); // tracks the current blob: URL so it can be revoked, not the sample URL
 
   const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(imageUrl, CANVAS_W, CANVAS_H);
@@ -62,6 +64,78 @@ export default function TemplateDesigner() {
       if (uploadedUrlRef.current) URL.revokeObjectURL(uploadedUrlRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    listTemplates()
+      .then((ids) => setKnownTemplates(ids.sort()))
+      .catch(() => setKnownTemplates([]));
+  }, []);
+
+  /**
+   * Draws an existing template's saved boxes onto the current document image.
+   *
+   * Without this the designer could only ever create - a template saved
+   * earlier was invisible here, so the page always opened on its placeholder
+   * sample no matter what had already been authored. Saving after loading
+   * writes a NEW version (templates are append-only), which is how an
+   * existing document type gets remapped.
+   *
+   * The boxes are drawn against whichever image is currently loaded, since a
+   * template stores percentages and not the document it was drawn on. Load
+   * the matching document first or the boxes will sit over the wrong artwork.
+   */
+  async function handleLoadTemplate(id) {
+    if (!id) return;
+    const canvas = fabricCanvasRef.current;
+    const image = imageRef.current;
+    if (!canvas || !image) return;
+
+    setLoadState({ status: 'loading' });
+    try {
+      const template = await getTemplate(id);
+
+      for (const rect of rectsRef.current.values()) canvas.remove(rect);
+      rectsRef.current = new Map();
+
+      const loaded = [];
+      const place = (bbox, style) => {
+        const box = relativeBBoxToRect(bbox, image);
+        const rect = new Rect({ ...box, originX: 'left', originY: 'top', strokeWidth: 2, ...style });
+        canvas.add(rect);
+        const boxId = crypto.randomUUID();
+        rectsRef.current.set(boxId, rect);
+        return boxId;
+      };
+
+      for (const anchor of template.anchors) {
+        loaded.push({
+          id: place(anchor.bbox, ANCHOR_STYLE),
+          type: 'anchor',
+          text: anchor.text,
+          matchThreshold: anchor.match_threshold,
+        });
+      }
+      for (const field of template.fields) {
+        loaded.push({
+          id: place(field.bbox, FIELD_STYLE),
+          type: 'field',
+          fieldId: field.id,
+          label: field.label,
+          dataType: field.data_type,
+          validationRegex: field.validation_regex ?? '',
+          confidenceFloor: field.confidence_floor,
+        });
+      }
+
+      canvas.requestRenderAll();
+      setBoxes(loaded);
+      setTemplateId(template.template_id);
+      setLoadState({ status: 'loaded', version: template.version, count: loaded.length });
+      setSubmitState({ status: 'idle' });
+    } catch (err) {
+      setLoadState({ status: 'error', message: String(err) });
+    }
+  }
 
   // Updates the ref synchronously, in the same tick as the click that
   // changes it - the event handlers below read drawModeRef.current, and a
@@ -236,6 +310,28 @@ export default function TemplateDesigner() {
       </div>
 
       <div className="side-panel">
+        <label className="template-id-label">
+          Load an existing template
+          <select
+            value=""
+            onChange={(e) => handleLoadTemplate(e.target.value)}
+            disabled={loadState.status === 'loading'}
+          >
+            <option value="">Start a new template…</option>
+            {knownTemplates.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+        </label>
+        {loadState.status === 'loaded' && (
+          <p className="hint">
+            Loaded v{loadState.version} with {loadState.count} box(es). Saving writes a new version.
+          </p>
+        )}
+        {loadState.status === 'error' && <p className="hint error-text">Couldn't load: {loadState.message}</p>}
+
         <label className="template-id-label">
           Document image
           <input type="file" accept="image/*" onChange={handleImageUpload} />

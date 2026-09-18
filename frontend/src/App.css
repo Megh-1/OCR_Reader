@@ -22,12 +22,25 @@ h1 {
 
 .designer {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   align-items: flex-start;
 }
 
+/* Must be allowed to shrink and to wrap. The canvas is a fixed 900px element,
+   so a non-shrinking row pushed the side panel - which holds the image
+   upload, the template ID and Save - clean off the right edge of any window
+   narrower than about 1300px, with no scrollbar to reveal it. */
 .canvas-pane {
-  flex: 0 0 auto;
+  flex: 1 1 520px;
+  min-width: 0;
+  /* Fabric wraps the canvas in its own fixed-size container with inline
+     styles, so the drawing surface cannot be shrunk by CSS - and scaling it
+     would desynchronise Fabric's pointer coordinates from the pixels, making
+     every box land somewhere other than where it was drawn. So the canvas
+     keeps its true size and scrolls inside this pane instead, which also
+     stops it pushing the side panel off the page. */
+  overflow-x: auto;
 }
 
 .toolbar {
@@ -68,7 +81,7 @@ canvas {
 
 .side-panel {
   flex: 1 1 320px;
-  min-width: 300px;
+  min-width: min(300px, 100%);
   max-width: 380px;
   display: flex;
   flex-direction: column;
@@ -221,6 +234,7 @@ canvas {
 
 .process-document {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   align-items: flex-start;
 }

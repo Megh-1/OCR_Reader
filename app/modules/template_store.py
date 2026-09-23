@@ -7,10 +7,13 @@ system currently knows how to read" - modeled here as the read-side queries
 (current max version) that persistence needs. Anchor marking / the canvas UI
 is not part of this file.
 
-Write-once, by construction: the only public write function is
-create_template_version(), which always INSERTs a new row. There is no
-update/delete function anywhere in this module - past extractions stay
-reproducible against the exact template version that produced them.
+Write-once, by construction: create_template_version() always INSERTs a new
+row, and nothing here edits or deletes template content - past extractions
+stay reproducible against the exact template version that produced them.
+
+The one exception is set_template_archived(), which flips a lifecycle flag on
+the row and never touches `config`. It exists because "append-only" rules out
+deleting a retired template but not retiring it.
 """
 
 from __future__ import annotations
@@ -119,10 +122,41 @@ def get_template_version(doc_type: str, version: int) -> Optional[TemplateOut]:
 
 
 def list_known_doc_types() -> list[str]:
-    """Every distinct doc_type currently in the table - one entry each,
-    regardless of how many versions each one has saved."""
+    """Every doc_type currently in use - one entry each, regardless of how
+    many versions it has saved. This is what Module 5 scans when no type_hint
+    is given, so a retired (archived) doc_type must not appear here: every
+    template in the scan costs anchor OCR and is another chance of a spurious
+    match.
+
+    A doc_type is archived when its LATEST version is, so saving a new
+    version un-archives it. Archived versions stay reachable through
+    get_template_version, which past extractions depend on."""
     with SessionLocal() as session:
-        return list(session.execute(select(TemplateRecord.doc_type).distinct()).scalars().all())
+        latest_per_type = session.execute(
+            select(TemplateRecord.doc_type, TemplateRecord.is_archived)
+            .distinct(TemplateRecord.doc_type)
+            .order_by(TemplateRecord.doc_type, TemplateRecord.version.desc())
+        ).all()
+        return [doc_type for doc_type, is_archived in latest_per_type if not is_archived]
+
+
+def set_template_archived(doc_type: str, archived: bool) -> int:
+    """Archives (or restores) every version of `doc_type`. Returns the number
+    of rows changed.
+
+    Touches only the is_archived flag - never `config` - so the append-only
+    guarantee about template content still holds. Note that a `type_hint`
+    naming an archived type still resolves: archiving removes it from the
+    no-hint scan, it does not make the template unreadable."""
+    with SessionLocal() as session:
+        rows = session.execute(select(TemplateRecord).where(TemplateRecord.doc_type == doc_type)).scalars().all()
+        changed = 0
+        for row in rows:
+            if row.is_archived != archived:
+                row.is_archived = archived
+                changed += 1
+        session.commit()
+        return changed
 
 
 @router.get("/templates", response_model=list[str])

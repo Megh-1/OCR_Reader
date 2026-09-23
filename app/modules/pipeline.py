@@ -18,12 +18,13 @@ from pydantic import BaseModel
 from app.modules.field_extraction import extract_fields
 from app.modules.ingestion import IngestionError, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
-from app.modules.preprocessing import preprocess_image
+from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
 from app.modules.validation import validate_fields
 from app.schemas.extraction_result import CompiledResult
+from app.schemas.template import TemplateOut
 
 router = APIRouter()
 
@@ -44,6 +45,26 @@ class ProcessDocumentResponse(BaseModel):
     pages: list[PageResult]
 
 
+def preprocess_for_template(page_bytes: bytes, template: TemplateOut, generic: ProcessedImage) -> ProcessedImage:
+    """
+    Pass 2 of preprocessing: now that the type is known, redo it with this
+    document type's own parameters. Anchor verification only needed the page
+    to be findable and legible, which the generic pass 1 delivers; field
+    extraction needs the page's true proportions (so percentage bboxes land on
+    the right cells) and, on a grid form, its printed rules erased. Both are
+    per-document-type facts pass 1 could not have known.
+
+    Returns `generic` unchanged when the template asks for nothing, so a
+    template without hints costs no second pass. Public because
+    scripts/evaluate_accuracy.py must measure exactly this path - a copy of
+    it there would drift from what actually ships.
+    """
+    hints = template.hints
+    if hints.page_aspect_ratio is None and not hints.ruled_form:
+        return generic
+    return preprocess_image(page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form)
+
+
 def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) -> PageResult:
     # Pass 1 - generic. Module 2 has no idea what this document is yet, which
     # is the whole reason a second pass exists.
@@ -59,17 +80,7 @@ def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) 
     # both need the EXACT version Module 5 just confirmed against.
     template = get_template_version(identification.template_id, identification.version)
 
-    # Pass 2 - now that the type is known, redo preprocessing with this
-    # document type's own parameters. Anchor verification only needed the page
-    # to be findable and legible, which pass 1 delivers; field extraction needs
-    # the page's true proportions (so percentage bboxes land on the right
-    # cells) and, on a grid form, its printed rules erased. Both are
-    # per-document-type facts that pass 1 could not have known.
-    hints = template.hints
-    if hints.page_aspect_ratio is not None or hints.ruled_form:
-        processed = preprocess_image(
-            page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form
-        )
+    processed = preprocess_for_template(page_bytes, template, processed)
 
     # field_image_bytes, not image_bytes: the binarized rendering that makes
     # anchors detectable destroys the stroke detail character recognition

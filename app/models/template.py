@@ -1,4 +1,4 @@
-from sqlalchemy import Date, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, Integer, String, UniqueConstraint, false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -23,3 +23,7 @@ class TemplateRecord(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     config: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[Date] = mapped_column(Date, nullable=False)
+    # Lifecycle flag, not template content: `config` is never touched by
+    # archiving. A doc_type counts as archived when its LATEST version is, so
+    # saving a new version brings a retired type back into use.
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())

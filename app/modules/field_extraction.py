@@ -61,6 +61,20 @@ def _aggregate_confidence(confidences: list[float]) -> float:
     return sum(confidences) / len(confidences) if confidences else 0.0
 
 
+# Opening quotation marks and the closer that pairs with each. A straight quote
+# is its own closer, so it is judged by parity instead.
+_QUOTE_OPENERS = {"\u201c": "\u201d", "\u2018": "\u2019", '"': '"'}
+
+
+def _leading_quote_is_unmatched(text: str) -> bool:
+    head = text[0]
+    if head not in _QUOTE_OPENERS:
+        return False
+    if head == '"':
+        return text.count('"') % 2 == 1
+    return text.count(head) > text.count(_QUOTE_OPENERS[head])
+
+
 def _trim_rule_artifacts(text: str) -> str:
     """
     Strips leftover form-rule marks from the ENDS of a read value.
@@ -78,20 +92,29 @@ def _trim_rule_artifacts(text: str) -> str:
     introduced is not the same as guessing at content, and a genuine OCR error
     still reaches Module 7 intact and still gets flagged.
 
-    Parentheses are the exception to "never legitimately at an edge":
-    "BANGALORE (BLR)" ends in one. So they are judged by balance, not by
-    character - a closing paren is an artifact only when the value has more
-    of them than openers, and an opening paren only when it has more openers
-    than closers. A closer at the very start or an opener at the very end can
-    never have a partner, so those always go. A value wrapped in a matched
-    pair survives, which also means a cell whose left and right borders both
-    read as parens would too; that ambiguity is inherent, and a value
-    validator is what catches it.
+    Parentheses and quotation marks are the exceptions to "never legitimately
+    at an edge": "BANGALORE (BLR)" ends in one, and "ACME" TRADERS begins with
+    one. So they are judged by balance, not by character. A closing paren is an
+    artifact only when the value has more of them than openers, an opening one
+    only when it has more openers than closers, and a closer at the very start
+    or an opener at the very end can never have a partner. A leading quote is an
+    artifact only when nothing closes it - measured on the synthetic corpus,
+    Tesseract reads a cell's left border as an opening double or single quote
+    (U+201C, U+2018, or a straight quote; raw bytes e2 80 9c / e2 80 98, valid
+    UTF-8, not a decoding fault) in 11 of 19 files, and that border fragment is
+    never paired. A value wrapped in a matched pair survives, which also means a
+    cell whose left and right borders both read as quotes would too; that
+    ambiguity is inherent, and a value validator is what catches it.
     """
     text = text.strip()
     while text:
         head, tail = text[0], text[-1]
-        if head in RULE_ARTIFACT_CHARS or head == ")" or (head == "(" and text.count("(") > text.count(")")):
+        if (
+            head in RULE_ARTIFACT_CHARS
+            or head == ")"
+            or (head == "(" and text.count("(") > text.count(")"))
+            or _leading_quote_is_unmatched(text)
+        ):
             text = text[1:].lstrip()
         elif tail in RULE_ARTIFACT_CHARS or tail == "(" or (tail == ")" and text.count(")") > text.count("(")):
             text = text[:-1].rstrip()

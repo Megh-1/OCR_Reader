@@ -70,3 +70,60 @@ def test_a_value_ending_in_a_paren_survives_a_full_field_read(monkeypatch):
     result = field_extraction.extract_field(Image.new("RGB", (400, 200), color=255), f)
 
     assert result.raw_text == "BANGALORE (BLR)"
+
+
+# --- opening quotes: Tesseract reads a cell's LEFT BORDER as one ----------------
+# Measured on the synthetic corpus: a curly or straight opening quote leads a raw
+# read in 11 (U+201C), 8 (") and 6 (U+2018) of 19 files. The bytes Tesseract emits
+# are valid UTF-8 (e2 80 9c / e2 80 98), so this is the model, not a decoding fault.
+# Written with escapes, not literals, so the file's encoding can't matter.
+
+LDQ, RDQ, LSQ, RSQ, EM = "“", "”", "‘", "’", "—"
+
+
+@pytest.mark.parametrize(
+    "read, expected",
+    [
+        (f"{LDQ}VTS CLIMA LLC", "VTS CLIMA LLC"),  # the real consignee read
+        (f"{LSQ}VTS TF AIR SYSTEMS PVT LTD}}", "VTS TF AIR SYSTEMS PVT LTD"),  # real shipper read, right border too
+        ('"14/03/0578', "14/03/0578"),  # a straight quote, real agent code read
+        (f"{EM}{LDQ} VTS CLIMA LLC", "VTS CLIMA LLC"),  # two border marks in a row
+        (f"{LDQ}{LSQ}VTS CLIMA LLC", "VTS CLIMA LLC"),
+    ],
+)
+def test_an_unmatched_opening_quote_from_a_cell_border_is_trimmed(read, expected):
+    assert _trim_rule_artifacts(read) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        '"ACME" TRADERS',  # a matched pair is content, not a border
+        f"{LDQ}ACME{RDQ} TRADERS",
+        f"{LSQ}ACME{RSQ} TRADERS",
+        "O'BRIEN & SONS",  # an apostrophe inside a word is never at the edge
+        f"SHIPPER{RSQ}S NAME",
+    ],
+)
+def test_quotes_that_belong_to_the_value_are_left_alone(value):
+    assert _trim_rule_artifacts(value) == value
+
+
+def test_the_em_dash_is_a_border_artifact_at_either_edge():
+    assert _trim_rule_artifacts(f"{EM} VTS CLIMA LLC") == "VTS CLIMA LLC"
+    assert _trim_rule_artifacts(f"13752.00 {EM}") == "13752.00"
+
+
+def test_no_verified_field_value_is_changed_by_trimming():
+    """The safety net. Every ground-truth value for the air waybill and the ID
+    card must pass through the trim untouched - if a legitimate value ever loses a
+    character here, it would be silently corrupted before validation sees it."""
+    truth = [
+        "176-06067736", "EMIRATES", "VTS TF AIR SYSTEMS PVT LTD", "VTS CLIMA LLC", "TEAMGLOBAL LOGISTICS PVT LTD",
+        "14/03/0578", "BANGALORE (BLR)", "DUBAI", "DXB", "EK", "EK0565/27FEB", "INR", "PP", "NVD", "NVC",
+        "FREIGHT PREPAID", "1", "65", "Q", "170", "11050", "PARTS OF AIR CONDITIONING M/C.", "500.00", "2202.00",
+        "13752.00", "26-Feb-2025", "BANGALORE", "Megh Brijesh Shah", "2024A7PS0476G", "17-Oct-2006",
+        "HS CODE: 84159000", "INV: EX/KA/0057/24-25",
+    ]
+    for value in truth:
+        assert _trim_rule_artifacts(value) == value, value

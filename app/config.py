@@ -173,7 +173,9 @@ REVIEW_IMAGE_JPEG_QUALITY: int = 82
 # paren, and with no regex on that field it shipped unflagged. A paren is only
 # an artifact when it has no partner, so _trim_rule_artifacts judges them by
 # balance instead of by character.
-RULE_ARTIFACT_CHARS: str = r"|_~[]{}/\:;`^"
+# U+2014 (em dash) is here because Tesseract emits it for the same vertical stroke:
+# seen at the edge of raw reads in 3 of 19 synthetic-corpus files, never in a real value.
+RULE_ARTIFACT_CHARS: str = r"|_~[]{}/\:;`^" + "\u2014"
 
 # Zero, measured. The reference doc suggests a small margin to absorb
 # sub-pixel jitter, and that was right when template boxes were drawn loosely

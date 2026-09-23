@@ -133,7 +133,12 @@ AIR_WAYBILL = TemplateIn(
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "shipper_address", "label": "Shipper Address", "bbox": [0.098, 0.060, 0.520, 0.102],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.1013, 0.1395, 0.2117, 0.1581],
+        # Top edge 0.1425, not the 0.1395 the PDF text layer suggests: the printed label's descender
+        # ("g" of "Consignee's Name and Address", label ink down to y=0.1395 at 200 DPI) reached 2 rows
+        # into the box. The value's own ink starts at 0.1450, so 0.1425 is the middle of the gap. Measured by
+        # replaying cached crops from the 19 OCR-path synthetic files: 16/19 -> 19/19 exact (0.1410 and
+        # 0.1440 both give 18). The bottom edge is left alone - moving it as well dropped this to 10/19.
+        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.1013, 0.1425, 0.2117, 0.1581],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "consignee_address", "label": "Consignee Address", "bbox": [0.098, 0.150, 0.470, 0.204],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},

@@ -21,17 +21,22 @@ def make_field(bbox, data_type="string", field_id="f1") -> TemplateField:
 
 
 def ocr_responses(*per_field):
-    """Repeats each field's mocked OCR response once per segmentation mode
-    extract_field will try, since it now reads each crop at several and keeps
-    the most confident. Derived from config rather than hardcoded, so adding
-    a candidate mode does not silently break these tests."""
+    """Repeats each field's mocked OCR response once per read extract_field will
+    make of it, since it reads each crop at several segmentation modes and keeps
+    the most confident. Each entry is (data_type, response) or, for a field whose
+    validation_regex admits only digits - which earns one extra digit-whitelisted
+    read - (data_type, response, validation_regex). Derived from config and from
+    extract_field's own digit-only test rather than hardcoded, so adding a
+    candidate mode does not silently break these tests."""
     from app.config import DEFAULT_PSM, PSM_BY_DATA_TYPE, PSM_CANDIDATES
 
     out = []
-    for data_type, response in per_field:
+    for data_type, response, *regex in per_field:
         declared = PSM_BY_DATA_TYPE.get(data_type, DEFAULT_PSM)
-        modes = [declared] + [p for p in PSM_CANDIDATES if p != declared]
-        out.extend([response] * len(modes))
+        reads = len([declared] + [p for p in PSM_CANDIDATES if p != declared])
+        if regex and field_extraction._accepts_only_digits(regex[0]):
+            reads += 1
+        out.extend([response] * reads)
     return out
 
 

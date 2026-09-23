@@ -268,6 +268,29 @@ DEFAULT_PSM: int = 6  # Tesseract's general "assume a uniform block of text" mod
 # at 89 - so including them would let a truncation outrank a complete read.
 PSM_CANDIDATES: tuple[int, ...] = (4, 6, 7)
 
+# One extra, digit-whitelisted candidate for a field whose validation_regex can
+# match nothing BUT digits. Without it Tesseract reads a lone "1" as "{" in some
+# crops, "{" is a rule-fragment character, the edge trim removes it, and the
+# field comes back blank. Constrained to digits the engine has to decide between
+# a "1" and the other digits instead of reaching for punctuation.
+#
+# PROVISIONAL, measured on the 19 OCR-path files of the SYNTHETIC corpus (one
+# waybill, so one field - pieces_rcp - qualifies), replaying cached crops:
+#   plain modes (4/6/7)        1 read correctly on 16 of 19
+#   whitelist + PSM 7 (or 6/10) 18 of 19: rescues tight framing (conf 31) and
+#                               wide framing (conf 20), never disagreed with a
+#                               plain read that was already right
+#   whitelist + PSM 8 or 13    7 of 19 - it reads the "1" as "4" on 8 files, at
+#                               confidence 68-94 on 7 of them: a wrong value that
+#                               looks right, so those modes are deliberately not used
+# The rescued reads are low confidence and still fall under the field's floor, so
+# Module 7 still flags them; the gain is a correct value in front of the reviewer
+# rather than a blank one. Never applied to a field that can contain "." or "-"
+# (a whitelist would delete them), which is why applicability is read from the
+# regex rather than from the data type.
+DIGIT_WHITELIST: str = "0123456789"
+DIGIT_WHITELIST_PSM: int = 7
+
 # Concurrent field reads. Each OCR call is its own Tesseract subprocess over
 # its own crop, so this is a pure latency win with identical results. Measured
 # on a 33-field air waybill (99 calls at ~195ms): 19.3s serial, 5.1s at 4

@@ -11,6 +11,7 @@ to correspond to this image.
 from __future__ import annotations
 
 import io
+import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
@@ -20,6 +21,8 @@ from pytesseract import Output
 
 from app.config import (
     DEFAULT_PSM,
+    DIGIT_WHITELIST,
+    DIGIT_WHITELIST_PSM,
     FIELD_CROP_MARGIN_PX,
     FIELD_OCR_WORKERS,
     PSM_BY_DATA_TYPE,
@@ -123,8 +126,72 @@ def _trim_rule_artifacts(text: str) -> str:
     return text
 
 
-def _read_at_psm(crop: Image.Image, psm: int) -> tuple[str, list[float], float]:
-    data = pytesseract.image_to_data(crop, output_type=Output.DICT, config=f"--psm {psm}")
+def _accepts_only_digits(pattern: str | None) -> bool:
+    """
+    True when `pattern` can match nothing but the characters 0-9 (and matches
+    at least one character), so that restricting Tesseract to digits cannot
+    delete anything the field is allowed to contain.
+
+    Read from the parsed regex, not guessed from its text: "^\\d{1,4}$" and
+    "^[0-9]+$" qualify, "^[\\d.,]{1,10}$" (a weight) and "^\\d{3}-?\\d{8}$" (an
+    AWB number) do not. Anything the walk does not positively recognise counts
+    as "not digit-only", so a pattern it cannot read gets today's behaviour.
+    """
+    if not pattern:
+        return False
+    try:
+        from re import _constants as sre  # internal, but stable since 3.11; any failure means "no"
+
+        parsed = re._parser.parse(pattern)
+    except Exception:
+        return False
+
+    consumes = False
+
+    def digits_only(items) -> bool:
+        nonlocal consumes
+        for op, arg in items:
+            if op == sre.LITERAL:
+                consumes = True
+                if chr(arg) not in DIGIT_WHITELIST:
+                    return False
+            elif op == sre.IN:
+                consumes = True
+                for member, value in arg:
+                    if member == sre.LITERAL:
+                        if chr(value) not in DIGIT_WHITELIST:
+                            return False
+                    elif member == sre.RANGE:
+                        if not all(chr(code) in DIGIT_WHITELIST for code in range(value[0], value[1] + 1)):
+                            return False
+                    elif member == sre.CATEGORY:
+                        if value != sre.CATEGORY_DIGIT:
+                            return False
+                    else:  # NEGATE, or anything unrecognised
+                        return False
+            elif op in (sre.MAX_REPEAT, sre.MIN_REPEAT):
+                if not digits_only(arg[2]):
+                    return False
+            elif op == sre.SUBPATTERN:
+                if not digits_only(arg[3]):
+                    return False
+            elif op == sre.BRANCH:
+                if not all(digits_only(branch) for branch in arg[1]):
+                    return False
+            elif op == sre.AT:
+                continue  # ^ $ \b consume nothing
+            else:  # ANY, NOT_LITERAL, lookarounds, backreferences...
+                return False
+        return True
+
+    return digits_only(parsed) and consumes
+
+
+def _read_at_psm(crop: Image.Image, psm: int, whitelist: str | None = None) -> tuple[str, list[float], float]:
+    config = f"--psm {psm}"
+    if whitelist:
+        config += f" -c tessedit_char_whitelist={whitelist}"
+    data = pytesseract.image_to_data(crop, output_type=Output.DICT, config=config)
     words, confidences = _words_and_confidences(data)
     return _trim_rule_artifacts(" ".join(words)), confidences, _aggregate_confidence(confidences)
 
@@ -155,11 +222,17 @@ def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionRe
     crop = image.crop(box)
 
     declared_psm = PSM_BY_DATA_TYPE.get(field.data_type, DEFAULT_PSM)
-    candidate_modes = [declared_psm] + [psm for psm in PSM_CANDIDATES if psm != declared_psm]
+    candidate_modes: list[tuple[int, str | None]] = [(declared_psm, None)]
+    candidate_modes += [(psm, None) for psm in PSM_CANDIDATES if psm != declared_psm]
+    if _accepts_only_digits(field.validation_regex):
+        # Last, so it only wins on a strictly higher confidence: a field the plain modes already
+        # read keeps the plain read, and a "1" they turned into "{" (trimmed to blank) gets a
+        # second chance constrained to digits. See DIGIT_WHITELIST in config.
+        candidate_modes.append((DIGIT_WHITELIST_PSM, DIGIT_WHITELIST))
 
     best: tuple[str, list[float], float, int] | None = None
-    for psm in candidate_modes:
-        text, confidences, aggregate = _read_at_psm(crop, psm)
+    for psm, whitelist in candidate_modes:
+        text, confidences, aggregate = _read_at_psm(crop, psm, whitelist)
         if not text:
             continue
         if best is None or aggregate > best[2]:

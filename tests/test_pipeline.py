@@ -137,7 +137,7 @@ def test_one_flagged_field_enqueues_exactly_one_field_review(client, unique_doc_
         Mock(
             side_effect=ocr_responses(
                 ("string", {"text": ["Valid", "Name"], "conf": [95, 95]}),  # good_field
-                ("string", {"text": ["not", "digits"], "conf": [95, 95]}),  # bad_field
+                ("string", {"text": ["not", "digits"], "conf": [95, 95]}, r"^[0-9]+$"),  # bad_field
             )
         ),
     )

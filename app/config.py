@@ -100,31 +100,49 @@ DOC_DETECT_APPROX_EPSILON: float = 0.02  # arc-length fraction for polygon simpl
 DOC_DETECT_MIN_ASPECT: float = 0.25  # reject slivers; a page is never this elongated
 DOC_DETECT_MAX_ASPECT: float = 4.0
 
-# Mean-intensity gap required across a candidate page edge (0-255). The
-# strongest rectangle in a scan or a PDF render is the form's own printed
-# border - a valid convex quad of plausible size - and warping to it crops
-# away everything outside the frame. A photographed page sits on something
-# (desk, table) so a real document edge has contrast across it; a printed
-# rule on white paper does not.
+# Thin-band contrast required across a candidate page edge, in gray levels
+# (0-255): the absolute gap between the MEDIAN brightness of a narrow band just
+# inside the outline and a matching band just outside it (border_contrast in
+# preprocessing.py). The strongest rectangle in a scan or a PDF render is the
+# form's own printed border - a valid convex quad of plausible size - and
+# warping to it crops away everything outside the frame. A photographed page
+# sits on something (desk, table) so a real document edge has contrast across
+# it; a printed rule has paper on both sides.
 #
-# PROVISIONAL / synthetic-only (see the block above). Measured gap: 117-159 for
-# the 10 corpus photos, 9-22 (typically 17) for the waybill's OWN printed border
-# across the 9 synthetic scans and the digital render (the worst, dark_speckle,
-# is 21.8). A desk swept toward the page's own white gave a quad at a gap of
-# 32.6 and none at 22.6. So the photo side has a wide margin and the print side
-# does NOT: 25 is 3 above the worst scan measured.
+# It replaced a whole-inside-mean vs whole-outside-mean gap of 25. That number
+# measured INK DENSITY when the candidate was a printed border (the waybill's
+# own border read 9-22 against it, 3 below the gate at worst; a darkened render
+# of the waybill (ink deficit 30 against its 17.6) read 29.5, and a synthetic
+# page at 3.5x its ink (deficit 63) read 52.6 - both falsely accepted as a
+# photographed page, and on a near-white desk the second got a WRONG quad, its
+# own printed border).
 #
-# Why the print side is thin: this compares mean brightness over the whole
-# inside against the whole outside, so on a page whose border is the candidate
-# it measures INK DENSITY (255 minus the mean gray inside), not edge contrast.
-# The waybill's ink deficit is ~18. A synthetic page with 3.6x that ink (deficit
-# 63) was accepted as a photographed page and, on a near-white desk, its printed
-# border was taken for the page edge. A form inkier than the waybill (dark
-# banner, shaded cells) that fills its frame and has a printed border could
-# trip this; what the warp then does to Module 5 was not measured. An
-# edge-adjacent comparison (thin bands just inside vs just outside the outline)
-# would not depend on ink; it has not been built or measured.
-DOC_DETECT_MIN_BORDER_CONTRAST: float = 25.0
+# PROVISIONAL / synthetic-only, same as the block above: a better DESIGN, not a
+# validated number, and it wants a pass on real photographed pages before
+# anyone trusts 40. What was measured (10 corpus photos, 10 scans / renders of
+# the same waybill, and composites of that page on a desk):
+#   printed border, scans and digital render   0-3     (was 9-22 on the old measure)
+#   inky pages (ink deficit 30 and 63) filling the frame   0 and 0
+#   corpus photos                              76-146  (dim_blur 81, harsh 76-80 lowest)
+#   page on a desk, desk brightness 232/225/215/205  23 / 30 / 40 / 50 (the same at
+#                                        either ink density - it is the edge that is read)
+#   dark mat under the page (the wrong quad)   71  <- the gate CANNOT reject this;
+#                                                     the mat's edge is real. Module 5's
+#                                                     anchors are what refuse it.
+# 40 sits 13x above the worst printed border and 2x under the faintest photo. It
+# was chosen to keep the OLD gate's light-desk operating point (the old 25 flipped
+# at a desk of ~212 against white paper; 40 flips at ~215) while removing the
+# ink dependence - so this changes what is measured, not how faint an edge is
+# trusted. Placement of the bands is not sensitive: five (skip, width) pairs
+# moved photo readings by at most 4 levels and scans by at most 2.
+DOC_DETECT_MIN_BORDER_CONTRAST: float = 40.0
+
+# Where the two bands sit, in working pixels (DOC_DETECT_WORKING_WIDTH wide).
+# The skip clears the ~4 px by which the dilated-edge outline overshoots the true
+# edge plus the edge's own blur; the width just needs to hold enough pixels for a
+# stable median. Provisional, synthetic-only.
+DOC_DETECT_BAND_SKIP_PX: int = 6
+DOC_DETECT_BAND_WIDTH_PX: int = 8
 
 # Skew estimation (contour-based, with an OSD fallback).
 MIN_CONTOUR_AREA_FRACTION: float = 0.01  # below this, the contour mass isn't trusted

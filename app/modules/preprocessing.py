@@ -44,6 +44,8 @@ from app.config import (
     DENOISE_STRENGTH,
     DESKEW_MAX_ANGLE_CORRECTION,
     DOC_DETECT_APPROX_EPSILON,
+    DOC_DETECT_BAND_SKIP_PX,
+    DOC_DETECT_BAND_WIDTH_PX,
     DOC_DETECT_MAX_AREA_FRACTION,
     DOC_DETECT_MAX_ASPECT,
     DOC_DETECT_MIN_AREA_FRACTION,
@@ -153,28 +155,61 @@ def detect_document_quad(gray: np.ndarray) -> Optional[np.ndarray]:
     return None
 
 
+# Below this many pixels in either band there is no evidence about that side of the
+# outline (the outline touches the frame all round, say) and the gate refuses. A
+# degeneracy guard, not a tuned value.
+_MIN_BAND_PIXELS = 100
+
+
+def border_contrast(gray: np.ndarray, quad: np.ndarray) -> float:
+    """
+    How different the paper looks from what it lies on, measured AT the outline:
+    the absolute gap between the median brightness of a thin band just inside
+    the outline and a matching band just outside it.
+
+    Both bands hug the same edge, so what is on the page does not enter into it.
+    The measure this replaces compared the mean over the whole inside with the
+    mean over the whole outside; on a page whose printed border is the candidate
+    that is really the page's INK DENSITY, so an inky enough form "had a border"
+    on ink alone. Medians also shrug off a text row or a shadow crossing a band.
+
+    Each band skips DOC_DETECT_BAND_SKIP_PX beside the outline. The outline is
+    the outer boundary of DILATED Canny edges (see detect_document_quad), so it
+    sits about 4 px outside the true edge, and the edge itself is a few pixels
+    wide; sampling from the outline outward or inward would put the transition
+    inside a band and dilute the gap.
+
+    Returns 0.0 when either band is too thin to judge, so the caller refuses.
+    """
+    polygon = quad.reshape(4, 2).astype(np.int32)
+    inside = np.zeros(gray.shape[:2], np.uint8)
+    cv2.fillConvexPoly(inside, polygon, 255)
+
+    # Distance of each pixel to the outline, from either side.
+    inward = cv2.distanceTransform(inside, cv2.DIST_L2, 3)
+    outward = cv2.distanceTransform(cv2.bitwise_not(inside), cv2.DIST_L2, 3)
+    near, far = DOC_DETECT_BAND_SKIP_PX, DOC_DETECT_BAND_SKIP_PX + DOC_DETECT_BAND_WIDTH_PX
+    inner_band = (inward > near) & (inward <= far)
+    outer_band = (outward > near) & (outward <= far)
+    if inner_band.sum() < _MIN_BAND_PIXELS or outer_band.sum() < _MIN_BAND_PIXELS:
+        return 0.0
+
+    return abs(float(np.median(gray[inner_band])) - float(np.median(gray[outer_band])))
+
+
 def _has_distinct_border(gray: np.ndarray, quad: np.ndarray) -> bool:
     """
-    Requires what's outside the candidate quad to look materially different
-    from what's inside it.
+    Requires the candidate outline to be an edge between two different
+    surfaces, not a mark on one.
 
     Without this check the strongest rectangle in a scan or a PDF render is
     the form's OWN printed border, which is a perfectly valid convex quad of
     plausible size - accepting it warps the page to the form frame and crops
     the content outside it away. A real photograph has the page against
-    something else (a desk, a table), so a genuine document edge always has
-    contrast across it; a printed rule on white paper does not.
+    something else (a desk, a table), so a genuine document edge has contrast
+    across it; a printed rule on white paper has paper on both sides of it.
     """
-    inside_mask = np.zeros(gray.shape[:2], np.uint8)
-    cv2.fillConvexPoly(inside_mask, quad.reshape(4, 2).astype(np.int32), 255)
-    outside_mask = cv2.bitwise_not(inside_mask)
-
-    if cv2.countNonZero(outside_mask) == 0:
-        return False
-
-    inside_mean = cv2.mean(gray, mask=inside_mask)[0]
-    outside_mean = cv2.mean(gray, mask=outside_mask)[0]
-    return abs(inside_mean - outside_mean) >= DOC_DETECT_MIN_BORDER_CONTRAST
+    return border_contrast(gray, quad) >= DOC_DETECT_MIN_BORDER_CONTRAST
 
 
 def four_point_transform(

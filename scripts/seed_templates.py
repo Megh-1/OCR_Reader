@@ -125,7 +125,11 @@ AIR_WAYBILL = TemplateIn(
          "data_type": "string", "validation_regex": r"^[A-Za-z ]{3,40}$", "confidence_floor": _AWB_FLOOR},
 
         # --- parties --------------------------------------------------------
-        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.1013, 0.0486, 0.3114, 0.0672],
+        # Top edge 0.0525, not the 0.0486 the PDF text layer suggests: on the RASTER path the printed
+        # label "Shipper's Name and Address" (ink to y=0.0509 at 200 DPI) hung 6 rows into the box, and
+        # Tesseract read it into the value. The value's own ink starts at 0.0545, so 0.0525 is the middle of
+        # that 8 px gap. Measured on the synthetic corpus: 8/19 -> 16/19 exact.
+        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.1013, 0.0525, 0.3114, 0.0672],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "shipper_address", "label": "Shipper Address", "bbox": [0.098, 0.060, 0.520, 0.102],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},

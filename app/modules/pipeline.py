@@ -10,13 +10,15 @@ doc's architecture diagram describes:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app.modules.field_extraction import extract_fields
-from app.modules.ingestion import IngestionError, ingest_file
+from app.models.text_layer import TextLayer
+from app.modules.field_extraction import FieldExtractionResult, extract_fields, extract_fields_from_text_layer
+from app.modules.ingestion import IngestionError, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed
@@ -37,6 +39,7 @@ class PageResult(BaseModel):
     extraction_result_id: Optional[int] = None  # set only when confirmed is True
     result: Optional[CompiledResult] = None  # set only when confirmed is True
     field_review_queue_ids: list[int] = []  # one id per field Module 7 flagged, may be empty
+    text_native: bool = False  # True when fields were read from the PDF's embedded text, with no OCR
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -65,7 +68,46 @@ def preprocess_for_template(page_bytes: bytes, template: TemplateOut, generic: P
     return preprocess_image(page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form)
 
 
-def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) -> PageResult:
+@dataclass
+class PageExtraction:
+    fields: dict[str, FieldExtractionResult]
+    review_image_bytes: bytes  # the rendering a human reviewer should see for this page
+    text_native: bool
+
+
+def extract_page_fields(
+    template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, text_layer: Optional[TextLayer]
+) -> PageExtraction:
+    """
+    Module 6 for one page, choosing its path.
+
+    A page with an embedded text layer is read straight from it: no second
+    preprocessing pass and no OCR, since the second pass exists only to make a
+    raster legible to Tesseract. Every other page falls through unchanged to
+    the raster path. Module 5's anchor check has already run on the raster
+    either way - form labels are typically drawn as vector artwork rather than
+    stored as text, so the text layer could not verify them.
+
+    Public for the same reason as preprocess_for_template: the accuracy harness
+    must measure this exact choice, not a copy of it.
+    """
+    if text_layer is not None:
+        return PageExtraction(
+            fields=extract_fields_from_text_layer(template.template_id, template.version, text_layer),
+            review_image_bytes=generic.field_image_bytes,
+            text_native=True,
+        )
+    processed = preprocess_for_template(page_bytes, template, generic)
+    return PageExtraction(
+        fields=extract_fields(template.template_id, template.version, processed.field_image_bytes),
+        review_image_bytes=processed.field_image_bytes,
+        text_native=False,
+    )
+
+
+def _process_page(
+    page_bytes: bytes, page_index: int, type_hint: Optional[str], text_layer: Optional[TextLayer] = None
+) -> PageResult:
     # Pass 1 - generic. Module 2 has no idea what this document is yet, which
     # is the whole reason a second pass exists.
     processed = preprocess_image(page_bytes)
@@ -80,19 +122,16 @@ def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) 
     # both need the EXACT version Module 5 just confirmed against.
     template = get_template_version(identification.template_id, identification.version)
 
-    processed = preprocess_for_template(page_bytes, template, processed)
-
-    # field_image_bytes, not image_bytes: the binarized rendering that makes
-    # anchors detectable destroys the stroke detail character recognition
-    # needs (see ProcessedImage).
-    extractions = extract_fields(identification.template_id, identification.version, processed.field_image_bytes)
-    summary = validate_fields(template, extractions)
+    # Reads from field_image_bytes, never image_bytes, on the raster path: the
+    # binarized rendering that makes anchors detectable destroys the stroke
+    # detail character recognition needs (see ProcessedImage).
+    extraction = extract_page_fields(template, page_bytes, processed, text_layer)
+    summary = validate_fields(template, extraction.fields)
 
     compiled = compile_output(identification.template_id, identification.version, summary)
     # Store the grayscale rendering, not the binarized one - this is what a
-    # human reviewer will look at, and it's also the image the field values
-    # under review were actually read from.
-    result_id = persist_result(compiled, page_image=make_review_render(processed.field_image_bytes))
+    # human reviewer will look at.
+    result_id = persist_result(compiled, page_image=make_review_render(extraction.review_image_bytes))
 
     field_review_ids = [
         enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons)
@@ -105,6 +144,7 @@ def _process_page(page_bytes: bytes, page_index: int, type_hint: Optional[str]) 
         extraction_result_id=result_id,
         result=compiled,
         field_review_queue_ids=field_review_ids,
+        text_native=extraction.text_native,
     )
 
 
@@ -116,6 +156,13 @@ async def process_document(file: UploadFile = File(...), type_hint: Optional[str
     except IngestionError as exc:
         raise HTTPException(status_code=422, detail={"reason_code": exc.reason_code, "message": str(exc)})
 
-    page_results = [_process_page(page_bytes, i, type_hint) for i, page_bytes in enumerate(pages)]
+    # The text layers are only worth extracting when ingestion found at least
+    # one text-native page; everything else keeps the raster path untouched.
+    if any(metadata.text_native_pages):
+        text_layers = extract_text_layers(buffer)
+    else:
+        text_layers = [None] * len(pages)
+
+    page_results = [_process_page(page_bytes, i, type_hint, text_layers[i]) for i, page_bytes in enumerate(pages)]
 
     return ProcessDocumentResponse(filename=metadata.filename, page_count=metadata.page_count, pages=page_results)

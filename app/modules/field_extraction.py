@@ -25,7 +25,10 @@ from app.config import (
     PSM_BY_DATA_TYPE,
     PSM_CANDIDATES,
     RULE_ARTIFACT_CHARS,
+    TEXT_LAYER_CONFIDENCE,
+    TEXT_LAYER_MIN_WORD_OVERLAP,
 )
+from app.models.text_layer import TextLayer, TextWord
 from app.modules.template_store import get_template_version
 from app.schemas.template import TemplateField, TemplateOut
 from app.utils.geometry import clamped_crop_box
@@ -37,7 +40,8 @@ class FieldExtractionResult:
     raw_text: str
     word_confidences: list[float]
     aggregate_confidence: float
-    psm_used: int
+    psm_used: int  # 0 when the value came from a text layer - no OCR mode was involved
+    source: str = "ocr"  # "ocr" | "text_layer"
 
 
 def _words_and_confidences(data: dict) -> tuple[list[str], list[float]]:
@@ -73,8 +77,27 @@ def _trim_rule_artifacts(text: str) -> str:
     a value, which is the whole point: undoing an artifact our own cropping
     introduced is not the same as guessing at content, and a genuine OCR error
     still reaches Module 7 intact and still gets flagged.
+
+    Parentheses are the exception to "never legitimately at an edge":
+    "BANGALORE (BLR)" ends in one. So they are judged by balance, not by
+    character - a closing paren is an artifact only when the value has more
+    of them than openers, and an opening paren only when it has more openers
+    than closers. A closer at the very start or an opener at the very end can
+    never have a partner, so those always go. A value wrapped in a matched
+    pair survives, which also means a cell whose left and right borders both
+    read as parens would too; that ambiguity is inherent, and a value
+    validator is what catches it.
     """
-    return text.strip(RULE_ARTIFACT_CHARS + " ")
+    text = text.strip()
+    while text:
+        head, tail = text[0], text[-1]
+        if head in RULE_ARTIFACT_CHARS or head == ")" or (head == "(" and text.count("(") > text.count(")")):
+            text = text[1:].lstrip()
+        elif tail in RULE_ARTIFACT_CHARS or tail == "(" or (tail == ")" and text.count(")") > text.count("(")):
+            text = text[:-1].rstrip()
+        else:
+            break
+    return text
 
 
 def _read_at_psm(crop: Image.Image, psm: int) -> tuple[str, list[float], float]:
@@ -132,6 +155,80 @@ def extract_field(image: Image.Image, field: TemplateField) -> FieldExtractionRe
         aggregate_confidence=aggregate,
         psm_used=psm,
     )
+
+
+def _overlap_of_word(word: TextWord, box: tuple[float, float, float, float]) -> float:
+    """Fraction of the WORD's own area that lies inside `box`."""
+    wx0, wy0, wx1, wy1 = word.bbox
+    area = (wx1 - wx0) * (wy1 - wy0)
+    if area <= 0:
+        return 0.0
+    bx0, by0, bx1, by1 = box
+    inter_w = max(0.0, min(bx1, wx1) - max(bx0, wx0))
+    inter_h = max(0.0, min(by1, wy1) - max(by0, wy0))
+    return inter_w * inter_h / area
+
+
+def _in_reading_order(words: list[TextWord]) -> list[TextWord]:
+    """Top-to-bottom by line, left-to-right within a line.
+
+    A line is a run of words whose vertical centres sit within half a word
+    height of each other - a fixed tolerance would be wrong at both extremes,
+    merging tight lines of small text and splitting one line of large text.
+    """
+    def centre_y(w: TextWord) -> float:
+        return (w.bbox[1] + w.bbox[3]) / 2
+
+    lines: list[list[TextWord]] = []
+    for word in sorted(words, key=centre_y):
+        height = word.bbox[3] - word.bbox[1]
+        if lines:
+            line_centre = sum(centre_y(w) for w in lines[-1]) / len(lines[-1])
+            line_height = max(w.bbox[3] - w.bbox[1] for w in lines[-1])
+            if abs(centre_y(word) - line_centre) <= 0.5 * max(height, line_height):
+                lines[-1].append(word)
+                continue
+        lines.append([word])
+    return [w for line in lines for w in sorted(line, key=lambda w: w.bbox[0])]
+
+
+def extract_field_from_text_layer(layer: TextLayer, field: TemplateField) -> FieldExtractionResult:
+    """
+    Reads one field straight from a PDF's embedded text: the words whose boxes
+    sit inside the field's fractional bbox, in reading order. No OCR runs.
+
+    A field box containing no words comes back empty at confidence 0, exactly
+    like a blank OCR read, so Module 7 flags it rather than accepting an empty
+    value - an empty field on a digital document means a misplaced box far more
+    often than a genuinely blank cell.
+    """
+    inside = [w for w in layer.words if _overlap_of_word(w, field.bbox) >= TEXT_LAYER_MIN_WORD_OVERLAP]
+    if not inside:
+        return FieldExtractionResult(
+            field_id=field.id, raw_text="", word_confidences=[], aggregate_confidence=0.0, psm_used=0, source="text_layer"
+        )
+
+    ordered = _in_reading_order(inside)
+    return FieldExtractionResult(
+        field_id=field.id,
+        raw_text=" ".join(w.text for w in ordered),
+        word_confidences=[TEXT_LAYER_CONFIDENCE] * len(ordered),
+        aggregate_confidence=TEXT_LAYER_CONFIDENCE,
+        psm_used=0,
+        source="text_layer",
+    )
+
+
+def extract_fields_from_text_layer(template_id: str, version: int, layer: TextLayer) -> dict[str, FieldExtractionResult]:
+    """
+    Text-native counterpart of extract_fields: same exact-version lookup, same
+    result shape, no image and no Tesseract. Module 7 consumes the result
+    without knowing which path produced it.
+    """
+    template: TemplateOut | None = get_template_version(template_id, version)
+    if template is None:
+        raise ValueError(f"No template found for {template_id!r} version {version} - was it deleted after Module 5 ran?")
+    return {field.id: extract_field_from_text_layer(layer, field) for field in template.fields}
 
 
 def extract_fields(template_id: str, version: int, image_bytes: bytes) -> dict[str, FieldExtractionResult]:

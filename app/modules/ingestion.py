@@ -10,6 +10,8 @@ from PIL import Image
 
 from app.config import ALLOWED_MIME_TYPES, MAX_PAGES, MAX_UPLOAD_BYTES, PDF_RENDER_DPI
 from app.models.ingestion import IngestionMetadata
+from app.models.text_layer import TextLayer, TextWord
+from app.utils.geometry import pixels_to_relative_bbox
 
 router = APIRouter()
 
@@ -55,6 +57,76 @@ def render_pdf_pages(buffer: bytes) -> list[bytes]:
     return pages
 
 
+def _has_visible_text(page: "fitz.Page") -> bool:
+    """True when at least one text span on the page is actually drawn.
+
+    PyMuPDF's get_text("words") returns invisible text too, and invisible text
+    is exactly how OCR software makes a scan searchable: it lays recognised
+    characters over the page image in render mode 3. Measured: a raster with
+    an OCR overlay yields the overlay's words from get_text() while every span
+    in get_texttrace() is type 3 (invisible). Treating that as native text
+    would read recognition output as if it were the document's own characters,
+    at full confidence, and bypass the confidence gate that exists to catch
+    exactly that.
+    """
+    return any(span["type"] != 3 for span in page.get_texttrace())
+
+
+def _page_text_layer(page: "fitz.Page") -> Optional[TextLayer]:
+    """The page's embedded text as fractional-coordinate words, or None when
+    it has none worth trusting (no text at all, or only an invisible OCR
+    overlay) and the raster + Tesseract path must be used instead."""
+    words = page.get_text("words")
+    if not words or not _has_visible_text(page):
+        return None
+
+    rect = page.rect
+    matrix = page.rotation_matrix
+    layer_words = []
+    for x0, y0, x1, y1, text, *_ in words:
+        if not text.strip():
+            continue
+        # get_text() reports coordinates in the UNROTATED page space, while the
+        # page is rendered (and templates are drawn) in its displayed
+        # orientation. Measured on a page rotated 90/180/270: skipping this
+        # puts a word 0.68-0.76 of the page away from where it is drawn.
+        box = fitz.Rect(x0, y0, x1, y1) * matrix
+        box.normalize()
+        layer_words.append(
+            TextWord(
+                text=text,
+                # Points are just another linear unit here: the same
+                # percent-of-page conversion the pixel paths use.
+                bbox=pixels_to_relative_bbox(
+                    (box.x0 - rect.x0, box.y0 - rect.y0, box.x1 - rect.x0, box.y1 - rect.y0),
+                    rect.width,
+                    rect.height,
+                ),
+            )
+        )
+    return TextLayer(words=tuple(layer_words)) if layer_words else None
+
+
+def extract_text_layers(buffer: bytes) -> list[Optional[TextLayer]]:
+    """One entry per page of a PDF: its text layer, or None for a page that
+    must go through OCR.
+
+    This is an optimisation, so it must never be able to make the pipeline
+    fail where the OCR path would have succeeded - a page whose text layer
+    cannot be read simply falls through to OCR."""
+    doc = fitz.open(stream=buffer, filetype="pdf")
+    try:
+        layers: list[Optional[TextLayer]] = []
+        for page in doc:
+            try:
+                layers.append(_page_text_layer(page))
+            except Exception:
+                layers.append(None)
+        return layers
+    finally:
+        doc.close()
+
+
 def normalize_image(buffer: bytes) -> list[bytes]:
     try:
         img = Image.open(io.BytesIO(buffer))
@@ -81,8 +153,10 @@ def ingest_file(
 
     if mime_type == "application/pdf":
         pages = render_pdf_pages(buffer)
+        text_native_pages = [layer is not None for layer in extract_text_layers(buffer)]
     else:
         pages = normalize_image(buffer)
+        text_native_pages = [False] * len(pages)
 
     metadata = IngestionMetadata(
         filename=filename,
@@ -90,6 +164,7 @@ def ingest_file(
         type_hint=type_hint,
         page_count=len(pages),
         source_mime=mime_type,
+        text_native_pages=text_native_pages,
     )
     return pages, metadata
 

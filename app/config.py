@@ -137,7 +137,13 @@ REVIEW_IMAGE_JPEG_QUALITY: int = 82
 # Characters that are never the first or last character of a real field
 # value, but routinely appear there as fragments of a form's printed cell
 # border. Edge-trimmed only - see _trim_rule_artifacts.
-RULE_ARTIFACT_CHARS: str = r"|_~[]{}()/\:;`^"
+#
+# Parentheses are deliberately NOT here. They were, and that truncated a real
+# value: "BANGALORE (BLR)" came back as "BANGALORE (BLR", missing its closing
+# paren, and with no regex on that field it shipped unflagged. A paren is only
+# an artifact when it has no partner, so _trim_rule_artifacts judges them by
+# balance instead of by character.
+RULE_ARTIFACT_CHARS: str = r"|_~[]{}/\:;`^"
 
 # Zero, measured. The reference doc suggests a small margin to absorb
 # sub-pixel jitter, and that was right when template boxes were drawn loosely
@@ -151,6 +157,22 @@ RULE_ARTIFACT_CHARS: str = r"|_~[]{}()/\:;`^"
 #
 # Anchors are the opposite case and keep their generous margin - see
 # ANCHOR_CROP_MARGIN_PX, where a zero-slack crop was measurably unstable.
+# Module 6 - text-native fast path (PDFs with a real embedded text layer).
+#
+# A word is taken into a field when at least this fraction of ITS OWN area
+# lies inside the field's box. Any-intersection would be wrong: line spacing is
+# tighter than a word's box is tall, so a field box drawn tight to one line
+# still grazes the line beneath it, and that whole neighbouring line would be
+# pulled into the value.
+TEXT_LAYER_MIN_WORD_OVERLAP: float = 0.5
+
+# Embedded text is the document's own characters, so there is no recognition
+# uncertainty to report and Module 7's confidence gate is satisfied by
+# construction. That is only sound for text that really is digital-born - a
+# scan carrying an OCR overlay is recognition output wearing a text layer's
+# clothes, which is why ingestion refuses to treat invisible text as native.
+TEXT_LAYER_CONFIDENCE: float = 100.0
+
 FIELD_CROP_MARGIN_PX: int = 0
 
 # The template schema has no per-field PSM slot, so this stands in for it:

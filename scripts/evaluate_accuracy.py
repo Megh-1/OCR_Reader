@@ -23,9 +23,10 @@ The tier is detected per file. A PNG (or any other image) fits none of these
 and is reported as its own "other image" row rather than blended into one.
 
 This runs the real pipeline path: Module 1 ingestion (so PDFs work), generic
-preprocessing, Module 5, then the template's own second-pass preprocessing
-(pipeline.preprocess_for_template) and Module 6 on the grayscale field
-rendering. It does not write to the database.
+preprocessing, Module 5, then pipeline.extract_page_fields - which reads a
+text-native PDF page straight from its embedded text and sends every other
+page through the template's second-pass preprocessing and OCR. The per-file
+line says which path each file took. It does not write to the database.
 
 Usage:
     python scripts/evaluate_accuracy.py --images-dir DIR --ground-truth FILE.json
@@ -46,7 +47,10 @@ Only the FIRST page of a multi-page file is evaluated.
 
 Tier detection caveat: "has a text layer" is not the same as "is a digital-born
 PDF". A scan that has been through OCR carries an invisible text layer and will
-be detected as a text-layer PDF. Set "tier" in the ground truth for those.
+be detected as a text-layer PDF here. The pipeline itself is not fooled - it
+refuses to treat invisible text as native and reads such a page through OCR -
+so the per-file "read via" line can disagree with the tier for those files.
+Set "tier" in the ground truth to put them where they belong.
 """
 
 from __future__ import annotations
@@ -66,9 +70,8 @@ import magic  # noqa: E402
 import pytesseract  # noqa: E402
 
 from app.config import TESSERACT_CMD  # noqa: E402
-from app.modules.field_extraction import extract_fields  # noqa: E402
-from app.modules.ingestion import ingest_file  # noqa: E402
-from app.modules.pipeline import preprocess_for_template  # noqa: E402
+from app.modules.ingestion import extract_text_layers, ingest_file  # noqa: E402
+from app.modules.pipeline import extract_page_fields  # noqa: E402
 from app.modules.preprocessing import preprocess_image  # noqa: E402
 from app.modules.template_store import get_latest_template, get_template_version, list_known_doc_types  # noqa: E402
 from app.modules.type_identification import identify_document_type  # noqa: E402
@@ -139,6 +142,7 @@ class FileResult:
     extraction_skipped: Optional[str] = None  # why extraction could not run
     error: Optional[str] = None  # the file could not be evaluated at all
     note: Optional[str] = None
+    text_native: bool = False  # fields were read from the embedded text layer, with no OCR
 
 
 def _classify(identification, expected_template: str) -> str:
@@ -204,8 +208,12 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
         result.error = f"no template {result.expected_template!r} version {version}"
         return result
 
-    processed = preprocess_for_template(page, template, generic)
-    extractions = extract_fields(result.expected_template, version, processed.field_image_bytes)
+    text_layer = None
+    if metadata.text_native_pages and metadata.text_native_pages[0]:
+        text_layer = extract_text_layers(data)[0]
+    extraction = extract_page_fields(template, page, generic, text_layer)
+    extractions = extraction.fields
+    result.text_native = extraction.text_native
 
     for field_id, expected_value in expected["fields"].items():
         actual = extractions.get(field_id)
@@ -293,7 +301,8 @@ def accuracy_report(results: list[FileResult]) -> int:
             print(f"  {r.filename}: ERROR - {r.error}")
             continue
         ran = "extraction skipped" if r.extraction_skipped else f"{sum(f.correct for f in r.fields)}/{len(r.fields)} fields"
-        print(f"  {r.filename}  [{TIER_LABELS.get(r.tier, r.tier)}]  module 5: {r.classification}  |  {ran}")
+        read_via = "" if r.extraction_skipped else ("  |  read via: text layer, no OCR" if r.text_native else "  |  read via: OCR")
+        print(f"  {r.filename}  [{TIER_LABELS.get(r.tier, r.tier)}]  module 5: {r.classification}  |  {ran}{read_via}")
         if r.classification != OUTCOME_CORRECT:
             if r.matched_template:
                 print(f"      Module 5 confirmed {r.matched_template!r}, expected {r.expected_template!r}")

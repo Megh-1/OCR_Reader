@@ -115,3 +115,15 @@ def test_files_whose_extraction_could_not_run_are_counted_but_add_no_fields(caps
     text_row = next(line for line in out.splitlines() if line.strip().startswith("text-layer PDF"))
     assert "5/5" in text_row and "100.0%" in text_row  # the skipped file must not drag it down or pad it
     assert "anchor verification failed" in out  # ...but it is reported, never silent
+
+
+def test_report_says_which_path_read_each_file(capsys):
+    native = _file("a.pdf", TIER_TEXT_PDF, OUTCOME_CORRECT, 3, 3)
+    native.text_native = True
+    ocr = _file("b.jpg", TIER_CAMERA_JPEG, OUTCOME_CORRECT, 3, 3)
+
+    accuracy_report([native, ocr])
+    out = capsys.readouterr().out
+
+    assert "a.pdf" in next(l for l in out.splitlines() if "read via: text layer, no OCR" in l)
+    assert "b.jpg" in next(l for l in out.splitlines() if l.rstrip().endswith("read via: OCR"))

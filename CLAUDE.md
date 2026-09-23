@@ -43,7 +43,9 @@ Ad-hoc scripts outside the repo root need `PYTHONPATH=.`, and must set `pytesser
 
 **Module 5** requires ALL anchors to pass (AND); more than one matching template is `ambiguous_match`, never a pick. Anchors must be printed form labels that are identical on every document of the type, never shipment data, and must not sit close together — each crop is expanded by `ANCHOR_CROP_MARGIN_PX` (40), so adjacent anchors bleed into each other.
 
-**Module 6** reads each field at several Tesseract PSMs (`PSM_CANDIDATES`, declared PSM first and wins ties), discards empty reads, keeps the most confident, and runs fields on a thread pool. Edge-only trimming of rule-fragment characters is the only text repair allowed; content is never "corrected". `Image.load()` must run before the fan-out (PIL lazy decode races otherwise).
+**Module 6 has two paths, chosen per page by `pipeline.extract_page_fields`** (shared with the accuracy harness so they can't drift). A PDF page with a real embedded text layer (`IngestionMetadata.text_native_pages`, from `ingestion.extract_text_layers`) is read straight from its words - those whose boxes are >= `TEXT_LAYER_MIN_WORD_OVERLAP` inside the field bbox, in reading order, confidence fixed at `TEXT_LAYER_CONFIDENCE` - with no OCR and no second preprocessing pass. Two traps are handled in ingestion and must stay: invisible text (render mode 3, how OCR software makes a scan searchable) is *not* native, because it is recognition output that would be reported at full confidence; and `get_text()` coordinates are in *unrotated* page space, so they go through `page.rotation_matrix` before becoming fractions. Module 5 still OCRs anchors on the raster either way (form labels are usually vector art, not text). Everything without native text takes the OCR path below.
+
+The OCR path: **Module 6** reads each field at several Tesseract PSMs (`PSM_CANDIDATES`, declared PSM first and wins ties), discards empty reads, keeps the most confident, and runs fields on a thread pool. Edge-only trimming of rule-fragment characters is the only text repair allowed; content is never "corrected". Parentheses are trimmed by balance, not by character (`BANGALORE (BLR)` must keep its closer). `Image.load()` must run before the fan-out (PIL lazy decode races otherwise).
 
 **Module 7** flags a field if regex *or* confidence fails, collecting every reason. Enums are validated via `validation_regex` (no separate allowed-values field). Regexes must be as strict as the data: a shape-only date pattern once accepted the OCR misread `17-Oci-2006`.
 
@@ -54,6 +56,8 @@ Nearly every constant there carries a comment with the measurement behind it. Do
 ## Testing conventions
 
 - Most tests mock `pytesseract`; `tests/test_risk_mitigations.py` runs **real** OCR against the reference doc's risk table. Real-OCR assertions on measured behaviour should stay real.
+- To prove a path runs no OCR, patch `pytesseract.pytesseract.run_tesseract` (the subprocess every pytesseract API goes through), not just the wrappers - see the `no_tesseract` fixture in `tests/test_text_native.py`.
+- Never import `app` in an ad-hoc script *before* calling `pytest.main`: it bypasses the root `conftest.py` and the tests write into the dev database.
 - `extract_field` calls `image_to_data` once per candidate PSM, so mocks must return one response per mode — use `ocr_responses(...)` from `tests/test_field_extraction.py` (derived from config) rather than hardcoding a call count.
 - Tests seed templates from `scripts/seed_templates.py`, not copies, so tests can't drift from what ships.
 - `scripts/evaluate_accuracy.py` must measure the real pipeline path, so it calls `pipeline.preprocess_for_template` rather than re-implementing the second pass; keep the two in sync by keeping it that way. Its ground truth for real documents lives in untracked `tests/fixtures/`.

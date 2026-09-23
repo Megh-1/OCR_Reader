@@ -66,6 +66,33 @@ OCR_TARGET_LONG_EDGE_PX: int = 2400
 # bound matters as much as the lower one - a scan or a PDF render where the
 # page already fills the frame has no border to find, and "detecting" one
 # there would mean warping to something that isn't the document edge.
+#
+# PROVISIONAL, and measured on SYNTHETIC input only: every number below comes
+# from tests/fixtures/synthetic_awb (10 photo composites, all rendered from ONE
+# air waybill) and from composites built off the same page with a controlled
+# desk/mat/crop. The only real camera photo we hold is the ID card, and it has
+# no visible page border, so it says nothing about these except that "no quad"
+# is a normal answer. Re-measure on real photographed waybills before trusting
+# any of them; do not tune off one sample.
+#
+# DOC_DETECT_MIN_AREA_FRACTION (a.k.a. "PAGE_CONTOUR_MIN_AREA_FRACTION"): the
+#   corpus photos put the page at 21% (wide framing) to 85% (tight framing) of
+#   the frame. On a sweep of the same page shrunk in the frame, a quad is found
+#   at 17.0% and lost at 14.5%, so 0.15 sits just under the floor of what was
+#   found - this is a KNIFE EDGE for a page photographed from far away, and the
+#   failure is safe (no quad -> no warp -> Module 5 decides).
+# DOC_DETECT_APPROX_EPSILON (a.k.a. "PAGE_CONTOUR_APPROX_EPSILON"): swept
+#   0.002-0.08 on four perspective presets; worst-corner error was identical
+#   (14-16 px on a 1700 px-wide page) across the whole range, so the corpus
+#   does not constrain it. 0.02 is the conventional value, not a tuned one.
+#   Note that error is a systematic ~4 working-px OUTWARD bias, not noise: the
+#   Canny edges are dilated by a 5x5 kernel twice before the contour is taken,
+#   which pushes the outline out by exactly that much. Removing it measurably
+#   helps the geometry but had a mixed effect downstream (see the page
+#   detection paragraph in CLAUDE.md), so it is left as-is pending real-photo
+#   data.
+# DOC_DETECT_MAX_AREA_FRACTION: highest observed page fraction is 85%; 0.98 is
+#   there to reject "the whole frame", not fitted to anything.
 DOC_DETECT_MIN_AREA_FRACTION: float = 0.15
 DOC_DETECT_MAX_AREA_FRACTION: float = 0.98
 DOC_DETECT_WORKING_WIDTH: int = 1000  # detection runs downscaled; corners scale back up
@@ -78,9 +105,25 @@ DOC_DETECT_MAX_ASPECT: float = 4.0
 # border - a valid convex quad of plausible size - and warping to it crops
 # away everything outside the frame. A photographed page sits on something
 # (desk, table) so a real document edge has contrast across it; a printed
-# rule on white paper does not. Measured on this project's own inputs, that
-# gap is a few points for a PDF render against well over a hundred for a
-# photo, so the threshold sits in a very wide gap rather than on a knife edge.
+# rule on white paper does not.
+#
+# PROVISIONAL / synthetic-only (see the block above). Measured gap: 117-159 for
+# the 10 corpus photos, 9-22 (typically 17) for the waybill's OWN printed border
+# across the 9 synthetic scans and the digital render (the worst, dark_speckle,
+# is 21.8). A desk swept toward the page's own white gave a quad at a gap of
+# 32.6 and none at 22.6. So the photo side has a wide margin and the print side
+# does NOT: 25 is 3 above the worst scan measured.
+#
+# Why the print side is thin: this compares mean brightness over the whole
+# inside against the whole outside, so on a page whose border is the candidate
+# it measures INK DENSITY (255 minus the mean gray inside), not edge contrast.
+# The waybill's ink deficit is ~18. A synthetic page with 3.6x that ink (deficit
+# 63) was accepted as a photographed page and, on a near-white desk, its printed
+# border was taken for the page edge. A form inkier than the waybill (dark
+# banner, shaded cells) that fills its frame and has a printed border could
+# trip this; what the warp then does to Module 5 was not measured. An
+# edge-adjacent comparison (thin bands just inside vs just outside the outline)
+# would not depend on ink; it has not been built or measured.
 DOC_DETECT_MIN_BORDER_CONTRAST: float = 25.0
 
 # Skew estimation (contour-based, with an OSD fallback).

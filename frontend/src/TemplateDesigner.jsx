@@ -26,6 +26,7 @@ function createDefaultBoxRecord(id, type) {
     dataType: 'string',
     validationRegex: '',
     confidenceFloor: 0.75,
+    checksum: null,
   };
 }
 
@@ -40,6 +41,7 @@ export default function TemplateDesigner() {
   const [imageUrl, setImageUrl] = useState(SAMPLE_IMAGE_URL);
   const [knownTemplates, setKnownTemplates] = useState([]);
   const [loadState, setLoadState] = useState({ status: 'idle' });
+  const loadedHintsRef = useRef(null); // preprocessing hints of a loaded template, carried to the new version
   const uploadedUrlRef = useRef(null); // tracks the current blob: URL so it can be revoked, not the sample URL
 
   const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(imageUrl, CANVAS_W, CANVAS_H);
@@ -55,6 +57,7 @@ export default function TemplateDesigner() {
     uploadedUrlRef.current = url;
     setImageUrl(url);
     rectsRef.current = new Map();
+    loadedHintsRef.current = null;
     setBoxes([]);
     setSubmitState({ status: 'idle' });
   }
@@ -124,10 +127,15 @@ export default function TemplateDesigner() {
           dataType: field.data_type,
           validationRegex: field.validation_regex ?? '',
           confidenceFloor: field.confidence_floor,
+          // Not editable here, but it must survive a load-and-save: the designer
+          // rebuilds every field from its own state, so anything it does not
+          // carry is silently dropped from the new version.
+          checksum: field.checksum ?? null,
         });
       }
 
       canvas.requestRenderAll();
+      loadedHintsRef.current = template.hints ?? null;
       setBoxes(loaded);
       setTemplateId(template.template_id);
       setLoadState({ status: 'loaded', version: template.version, count: loaded.length });
@@ -269,6 +277,7 @@ export default function TemplateDesigner() {
           data_type: box.dataType,
           validation_regex: box.validationRegex ? box.validationRegex : null,
           confidence_floor: Number(box.confidenceFloor),
+          checksum: box.checksum ?? null,
         });
       }
     }
@@ -278,7 +287,12 @@ export default function TemplateDesigner() {
       // Only what the backend's TemplateIn schema actually accepts.
       // version/created_at are server-assigned - sending client guesses
       // for them would misrepresent who the source of truth is.
-      const result = await createTemplate({ template_id: templateId.trim(), anchors, fields });
+      const result = await createTemplate({
+        template_id: templateId.trim(),
+        anchors,
+        fields,
+        ...(loadedHintsRef.current ? { hints: loadedHintsRef.current } : {}),
+      });
       setSubmitState({ status: 'success', result });
     } catch (err) {
       if (err instanceof ApiValidationError) {
@@ -317,7 +331,7 @@ export default function TemplateDesigner() {
             onChange={(e) => handleLoadTemplate(e.target.value)}
             disabled={loadState.status === 'loading'}
           >
-            <option value="">Start a new template…</option>
+            <option value="">Start a new templateâ€¦</option>
             {knownTemplates.map((id) => (
               <option key={id} value={id}>
                 {id}
@@ -420,6 +434,7 @@ export default function TemplateDesigner() {
                     placeholder="e.g. ^[A-Za-z ]{2,60}$"
                   />
                 </label>
+                {box.checksum && <p className="hint">Checksum: {box.checksum} (kept on save)</p>}
                 <label>
                   Confidence floor
                   <input

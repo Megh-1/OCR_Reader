@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 from pydantic import Field as PydField
@@ -41,6 +41,12 @@ class TemplateField(BaseModel):
     data_type: str
     validation_regex: Optional[str] = None
     confidence_floor: float = PydField(ge=0.0, le=1.0)
+    # A real check-digit algorithm Module 7 applies ON TOP of the regex. A regex
+    # can only say a value is shaped right; a checksum catches a value that is
+    # shaped right and wrong. Restricted to known names so a typo fails when the
+    # template is saved instead of silently checking nothing. Only add a name
+    # here for an algorithm the domain actually defines.
+    checksum: Optional[Literal["iata_awb_mod7"]] = None
 
     _check_bbox = field_validator("bbox")(_validate_bbox)
 

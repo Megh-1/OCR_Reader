@@ -117,7 +117,10 @@ AIR_WAYBILL = TemplateIn(
     fields=[
         # --- identity -------------------------------------------------------
         {"id": "awb_number", "label": "AWB Number", "bbox": [0.7304, 0.0158, 0.8756, 0.0374],
-         "data_type": "string", "validation_regex": r"^\d{3}-?\s?\d{8}$", "confidence_floor": _AWB_FLOOR},
+         "data_type": "string", "validation_regex": r"^\d{3}-?\s?\d{8}$", "confidence_floor": _AWB_FLOOR,
+         # The regex only says an AWB number is shaped right; the IATA mod-7 check digit
+         # catches one that is shaped right and wrong (176-06067726 read for 176-06067736).
+         "checksum": "iata_awb_mod7"},
         {"id": "carrier", "label": "Carrier", "bbox": [0.5899, 0.0663, 0.7325, 0.0941],
          "data_type": "string", "validation_regex": r"^[A-Za-z ]{3,40}$", "confidence_floor": _AWB_FLOOR},
 

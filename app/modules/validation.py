@@ -16,13 +16,19 @@ its enum constraint as a regex):
   - An "enum" field with validation_regex == null is a template-authoring
     error, not something to silently accept: it is automatically flagged
     with reason "enum_missing_regex".
+
+A field may also name a `checksum` - a real check-digit algorithm. That gets its
+own reason, "check_digit_invalid", deliberately distinct from "format_invalid":
+the two catch different classes of error. A malformed value is caught by the
+regex; a value with the right shape and one wrong digit (176-06067726 for
+176-06067736) sails through any regex and is exactly what a checksum is for.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field as dataclass_field
-from typing import Optional
+from typing import Callable, Optional
 
 from pydantic import BaseModel, ValidationError, field_validator
 
@@ -81,6 +87,43 @@ def _check_format(field: TemplateField, stripped_text: str) -> list[str]:
     return []
 
 
+def _iata_awb_mod7(value: str) -> Optional[bool]:
+    """
+    IATA air waybill check: 3-digit airline prefix, then a 7-digit serial, then
+    ONE check digit, which must equal the serial mod 7. So 176-06067736 has
+    serial 0606773, 606773 mod 7 = 6, check digit 6: valid. 176-06067726 has
+    serial 0606772, mod 7 = 5, check digit 6: not.
+
+    Returns None - not True, not False - for a value that is not 11 digits once
+    hyphens and spaces are removed. The check cannot judge what it cannot parse,
+    and a malformed value is the regex's finding to report; reporting it here
+    too would blur the line between "malformed" and "plausible but wrong".
+    Consequently a checksum field should also carry a regex, or a malformed
+    value would pass both.
+
+    Known blind spot: 0 and 7 differ by 7, so misreading one for the other in
+    the serial leaves the remainder unchanged and the check passes. Every other
+    single-digit substitution in the serial is caught, and any change to the
+    check digit is, since it can only be 0-6.
+    """
+    digits = re.sub(r"[\s-]", "", value)
+    if not re.fullmatch(r"\d{11}", digits):
+        return None
+    serial, check_digit = int(digits[3:10]), int(digits[10])
+    return serial % 7 == check_digit
+
+
+CHECKSUMS: dict[str, Callable[[str], Optional[bool]]] = {
+    "iata_awb_mod7": _iata_awb_mod7,
+}
+
+
+def _check_checksum(field: TemplateField, stripped_text: str) -> list[str]:
+    if field.checksum is None:
+        return []
+    return ["check_digit_invalid"] if CHECKSUMS[field.checksum](stripped_text) is False else []
+
+
 def _check_confidence(aggregate_confidence: float, confidence_floor: float) -> list[str]:
     # confidence_floor is 0.0-1.0; aggregate_confidence is Tesseract's
     # native 0-100 scale - the *100 here is deliberate, not a rounding nicety.
@@ -95,8 +138,10 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
     # comparison, never for what's stored/returned as `value`.
     stripped_text = extraction.raw_text.strip()
 
-    reasons = _check_format(field, stripped_text) + _check_confidence(
-        extraction.aggregate_confidence, field.confidence_floor
+    reasons = (
+        _check_format(field, stripped_text)
+        + _check_checksum(field, stripped_text)
+        + _check_confidence(extraction.aggregate_confidence, field.confidence_floor)
     )
 
     return FieldValidationResult(

@@ -173,6 +173,85 @@ def photograph(
     return encode(canvas, jpeg_quality)[0]
 
 
+# --- what was injected, recorded so a consumer can compare against a measurement ---
+#
+# Angles are reported in Module 2's convention: degrees, POSITIVE = the content
+# rotated CLOCKWISE as displayed. cv2's rotation is the opposite (positive =
+# counter-clockwise), so a scan rotated by +1.5 there is -1.5 here.
+
+SCAN_SKEW_CCW_DEGREES = {
+    "synthetic__scan_clean_200dpi.pdf": 0.0,  # the control: recorded so an estimator can be checked against zero
+    "synthetic__scan_skew1p5_noise.pdf": 1.5,
+    "synthetic__scan_skew_neg2p5_jpegq55.pdf": -2.5,
+}
+
+# Which corner preset each camera photo was warped with.
+PHOTO_PRESET = {
+    "synthetic__photo_flat.jpg": "zero",
+    "synthetic__photo_rotated.jpg": "rotated",
+    "synthetic__photo_keystone.jpg": "keystone",
+    "synthetic__photo_corner_perspective.jpg": "corner",
+    "synthetic__photo_dim_blur.jpg": "mild",
+    "synthetic__photo_lighting_gradient.jpg": "mild",
+    "synthetic__photo_noisy_lowq.jpg": "mild",
+    "synthetic__photo_harsh_combined.jpg": "rotated",
+    "synthetic__photo_tight_framing.jpg": "mild",
+    "synthetic__photo_wide_framing.jpg": "mild",
+}
+
+
+def corner_presets(page_width_px: float) -> dict[str, list]:
+    """Pixels each page corner (TL, TR, BR, BL) is moved by. `s` scales with the
+    page so the presets mean the same thing at any render resolution."""
+    s = page_width_px * 0.06
+    return {
+        "zero": [[0, 0]] * 4,
+        "rotated": [[s * .9, -s * .5], [s * .5, s * .9], [-s * .9, s * .5], [-s * .5, -s * .9]],
+        "keystone": [[s, s * .5], [-s, s * .5], [-s * .3, 0], [s * .3, 0]],
+        "corner": [[s * 1.4, s * .8], [-s * .4, -s * .3], [-s * 1.1, s * .2], [s * .2, -s * .6]],
+        "mild": [[s * .5, -s * .2], [s * .2, s * .4], [-s * .4, s * .2], [0, 0]],
+    }
+
+
+def edge_angles_cw(offsets, width_px: float, height_px: float) -> tuple[float, float]:
+    """(top edge, left edge) of the warped page, each in degrees clockwise from
+    where an unwarped page has it. The top edge is the direction the text lines
+    run, which is what a deskew step is trying to measure; the two only agree
+    when the warp is a pure rotation - the gap between them is perspective."""
+    import math
+
+    tl, tr, _, bl = (np.array(o, float) for o in offsets)
+    top = np.array([width_px - 1, 0.0]) + (tr - tl)
+    left = np.array([0.0, height_px - 1]) + (bl - tl)
+    return (
+        math.degrees(math.atan2(top[1], top[0])),
+        math.degrees(math.atan2(-left[0], left[1])),
+    )
+
+
+def injected_metadata(page_width_px: int, page_height_px: int) -> dict[str, dict]:
+    presets = corner_presets(page_width_px)
+    out: dict[str, dict] = {}
+    for name, ccw in SCAN_SKEW_CCW_DEGREES.items():
+        out[name] = {"kind": "skew", "skew_cw_degrees": round(-ccw, 3)}
+    for name, preset in PHOTO_PRESET.items():
+        top, left = edge_angles_cw(presets[preset], page_width_px, page_height_px)
+        if max(abs(top), abs(left)) < 0.3:
+            kind = "none"
+        elif abs(top) < 0.3:
+            kind = "perspective"
+        elif abs(top - left) < 1.5:
+            kind = "rotation"
+        else:
+            kind = "rotation+perspective"
+        out[name] = {
+            "kind": kind,
+            "top_edge_cw_degrees": round(top, 3),
+            "left_edge_cw_degrees": round(left, 3),
+        }
+    return out
+
+
 def build(source_pdf: Path, ground_truth_file: Path, out_dir: Path) -> dict:
     truth = json.loads(ground_truth_file.read_text(encoding="utf-8"))
     entry = next(
@@ -202,11 +281,11 @@ def build(source_pdf: Path, ground_truth_file: Path, out_dir: Path) -> dict:
     write("synthetic__scan_100dpi.pdf", image_only_pdf(render_page(doc, 100)))
     write(
         "synthetic__scan_skew1p5_noise.pdf",
-        image_only_pdf(add_noise(skew(page200, 1.5), 12, 11)),
+        image_only_pdf(add_noise(skew(page200, SCAN_SKEW_CCW_DEGREES["synthetic__scan_skew1p5_noise.pdf"]), 12, 11)),
     )
     write(
         "synthetic__scan_skew_neg2p5_jpegq55.pdf",
-        image_only_pdf(skew(page200, -2.5), jpeg_quality=55),
+        image_only_pdf(skew(page200, SCAN_SKEW_CCW_DEGREES["synthetic__scan_skew_neg2p5_jpegq55.pdf"]), jpeg_quality=55),
     )
     write("synthetic__scan_faded.pdf", image_only_pdf(contrast(page200, 0.55, 95)))
     write("synthetic__scan_dark_speckle.pdf", image_only_pdf(speckle(gamma(page200, 1.9), 0.004, 12)))
@@ -220,12 +299,8 @@ def build(source_pdf: Path, ground_truth_file: Path, out_dir: Path) -> dict:
     )
 
     # --- tier 3: camera JPEGs ---
-    s = page200.shape[1] * 0.06  # perspective magnitude, in pixels
-    zero = [[0, 0]] * 4
-    rotated = [[s * .9, -s * .5], [s * .5, s * .9], [-s * .9, s * .5], [-s * .5, -s * .9]]
-    keystone = [[s, s * .5], [-s, s * .5], [-s * .3, 0], [s * .3, 0]]
-    corner = [[s * 1.4, s * .8], [-s * .4, -s * .3], [-s * 1.1, s * .2], [s * .2, -s * .6]]
-    mild = [[s * .5, -s * .2], [s * .2, s * .4], [-s * .4, s * .2], [0, 0]]
+    presets = corner_presets(page200.shape[1])
+    zero, rotated, keystone, corner, mild = (presets[k] for k in ("zero", "rotated", "keystone", "corner", "mild"))
 
     write("synthetic__photo_flat.jpg", photograph(page200, zero, seed=1))
     write("synthetic__photo_rotated.jpg", photograph(page200, rotated, seed=2))
@@ -245,6 +320,8 @@ def build(source_pdf: Path, ground_truth_file: Path, out_dir: Path) -> dict:
     write("synthetic__photo_wide_framing.jpg", photograph(page200, mild, margin=0.6, seed=10))
 
     doc.close()
+    for name, injected in injected_metadata(page200.shape[1], page200.shape[0]).items():
+        files[name]["injected"] = injected
     (out_dir / "ground_truth.json").write_text(json.dumps(files, indent=2), encoding="utf-8")
     return files
 
@@ -254,6 +331,12 @@ def main() -> int:
     parser.add_argument("--fixtures-dir", type=Path, default=PROJECT_ROOT / "tests" / "fixtures")
     parser.add_argument("--source", type=Path, help="the real waybill PDF (default: the air_waybill PDF named in the ground truth)")
     parser.add_argument("--out-dir", type=Path, default=None, help="default: <fixtures-dir>/synthetic_awb")
+    parser.add_argument(
+        "--annotate-only",
+        action="store_true",
+        help="record the injected-angle metadata into the existing ground_truth.json WITHOUT regenerating "
+        "any image (a rebuild deletes the directory first, which breaks anything still reading it)",
+    )
     args = parser.parse_args()
 
     ground_truth_file = args.fixtures_dir / "ground_truth.json"
@@ -262,6 +345,20 @@ def main() -> int:
         args.fixtures_dir / k for k, v in truth.items() if k.lower().endswith(".pdf") and v.get("template_id") == "air_waybill"
     )
     out_dir = args.out_dir or args.fixtures_dir / "synthetic_awb"
+
+    if args.annotate_only:
+        gt_path = out_dir / "ground_truth.json"
+        files = json.loads(gt_path.read_text(encoding="utf-8"))
+        doc = fitz.open(source)
+        width_px, height_px = round(doc[0].rect.width * 200 / 72), round(doc[0].rect.height * 200 / 72)
+        doc.close()
+        annotated = injected_metadata(width_px, height_px)
+        for name, injected in annotated.items():
+            if name in files:
+                files[name]["injected"] = injected
+        gt_path.write_text(json.dumps(files, indent=2), encoding="utf-8")
+        print(f"annotated {sum(n in files for n in annotated)} entries in {gt_path}; no image was touched")
+        return 0
 
     if out_dir.exists():
         shutil.rmtree(out_dir)

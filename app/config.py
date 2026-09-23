@@ -89,6 +89,36 @@ SKEW_DILATE_KERNEL_SIZE: int = 5
 SKEW_DILATE_ITERATIONS: int = 3
 SKEW_ANGLE_NOOP_THRESHOLD: float = 0.1  # skip rotation entirely below this, to avoid needless blur
 
+# Deskew - the non-text-native path only (a text-native PDF is read from its
+# embedded text and never reaches this).
+#
+# Skew is estimated by the contour method above, then by Hough line fitting
+# when the contour mass is too small to trust, then by Tesseract OSD as a last
+# resort. OSD is last because it cannot measure skew at all: it reports
+# orientation in 90-degree steps. Measured on the synthetic corpus it said
+# "rotate=0" for scans skewed 1.5 and 2.5 degrees (at orientation confidence
+# 4.56 and 0.44), and errored on both camera photos, while the contour and
+# Hough estimators recovered the injected angle to within 0.03 degrees.
+#
+# PROVISIONAL - measured on SYNTHETIC data only, and needs re-validation once
+# real camera photos are available. The skews the synthetic corpus exercises
+# reach 2.5 degrees for scans; everything above that, this value included, is
+# an untested judgment call. Beyond it a page is more likely genuinely rotated
+# than scan-skewed - a sideways or upside-down sheet - and is left as-is and
+# logged rather than auto-straightened, so Module 5 refuses it honestly
+# instead of a guessed rotation feeding it a plausible-looking wrong page.
+DESKEW_MAX_ANGLE_CORRECTION: float = 10.0
+
+# Hough fallback estimator. Every value below is provisional for the same
+# reason as the cap, and was checked only against the synthetic air waybill.
+HOUGH_WORKING_LONG_EDGE: int = 2000  # estimate on a downscaled copy; the angle is scale-free
+HOUGH_ANGLE_RESOLUTION_DEG: float = 0.25
+HOUGH_VOTE_THRESHOLD: int = 80
+HOUGH_MIN_LINE_FRACTION: float = 0.15  # a segment must span this share of the width to count
+HOUGH_MAX_LINE_GAP_FRACTION: float = 0.01
+HOUGH_ANGLE_WINDOW_DEG: float = 15.0  # lines further than this from an axis are not skew evidence
+HOUGH_MIN_LINES: int = 5  # fewer usable lines than this is not enough to trust an angle
+
 # Ruled-line removal for the field-extraction rendering. A stroke counts as a
 # rule only if it runs at least 1/N of the page width or height, which is far
 # longer than any glyph - that ratio is what separates "table border" from

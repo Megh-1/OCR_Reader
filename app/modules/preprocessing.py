@@ -24,6 +24,7 @@ in the wrong direction without ever raising an error.
 from __future__ import annotations
 
 import io
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -41,6 +42,7 @@ from app.config import (
     CLAHE_TILE_GRID,
     DEFAULT_SOURCE_DPI,
     DENOISE_STRENGTH,
+    DESKEW_MAX_ANGLE_CORRECTION,
     DOC_DETECT_APPROX_EPSILON,
     DOC_DETECT_MAX_AREA_FRACTION,
     DOC_DETECT_MAX_ASPECT,
@@ -48,6 +50,13 @@ from app.config import (
     DOC_DETECT_MIN_BORDER_CONTRAST,
     DOC_DETECT_MIN_ASPECT,
     DOC_DETECT_WORKING_WIDTH,
+    HOUGH_ANGLE_RESOLUTION_DEG,
+    HOUGH_ANGLE_WINDOW_DEG,
+    HOUGH_MAX_LINE_GAP_FRACTION,
+    HOUGH_MIN_LINE_FRACTION,
+    HOUGH_MIN_LINES,
+    HOUGH_VOTE_THRESHOLD,
+    HOUGH_WORKING_LONG_EDGE,
     MAX_UPSCALE_FACTOR,
     MIN_CONTOUR_AREA_FRACTION,
     OCR_TARGET_LONG_EDGE_PX,
@@ -60,11 +69,14 @@ from app.config import (
     TARGET_DPI,
 )
 
+log = logging.getLogger(__name__)
+
 
 @dataclass
 class SkewEstimate:
     angle: float
     used_osd_fallback: bool
+    method: str = "contour"  # "contour" | "hough" | "osd"
 
 
 def _order_quad_corners(points: np.ndarray) -> np.ndarray:
@@ -224,6 +236,9 @@ class ProcessedImage:
     final_dpi: float
     final_size: tuple[int, int]  # (width, height)
     document_detected: bool = False  # whether a page boundary was found and flattened
+    skew_angle_detected: float = 0.0  # what the estimator measured, even when it was not applied
+    deskew_method: str = "none"  # contour | hough | osd | document_detected | disabled
+    deskew_applied: bool = False  # a rotation was actually performed
 
 
 def decode_image(image_bytes: bytes) -> np.ndarray:
@@ -283,11 +298,62 @@ def estimate_skew_via_osd(gray: np.ndarray) -> float:
     return float(rotate)
 
 
+def estimate_skew_via_hough(gray: np.ndarray) -> Optional[float]:
+    """
+    Skew from the long straight segments on the page - a form's printed rules,
+    the baselines of text lines - or None when there is not enough of them to
+    trust.
+
+    Every segment's angle is folded modulo 90 degrees, so a horizontal rule and
+    a vertical one both vote for the same skew; the answer is the
+    length-weighted median, which one stray diagonal cannot move. Segments
+    further than HOUGH_ANGLE_WINDOW_DEG from an axis are ignored as not being
+    skew evidence at all.
+
+    Sign convention matches this module: positive = content rotated
+    clockwise as displayed.
+    """
+    scale = min(1.0, HOUGH_WORKING_LONG_EDGE / max(gray.shape[:2]))
+    working = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1.0 else gray
+    edges = cv2.Canny(cv2.GaussianBlur(working, (3, 3), 0), 50, 150)
+
+    width = working.shape[1]
+    segments = cv2.HoughLinesP(
+        edges,
+        1,
+        math.radians(HOUGH_ANGLE_RESOLUTION_DEG),
+        HOUGH_VOTE_THRESHOLD,
+        minLineLength=int(width * HOUGH_MIN_LINE_FRACTION),
+        maxLineGap=max(1, int(width * HOUGH_MAX_LINE_GAP_FRACTION)),
+    )
+    if segments is None:
+        return None
+
+    deviations, lengths = [], []
+    for x1, y1, x2, y2 in segments.reshape(-1, 4):
+        deviation = (math.degrees(math.atan2(y2 - y1, x2 - x1)) + 45.0) % 90.0 - 45.0
+        if abs(deviation) <= HOUGH_ANGLE_WINDOW_DEG:
+            deviations.append(deviation)
+            lengths.append(math.hypot(x2 - x1, y2 - y1))
+    if len(deviations) < HOUGH_MIN_LINES:
+        return None
+
+    order = np.argsort(deviations)
+    deviations_sorted = np.asarray(deviations)[order]
+    cumulative = np.cumsum(np.asarray(lengths)[order])
+    return float(deviations_sorted[np.searchsorted(cumulative, cumulative[-1] / 2)])
+
+
 def estimate_skew_angle(gray: np.ndarray) -> SkewEstimate:
     """
     Primary: threshold + dilate to merge text into one mass, take its largest
-    contour, and read the skew off that contour's minAreaRect. Falls back to
-    Tesseract OSD when no contour carries enough of the page to be trusted.
+    contour, and read the skew off that contour's minAreaRect. When no contour
+    carries enough of the page to be trusted, fall back to Hough line fitting,
+    and only if that finds too little too, to Tesseract OSD.
+
+    OSD is deliberately last: it reports orientation in 90-degree steps and
+    cannot see a 1.5-degree skew at all (see config.DESKEW_MAX_ANGLE_CORRECTION
+    for the measurement).
     """
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
     kernel = np.ones((SKEW_DILATE_KERNEL_SIZE, SKEW_DILATE_KERNEL_SIZE), np.uint8)
@@ -300,17 +366,34 @@ def estimate_skew_angle(gray: np.ndarray) -> SkewEstimate:
     area_fraction = (cv2.contourArea(largest) / page_area) if largest is not None else 0.0
 
     if largest is None or area_fraction < MIN_CONTOUR_AREA_FRACTION:
-        return SkewEstimate(angle=estimate_skew_via_osd(gray), used_osd_fallback=True)
+        hough_angle = estimate_skew_via_hough(gray)
+        if hough_angle is not None:
+            return SkewEstimate(angle=hough_angle, used_osd_fallback=False, method="hough")
+        return SkewEstimate(angle=estimate_skew_via_osd(gray), used_osd_fallback=True, method="osd")
 
     rect = cv2.minAreaRect(largest)
-    return SkewEstimate(angle=_normalize_rect_angle(rect), used_osd_fallback=False)
+    return SkewEstimate(angle=_normalize_rect_angle(rect), used_osd_fallback=False, method="contour")
 
 
-def correct_rotation(image: np.ndarray, angle: float) -> np.ndarray:
+def correct_rotation(image: np.ndarray, angle: float, expand: bool = False) -> np.ndarray:
     """
     Rotates `image` to cancel a skew of `angle` degrees under this module's
-    clockwise-positive convention (see module docstring). Expands the canvas
-    so corners aren't clipped, padding new area with white.
+    clockwise-positive convention (see module docstring), padding whatever the
+    rotation uncovers with white.
+
+    By default the canvas keeps its size and the page turns about its centre.
+    Every template bbox is a percentage of the FRAME, so the frame has to stay
+    the frame: growing the canvas to avoid clipping pads the page with white,
+    which scales it down inside the image and shifts every field box off its
+    cell. Measured on a synthetic scan skewed by only 1.5 degrees, with the
+    angle recovered exactly: 8/29 fields with no deskew, 7/29 with the
+    canvas-expanding correction, 25/29 with this. At 2.5 degrees the expanding
+    version pushed the anchors out of range and the page was refused outright.
+
+    The price is that corner content the rotation carries out of the frame is
+    lost - a margin sliver at these angles, which is why the correction is
+    capped (config.DESKEW_MAX_ANGLE_CORRECTION). `expand=True` restores the old
+    behaviour for a caller that has no template coordinates to protect.
     """
     if abs(angle) < SKEW_ANGLE_NOOP_THRESHOLD:
         return image
@@ -319,18 +402,20 @@ def correct_rotation(image: np.ndarray, angle: float) -> np.ndarray:
     center = (w / 2, h / 2)
     matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
 
-    cos = abs(matrix[0, 0])
-    sin = abs(matrix[0, 1])
-    new_w = int((h * sin) + (w * cos))
-    new_h = int((h * cos) + (w * sin))
-    matrix[0, 2] += (new_w / 2) - center[0]
-    matrix[1, 2] += (new_h / 2) - center[1]
+    out_w, out_h = w, h
+    if expand:
+        cos = abs(matrix[0, 0])
+        sin = abs(matrix[0, 1])
+        out_w = int((h * sin) + (w * cos))
+        out_h = int((h * cos) + (w * sin))
+        matrix[0, 2] += (out_w / 2) - center[0]
+        matrix[1, 2] += (out_h / 2) - center[1]
 
     border_value = 255 if image.ndim == 2 else (255, 255, 255)
     return cv2.warpAffine(
         image,
         matrix,
-        (new_w, new_h),
+        (out_w, out_h),
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=border_value,
     )
@@ -450,6 +535,7 @@ def preprocess_image(
     source_dpi: Optional[float] = None,
     target_aspect: Optional[float] = None,
     remove_rules: bool = False,
+    deskew: bool = True,
 ) -> ProcessedImage:
     """
     Entry point handed off from Module 1's page image bytes. Returns the
@@ -477,8 +563,25 @@ def preprocess_image(
     # The warp already squared the page up, so residual skew is sub-degree at
     # most; running the estimator on a flattened page would mostly measure
     # noise in the text mass and rotate a correct image back out of true.
-    skew = SkewEstimate(angle=0.0, used_osd_fallback=False) if document_detected else estimate_skew_angle(gray)
-    rotated = correct_rotation(bgr, skew.angle)
+    # `deskew=False` is for callers that know the page is upright - a text-native
+    # PDF render - where estimating skew could only ever introduce error.
+    detected_angle, applied_angle, osd_fallback = 0.0, 0.0, False
+    if document_detected:
+        deskew_method = "document_detected"
+    elif not deskew:
+        deskew_method = "disabled"
+    else:
+        skew = estimate_skew_angle(gray)
+        detected_angle, deskew_method, osd_fallback = skew.angle, skew.method, skew.used_osd_fallback
+        if abs(skew.angle) > DESKEW_MAX_ANGLE_CORRECTION:
+            log.warning(
+                "deskew skipped: detected %+.2f deg via %s exceeds DESKEW_MAX_ANGLE_CORRECTION (%.1f) - "
+                "likely a genuinely rotated page, not scan skew; left as-is",
+                skew.angle, skew.method, DESKEW_MAX_ANGLE_CORRECTION,
+            )
+        else:
+            applied_angle = skew.angle
+    rotated = correct_rotation(bgr, applied_angle)
     rotated_gray = cv2.cvtColor(rotated, cv2.COLOR_BGR2GRAY)
 
     cleaned = denoise_and_enhance(rotated_gray)
@@ -493,9 +596,12 @@ def preprocess_image(
     return ProcessedImage(
         image_bytes=encode_image(resized),
         field_image_bytes=encode_image(field_resized),
-        skew_angle_corrected=skew.angle,
-        osd_fallback_used=skew.used_osd_fallback,
+        skew_angle_corrected=applied_angle,
+        osd_fallback_used=osd_fallback,
         final_dpi=final_dpi,
         final_size=(resized.shape[1], resized.shape[0]),
         document_detected=document_detected,
+        skew_angle_detected=detected_angle,
+        deskew_method=deskew_method,
+        deskew_applied=abs(applied_angle) >= SKEW_ANGLE_NOOP_THRESHOLD,
     )

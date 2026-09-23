@@ -10,6 +10,7 @@ doc's architecture diagram describes:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -29,6 +30,7 @@ from app.schemas.extraction_result import CompiledResult
 from app.schemas.template import TemplateOut
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 
 class PageResult(BaseModel):
@@ -48,7 +50,9 @@ class ProcessDocumentResponse(BaseModel):
     pages: list[PageResult]
 
 
-def preprocess_for_template(page_bytes: bytes, template: TemplateOut, generic: ProcessedImage) -> ProcessedImage:
+def preprocess_for_template(
+    page_bytes: bytes, template: TemplateOut, generic: ProcessedImage, deskew: bool = True
+) -> ProcessedImage:
     """
     Pass 2 of preprocessing: now that the type is known, redo it with this
     document type's own parameters. Anchor verification only needed the page
@@ -65,7 +69,9 @@ def preprocess_for_template(page_bytes: bytes, template: TemplateOut, generic: P
     hints = template.hints
     if hints.page_aspect_ratio is None and not hints.ruled_form:
         return generic
-    return preprocess_image(page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form)
+    return preprocess_image(
+        page_bytes, target_aspect=hints.page_aspect_ratio, remove_rules=hints.ruled_form, deskew=deskew
+    )
 
 
 @dataclass
@@ -110,7 +116,18 @@ def _process_page(
 ) -> PageResult:
     # Pass 1 - generic. Module 2 has no idea what this document is yet, which
     # is the whole reason a second pass exists.
-    processed = preprocess_image(page_bytes)
+    #
+    # A text-native page is a PDF render, upright by construction, so deskew is
+    # skipped for it entirely: estimating skew on a page that has none can only
+    # ever introduce error.
+    processed = preprocess_image(page_bytes, deskew=text_layer is None)
+    if text_layer is not None:
+        log.info("page %d deskew: skipped (text-native)", page_index)
+    else:
+        log.info(
+            "page %d deskew: detected=%+.2f deg method=%s applied=%s",
+            page_index, processed.skew_angle_detected, processed.deskew_method, processed.deskew_applied,
+        )
 
     identification = identify_document_type(processed.image_bytes, type_hint)
 

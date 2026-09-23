@@ -17,6 +17,8 @@ npm --prefix frontend run lint                                         # oxlint 
 .\.venv\Scripts\python.exe -m alembic upgrade head                     # migrations
 .\.venv\Scripts\python.exe scripts\seed_templates.py                   # (re)build checked-in templates
 .\.venv\Scripts\python.exe scripts\evaluate_accuracy.py --images-dir DIR --ground-truth FILE.json [--sweep]   # per-input-tier accuracy + Module 5 classification
+.\.venv\Scripts\python.exe scripts\build_synthetic_corpus.py [--annotate-only]   # labeled-synthetic corpus in tests/fixtures/synthetic_awb (--annotate-only never regenerates images)
+.\.venv\Scripts\python.exe scripts\evaluate_deskew.py   # deskew: detected vs injected angle, accuracy with/without
 .\.venv\Scripts\python.exe scripts\prune_dev_templates.py [--archive --keep ID ...]   # list (default) / soft-archive non-seeded templates
 ```
 
@@ -36,6 +38,8 @@ Ad-hoc scripts outside the repo root need `PYTHONPATH=.`, and must set `pytesser
 `app/modules/pipeline.py` (`POST /documents/process`) wires the nine spec modules: ingestion → preprocessing → type identification → field extraction → validation → output compiler, with Module 9 (`review_queue.py`) catching both failure kinds (unmatched type → `new_template_needed`; each flagged field → its own `field_review`). Modules are plain functions calling each other's public functions; they do not re-implement each other.
 
 **Two-pass preprocessing is the central design.** Module 2 runs before the document type is known, so `_process_page` preprocesses once generically to identify, then again using the confirmed template's `hints` (`page_aspect_ratio`, `ruled_form` in `schemas/template.py`). Hints default to "behave as before".
+
+**Deskew (Module 2) has three traps, all measured.** (1) `correct_rotation` must keep the frame: it once enlarged the canvas, which pads the page and shifts every percentage-based field box - deskew then *hurt* (skew 1.5 deg: 8/29 fields uncorrected, 7/29 with the growing rotation, 25/29 with the frame kept; at 2.5 deg the growing version got the page refused). (2) Tesseract OSD reports orientation in 90-degree steps and cannot see fine skew (it said `rotate=0` for scans skewed 1.5 and 2.5 deg), so the estimator order is contour, then Hough, then OSD as a last resort - never OSD first. (3) A photo where document detection finds the page is straightened by the four-point warp and the skew estimator never runs on it. `DESKEW_MAX_ANGLE_CORRECTION` leaves a larger skew alone (probably a genuinely rotated sheet) and logs it; that value and the Hough tunables are PROVISIONAL, measured on synthetic data only. Text-native pages skip deskew entirely (`preprocess_image(deskew=False)`). `scripts/evaluate_deskew.py` reports detected vs injected angle per synthetic file.
 
 **Two renderings per page, identical dimensions** (`ProcessedImage`): `image_bytes` (binarized) is used *only* for Module 5 anchors; `field_image_bytes` (grayscale + CLAHE, optional ruled-line removal) is used for Module 6 and stored for review. Binarization is what makes header text detectable but shreds glyph strokes — never feed one rendering to both consumers.
 
@@ -57,6 +61,7 @@ Nearly every constant there carries a comment with the measurement behind it. Do
 
 - Most tests mock `pytesseract`; `tests/test_risk_mitigations.py` runs **real** OCR against the reference doc's risk table. Real-OCR assertions on measured behaviour should stay real.
 - To prove a path runs no OCR, patch `pytesseract.pytesseract.run_tesseract` (the subprocess every pytesseract API goes through), not just the wrappers - see the `no_tesseract` fixture in `tests/test_text_native.py`.
+- Alembic's `fileConfig` defaults to `disable_existing_loggers=True`, which mutes every `app.*` logger when migrations run in-process (the test session does); `alembic/env.py` sets it False. If `caplog` sees nothing, check `logger.disabled`.
 - Never import `app` in an ad-hoc script *before* calling `pytest.main`: it bypasses the root `conftest.py` and the tests write into the dev database.
 - `extract_field` calls `image_to_data` once per candidate PSM, so mocks must return one response per mode — use `ocr_responses(...)` from `tests/test_field_extraction.py` (derived from config) rather than hardcoding a call count.
 - Tests seed templates from `scripts/seed_templates.py`, not copies, so tests can't drift from what ships.

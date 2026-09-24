@@ -19,7 +19,7 @@ from pydantic import BaseModel
 
 from app.models.text_layer import TextLayer
 from app.modules.field_extraction import FieldExtractionResult, extract_fields, extract_fields_from_text_layer
-from app.modules.ingestion import IngestionError, extract_text_layers, ingest_file
+from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed
@@ -111,9 +111,34 @@ def extract_page_fields(
     )
 
 
-def _process_page(
+def prepare_document(
+    buffer: bytes, filename: Optional[str], type_hint: Optional[str]
+) -> tuple[list[bytes], IngestionMetadata, list[Optional[TextLayer]]]:
+    """
+    Module 1 for a whole upload: the pages, the ingestion metadata, and each
+    page's text layer (None where a page has none). Raises IngestionError for a
+    file that cannot be ingested. Shared by the synchronous endpoint and the
+    batch worker so the two cannot ingest differently.
+    """
+    pages, metadata = ingest_file(buffer, filename=filename, type_hint=type_hint)
+
+    # The text layers are only worth extracting when ingestion found at least
+    # one text-native page; everything else keeps the raster path untouched.
+    if any(metadata.text_native_pages):
+        text_layers = extract_text_layers(buffer)
+    else:
+        text_layers = [None] * len(pages)
+    return pages, metadata, text_layers
+
+
+def process_page(
     page_bytes: bytes, page_index: int, type_hint: Optional[str], text_layer: Optional[TextLayer] = None
 ) -> PageResult:
+    """
+    Modules 2 -> 8 for one page, persisting its result and enqueueing whatever
+    Module 9 needs. Public so the batch worker can run it a page at a time and
+    record progress between pages.
+    """
     # Pass 1 - generic. Module 2 has no idea what this document is yet, which
     # is the whole reason a second pass exists.
     #
@@ -169,17 +194,10 @@ def _process_page(
 async def process_document(file: UploadFile = File(...), type_hint: Optional[str] = Form(None)) -> ProcessDocumentResponse:
     buffer = await file.read()
     try:
-        pages, metadata = ingest_file(buffer, filename=file.filename, type_hint=type_hint)
+        pages, metadata, text_layers = prepare_document(buffer, file.filename, type_hint)
     except IngestionError as exc:
         raise HTTPException(status_code=422, detail={"reason_code": exc.reason_code, "message": str(exc)})
 
-    # The text layers are only worth extracting when ingestion found at least
-    # one text-native page; everything else keeps the raster path untouched.
-    if any(metadata.text_native_pages):
-        text_layers = extract_text_layers(buffer)
-    else:
-        text_layers = [None] * len(pages)
-
-    page_results = [_process_page(page_bytes, i, type_hint, text_layers[i]) for i, page_bytes in enumerate(pages)]
+    page_results = [process_page(page_bytes, i, type_hint, text_layers[i]) for i, page_bytes in enumerate(pages)]
 
     return ProcessDocumentResponse(filename=metadata.filename, page_count=metadata.page_count, pages=page_results)

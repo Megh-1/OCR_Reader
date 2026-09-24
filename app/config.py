@@ -353,6 +353,22 @@ CONFIDENCE_AUTO_APPROVE_THRESHOLD: float = 0.90
 # (183 vs 195 ms/call), so it is deliberately left alone.
 FIELD_OCR_WORKERS: int = 8
 
+# Batch processing: POST /documents/batch enqueues each document as an RQ job on
+# Redis; a worker (python -m app.worker) runs them through the same pipeline the
+# synchronous endpoint uses. Nothing here has been measured against real load.
+REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+BATCH_QUEUE_NAME: str = "idp-batch"
+BATCH_MAX_DOCUMENTS: int = 50  # per request; bounds how many uploads are held in memory at once
+# A job that raises is retried this many times, waiting these many seconds before each
+# attempt (the last interval repeats). 10/60/300 rides out a Postgres or Redis restart
+# without hammering it; a document that fails ingestion (wrong type, too big, corrupt)
+# is NOT retried, since running the same bytes again cannot change the answer.
+BATCH_MAX_RETRIES: int = 3
+BATCH_RETRY_INTERVALS: tuple[int, ...] = (10, 60, 300)
+# One document takes seconds (roughly 5-6 s per OCR page on this machine's synthetic
+# corpus); this is a ceiling for a hung Tesseract, not a target.
+BATCH_JOB_TIMEOUT: int = 600
+
 # Optional absolute path to the tesseract binary, for environments where
 # it's installed but not reliably on PATH (seen on this machine: a
 # winget-installed Tesseract that never added itself to PATH). Leave unset

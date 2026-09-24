@@ -32,6 +32,13 @@ Usage:
     python scripts/evaluate_accuracy.py --images-dir DIR --ground-truth FILE.json
     python scripts/evaluate_accuracy.py --images-dir DIR --ground-truth FILE.json --sweep
 
+    # several corpora in one run (each --images-dir pairs with the --ground-truth at the same position)
+    python scripts/evaluate_accuracy.py --images-dir A --ground-truth A/gt.json --images-dir B --ground-truth B/gt.json --sweep
+
+--sweep prints the approval-tier sweep (per input tier: what fraction of fields land in
+auto / spot_check / review at each CONFIDENCE_AUTO_APPROVE_THRESHOLD, and how precise the
+auto-approved ones are) and then the per-field confidence_floor false-accept table.
+
 Ground truth JSON shape (paths are relative to --images-dir):
     {
       "card.jpg": {
@@ -74,7 +81,9 @@ from app.modules.ingestion import extract_text_layers, ingest_file  # noqa: E402
 from app.modules.pipeline import extract_page_fields  # noqa: E402
 from app.modules.preprocessing import preprocess_image  # noqa: E402
 from app.modules.template_store import get_latest_template, get_template_version, list_known_doc_types  # noqa: E402
+from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD  # noqa: E402
 from app.modules.type_identification import identify_document_type  # noqa: E402
+from app.modules.validation import validate_fields  # noqa: E402
 
 if TESSERACT_CMD:
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
@@ -128,6 +137,8 @@ class FieldOutcome:
     actual: str
     correct: bool
     confidence: float
+    accepted: bool = True  # Module 7 accepted it (regex, checksum and confidence floor all passed)
+    has_validator: bool = False  # the template gives it a regex or a checksum, i.e. more than confidence to judge it by
 
 
 @dataclass
@@ -215,6 +226,8 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
     extractions = extraction.fields
     result.text_native = extraction.text_native
 
+    summary = validate_fields(template, extractions)
+    validated = {f.id for f in template.fields if f.validation_regex is not None or f.checksum is not None}
     for field_id, expected_value in expected["fields"].items():
         actual = extractions.get(field_id)
         actual_text = actual.raw_text if actual else ""
@@ -225,6 +238,8 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
                 actual=actual_text,
                 correct=normalize(actual_text) == normalize(expected_value),
                 confidence=actual.aggregate_confidence if actual else 0.0,
+                accepted=field_id in summary.accepted,
+                has_validator=field_id in validated,
             )
         )
     return result
@@ -353,6 +368,133 @@ def accuracy_report(results: list[FileResult]) -> int:
     return 1 if errors else 0
 
 
+def _is_real_file(filename: str) -> bool:
+    """The synthetic corpus names its files reference__* / synthetic__*; everything else is a real document."""
+    return not filename.startswith(("reference__", "synthetic__"))
+
+
+def _approval_grid(start: float, stop: float, step: float) -> list[float]:
+    """The regular sweep grid plus a 0.01 grid over 0.90-1.00, where the decision is actually made."""
+    grid, t = set(), start
+    while t <= stop + 1e-9:
+        grid.add(round(t, 2))
+        t += step
+    grid.update(round(0.90 + 0.01 * i, 2) for i in range(11))
+    return sorted(g for g in grid if start - 1e-9 <= g <= stop + 1e-9)
+
+
+def _tier_at(f: FieldOutcome, threshold: float) -> str:
+    """The approval tier Module 7 would give `f` at `threshold` (0-1 scale) - the same rule as
+    validation.approval_tier, parameterised so the sweep can vary it."""
+    if not f.accepted:
+        return "review"
+    return "auto" if f.confidence >= threshold * 100 else "spot_check"
+
+
+def _tier_counts(outs: list[tuple[str, FieldOutcome]], threshold: float) -> tuple[int, int, int, int]:
+    """(auto, auto_correct, spot_check, review) at `threshold`."""
+    auto = auto_correct = spot = review = 0
+    for _, f in outs:
+        tier = _tier_at(f, threshold)
+        if tier == "auto":
+            auto += 1
+            auto_correct += f.correct
+        elif tier == "spot_check":
+            spot += 1
+        else:
+            review += 1
+    return auto, auto_correct, spot, review
+
+
+def approval_sweep(results: list[FileResult], thresholds: list[float], target_precision: float = 0.99) -> int:
+    """
+    Per input tier: for each candidate CONFIDENCE_AUTO_APPROVE_THRESHOLD, what fraction
+    of fields land in each approval tier and how precise the auto-approved ones are.
+
+    A field is `auto` when Module 7 accepted it and its confidence is at or above the
+    threshold, `spot_check` when accepted but under it, `review` when Module 7 rejected
+    it (independent of the threshold). Precision is correct / auto; it says nothing
+    about the fields that were not auto-approved.
+
+    "Clears the target" means precision >= target at that threshold AND at every higher
+    one in the grid: on a corpus this small precision is not monotonic, and a threshold
+    that clears only by luck would be a poor thing to ship.
+    """
+    evaluated = [r for r in results if r.error is None and r.extraction_skipped is None]
+    tiers = _tiers_to_show(results)
+    exit_code = 0
+
+    for tier in tiers:
+        outs = [(r.filename, f) for r in evaluated if r.tier == tier for f in r.fields]
+        label = TIER_LABELS[tier]
+        print(f"=== Approval-tier sweep: {label} ===")
+        if not outs:
+            print("  no samples in this corpus\n")
+            continue
+
+        files = sum(1 for r in evaluated if r.tier == tier)
+        distinct = len({(f.field_id, normalize(f.expected)) for _, f in outs})
+        real = sum(1 for name, _ in outs if _is_real_file(name))
+        print(f"  {len(outs)} field reads from {files} file(s) ({real} from real documents); "
+              f"{distinct} DISTINCT expected values - the reads are not independent samples")
+        print(f"  {'threshold':>9} | {'auto':>12} | {'auto precision':>18} | {'wrong in auto':>13} | {'spot_check':>10} | {'review':>7}")
+
+        rows = []
+        for t in thresholds:
+            auto, auto_ok, spot, review = _tier_counts(outs, t)
+            rows.append((t, auto, auto_ok, spot, review))
+            precision = f"{auto_ok}/{auto} = {100 * auto_ok / auto:5.1f}%" if auto else "n/a"
+            marker = "  <- configured" if abs(t - CONFIDENCE_AUTO_APPROVE_THRESHOLD) < 1e-9 else ""
+            n = len(outs)
+            print(f"  {t:>9.2f} | {f'{auto} ({100 * auto / n:.0f}%)':>12} | {precision:>18} | {auto - auto_ok:>13} | "
+                  f"{f'{100 * spot / n:.0f}%':>10} | {f'{100 * review / n:.0f}%':>7}{marker}")
+
+        # Lowest threshold from which precision stays at or above the target.
+        clearing = None
+        for i in range(len(rows) - 1, -1, -1):
+            t, auto, auto_ok, _, _ = rows[i]
+            if auto and auto_ok / auto < target_precision:
+                break
+            clearing = rows[i] if auto else clearing
+        if clearing is None:
+            print(f"  -> no threshold on the grid gives auto precision >= {100 * target_precision:.0f}%")
+        else:
+            t, auto, auto_ok, _, _ = clearing
+            print(f"  -> lowest threshold that stays >= {100 * target_precision:.0f}% from there up: {t:.2f} "
+                  f"(auto = {auto} of {len(outs)} fields, {100 * auto / len(outs):.0f}%)")
+
+        # The wrong values Module 7 ACCEPTED: these are the ones that could ship silently.
+        wrong_accepted = sorted(
+            ((name, f) for name, f in outs if f.accepted and not f.correct), key=lambda item: -item[1].confidence
+        )
+        if wrong_accepted:
+            print(f"  wrong values Module 7 accepted ({len(wrong_accepted)}); each is `auto` at every threshold <= its confidence:")
+            for name, f in wrong_accepted:
+                kind = "real" if _is_real_file(name) else "synthetic"
+                checked = "regex/checksum" if f.has_validator else "confidence only"
+                print(f"     conf {f.confidence:5.1f}  {f.field_id:24} read {f.actual[:34]!r:38} expected {f.expected[:30]!r:32} [{kind}, {checked}] {name[-34:]}")
+        else:
+            print("  no wrong value was accepted by Module 7")
+
+        # Same auto-approved set, split by whether anything other than confidence could have judged it.
+        t0 = CONFIDENCE_AUTO_APPROVE_THRESHOLD
+        auto_outs = [f for _, f in outs if f.accepted and f.confidence >= t0 * 100]
+        for validated, name in ((True, "with a regex/checksum"), (False, "confidence only  ")):
+            group = [f for f in auto_outs if f.has_validator is validated]
+            if group:
+                ok = sum(f.correct for f in group)
+                print(f"  at the configured {t0:.2f}: auto fields {name} {ok}/{len(group)} correct ({100 * ok / len(group):.1f}%)")
+        print()
+
+    errors = [f"{r.filename}: {r.error or r.extraction_skipped}" for r in results if r.error or r.extraction_skipped]
+    if errors:
+        print("=== Errors / skipped ===")
+        for e in errors:
+            print(f"  {e}")
+        exit_code = 1
+    return exit_code
+
+
 def confidence_sweep(results: list[FileResult], thresholds: list[float]) -> int:
     per_field_samples: dict[str, list[tuple[bool, float]]] = {}
     for r in results:
@@ -380,16 +522,22 @@ def confidence_sweep(results: list[FileResult], thresholds: list[float]) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--images-dir", required=True, type=Path)
-    parser.add_argument("--ground-truth", required=True, type=Path)
-    parser.add_argument("--sweep", action="store_true", help="Run the confidence_floor sweep instead of the accuracy report")
+    parser.add_argument("--images-dir", required=True, type=Path, action="append",
+                        help="repeatable; pairs with the --ground-truth at the same position")
+    parser.add_argument("--ground-truth", required=True, type=Path, action="append")
+    parser.add_argument("--sweep", action="store_true",
+                        help="Run the approval-tier sweep and the confidence_floor sweep instead of the accuracy report")
     parser.add_argument("--sweep-start", type=float, default=0.0)
     parser.add_argument("--sweep-stop", type=float, default=1.0)
     parser.add_argument("--sweep-step", type=float, default=0.05)
     args = parser.parse_args()
+    if len(args.images_dir) != len(args.ground_truth):
+        parser.error("give one --ground-truth for each --images-dir")
 
-    ground_truth = json.loads(args.ground_truth.read_text(encoding="utf-8"))
-    results = evaluate_all(args.images_dir, ground_truth)
+    results: list[FileResult] = []
+    for images_dir, ground_truth_path in zip(args.images_dir, args.ground_truth):
+        ground_truth = json.loads(ground_truth_path.read_text(encoding="utf-8"))
+        results.extend(evaluate_all(images_dir, ground_truth))
 
     if args.sweep:
         thresholds = []
@@ -397,7 +545,9 @@ def main() -> int:
         while t <= args.sweep_stop + 1e-9:
             thresholds.append(round(t, 2))
             t += args.sweep_step
-        return confidence_sweep(results, thresholds)
+        code = approval_sweep(results, _approval_grid(max(args.sweep_start, 0.5), args.sweep_stop, args.sweep_step))
+        print("=" * 78)
+        return max(code, confidence_sweep(results, thresholds))
 
     return accuracy_report(results)
 

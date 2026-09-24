@@ -309,6 +309,40 @@ PSM_CANDIDATES: tuple[int, ...] = (4, 6, 7)
 DIGIT_WHITELIST: str = "0123456789"
 DIGIT_WHITELIST_PSM: int = 7
 
+# Module 7 approval tiers. A field Module 7 REJECTS is "review" (unchanged). One it
+# accepts is "auto" when its confidence is at or above this, else "spot_check": it
+# passed every check but Tesseract was not very sure, so a person may want to look.
+# 0.0-1.0, the same scale as a template field's confidence_floor.
+#
+# PROVISIONAL, and measured almost entirely on SYNTHETIC input. Swept 0.50-1.00
+# with `evaluate_accuracy.py --sweep` over the 20-file synthetic waybill corpus
+# plus the two real files. At 0.90 (auto / spot_check / review, share of fields;
+# auto precision):
+#   text-layer PDF    100% / 0% /  0%   58/58    (all conf 100 by construction)
+#   scanned PDF        85% / 10% / 5%   222/222
+#   camera-photo JPEG  80% / 10% / 10%  234/234  (3 of its 293 reads are real)
+# Auto precision is 100% in every tier for any threshold above 0.87 (the highest
+# wrong read) up to 0.96; by 0.97 the OCR tiers have almost no auto fields left
+# (0 scanned, 2 camera).
+#
+# Read that with three cautions:
+#  * MARGIN. Every wrong value Module 7 accepted (7 reads of 3 fields: shipper_name
+#    'TE' for 'TF' and label bleed, flight_date 'EKO565' for 'EK0565',
+#    declared_value_customs 'NVG' for 'NVC') has confidence 66-87. 0.90 is 3
+#    points above the highest (87.0). A real misread at 91 would auto-approve.
+#  * NOT INDEPENDENT. The corpus is renderings of ONE waybill: 29 distinct values,
+#    32 with the ID card. 234 clean auto reads are ~29 samples, not 234, so "100%"
+#    cannot demonstrate the 99% target; it only fails to contradict it.
+#  * EVERY wrong-accepted value is in a field with no regex or checksum, so only
+#    confidence stood between it and auto. Where a format check exists the auto
+#    subset was 147/147 (camera) and 138/138 (scanned); where none does, 87/87 and
+#    84/84 - but the errors that exist live there, and two of the three fields
+#    (a name, a 3-letter code where NVG and NVC are both valid) hold text no
+#    format check could tell from the right answer. Only flight_date has a
+#    catchable shape.
+# Real photographed waybills have not been measured at all.
+CONFIDENCE_AUTO_APPROVE_THRESHOLD: float = 0.90
+
 # Concurrent field reads. Each OCR call is its own Tesseract subprocess over
 # its own crop, so this is a pure latency win with identical results. Measured
 # on a 33-field air waybill (99 calls at ~195ms): 19.3s serial, 5.1s at 4

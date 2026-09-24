@@ -36,12 +36,12 @@ def compile_output(template_id: str, version: int, validation_summary: Validatio
     for field_id, result in validation_summary.accepted.items():
         fields[field_id] = FieldResult(
             field_id=result.field_id, value=result.value, confidence=result.confidence,
-            needs_review=False, reasons=result.reasons,
+            needs_review=False, reasons=result.reasons, approval_tier=result.approval_tier,
         )
     for field_id, result in validation_summary.flagged.items():
         fields[field_id] = FieldResult(
             field_id=result.field_id, value=result.value, confidence=result.confidence,
-            needs_review=True, reasons=result.reasons,
+            needs_review=True, reasons=result.reasons, approval_tier=result.approval_tier,
         )
 
     # A single flagged field is enough to mark the whole record for review -

@@ -15,7 +15,10 @@ from scripts.evaluate_accuracy import (
     TIER_TEXT_PDF,
     FieldOutcome,
     FileResult,
+    _approval_grid,
     _classify,
+    _tier_at,
+    approval_sweep,
     accuracy_report,
     detect_tier,
 )
@@ -127,3 +130,108 @@ def test_report_says_which_path_read_each_file(capsys):
 
     assert "a.pdf" in next(l for l in out.splitlines() if "read via: text layer, no OCR" in l)
     assert "b.jpg" in next(l for l in out.splitlines() if l.rstrip().endswith("read via: OCR"))
+
+
+# --- approval-tier sweep ----------------------------------------------------------------------
+
+def _outcome(field_id, correct, confidence, accepted=True, has_validator=False):
+    return FieldOutcome(field_id, "x", "x" if correct else "y", correct, confidence, accepted, has_validator)
+
+
+def _camera_file(*outcomes, name="synthetic__a.jpg"):
+    return FileResult(filename=name, tier=TIER_CAMERA_JPEG, expected_template="t", classification=OUTCOME_CORRECT,
+                      fields=list(outcomes))
+
+
+def _cells(out, threshold):
+    """[auto, precision, wrong-in-auto, spot_check, review] for one row of the sweep table."""
+    line = next(line for line in out.splitlines() if line.strip().startswith(f"{threshold:.2f} |"))
+    return [cell.split("<-")[0].strip() for cell in line.split("|")[1:]]
+
+
+def test_the_sweep_reports_precision_of_the_auto_subset_and_the_tier_split(capsys):
+    approval_sweep(
+        [_camera_file(
+            _outcome("a", True, 95.0), _outcome("b", True, 92.0),
+            _outcome("c", False, 85.0),                      # wrong AND accepted: the dangerous kind
+            _outcome("d", False, 40.0, accepted=False),      # wrong but rejected: caught, so never auto
+        )],
+        thresholds=[0.80, 0.90],
+    )
+    out = capsys.readouterr().out
+    camera = out[out.index("camera-photo JPEG"):]
+
+    # at 0.80 a, b and c are auto and c is wrong; at 0.90 c drops to spot_check; d is review at any threshold
+    assert _cells(camera, 0.80) == ["3 (75%)", "2/3 =  66.7%", "1", "0%", "25%"]
+    assert _cells(camera, 0.90) == ["2 (50%)", "2/2 = 100.0%", "0", "25%", "25%"]
+
+
+def test_the_sweep_lists_the_wrong_values_module_7_accepted_and_only_those(capsys):
+    approval_sweep(
+        [_camera_file(_outcome("shipper_name", False, 85.6), _outcome("rejected_one", False, 40.0, accepted=False),
+                      _outcome("fine", True, 95.0))],
+        thresholds=[0.90],
+    )
+    out = capsys.readouterr().out
+
+    assert "wrong values Module 7 accepted (1)" in out
+    assert "shipper_name" in out and "rejected_one" not in out
+    assert "confidence only" in out  # says nothing but confidence could have caught it
+
+
+def test_a_threshold_only_clears_the_target_if_every_higher_one_does(capsys):
+    """Precision that dips again higher up is luck, not a threshold to ship."""
+    outs = [_outcome(f"ok{i}", True, 96.0) for i in range(99)] + [_outcome("bad", False, 96.0)]  # 99/100 at any threshold <= 0.96
+    approval_sweep([_camera_file(*outs, _outcome("hi", False, 99.0))], thresholds=[0.50, 0.97, 0.98])
+    out = capsys.readouterr().out
+
+    # at 0.97 and 0.98 only the one wrong 99.0 read is auto (0/1): never clears
+    assert "no threshold on the grid gives auto precision >= 99%" in out
+
+
+def test_the_sweep_says_when_a_tier_has_no_samples(capsys):
+    approval_sweep([_camera_file(_outcome("a", True, 95.0))], thresholds=[0.90])
+    scanned = next(chunk for chunk in capsys.readouterr().out.split("=== ") if "scanned / flat-image PDF" in chunk)
+    assert "no samples" in scanned
+
+
+def test_the_sweep_warns_that_reads_are_not_independent_samples(capsys):
+    approval_sweep([_camera_file(_outcome("a", True, 95.0), name="a.jpg"), _camera_file(_outcome("a", True, 95.0), name="b.jpg")],
+                   thresholds=[0.90])
+    out = capsys.readouterr().out
+    assert "2 field reads from 2 file(s)" in out and "1 DISTINCT expected values" in out
+
+
+def test_real_and_synthetic_reads_are_told_apart(capsys):
+    approval_sweep([_camera_file(_outcome("a", True, 95.0), name="synthetic__x.jpg"),
+                    _camera_file(_outcome("a", True, 95.0), name="bits_goa_id_card/sample_01.jpg")], thresholds=[0.90])
+    assert "(1 from real documents)" in capsys.readouterr().out
+
+
+def test_the_harness_tier_rule_is_module_7s_rule(monkeypatch):
+    """The sweep re-implements the rule so it can vary the threshold; it must not drift from the real one."""
+    from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD
+    from app.modules.validation import approval_tier
+
+    for accepted in (True, False):
+        for confidence in (0.0, 50.0, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 - 0.1, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100, 100.0):
+            assert _tier_at(_outcome("f", True, confidence, accepted), CONFIDENCE_AUTO_APPROVE_THRESHOLD) == approval_tier(accepted, confidence)
+
+
+def test_the_grid_is_fine_where_the_decision_is_made():
+    grid = _approval_grid(0.5, 1.0, 0.05)
+    assert 0.90 in grid and 0.93 in grid and 1.0 in grid and grid == sorted(grid)
+    assert 0.53 not in grid
+
+
+def test_two_corpora_need_two_ground_truths(monkeypatch):
+    import sys
+
+    import pytest
+
+    from scripts.evaluate_accuracy import main
+
+    monkeypatch.setattr(sys, "argv", ["evaluate_accuracy.py", "--images-dir", "a", "--images-dir", "b", "--ground-truth", "gt.json"])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2

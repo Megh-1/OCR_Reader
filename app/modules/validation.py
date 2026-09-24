@@ -28,12 +28,16 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field as dataclass_field
-from typing import Callable, Optional
+from typing import Callable, Literal, Optional
 
 from pydantic import BaseModel, ValidationError, field_validator
 
+from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD
 from app.modules.field_extraction import FieldExtractionResult
 from app.schemas.template import TemplateField, TemplateOut
+
+
+ApprovalTier = Literal["auto", "spot_check", "review"]
 
 
 @dataclass
@@ -43,6 +47,8 @@ class FieldValidationResult:
     confidence: float
     accepted: bool
     reasons: list[str] = dataclass_field(default_factory=list)  # empty when accepted
+    # None only for a result built by hand without going through validate_field.
+    approval_tier: Optional[ApprovalTier] = None
 
 
 @dataclass
@@ -132,6 +138,27 @@ def _check_confidence(aggregate_confidence: float, confidence_floor: float) -> l
     return []
 
 
+def approval_tier(accepted: bool, aggregate_confidence: float) -> ApprovalTier:
+    """
+    How much human attention an ACCEPTED-or-not field still gets.
+
+      review      Module 7 rejected it (format, check digit or confidence floor).
+      spot_check  accepted, but under CONFIDENCE_AUTO_APPROVE_THRESHOLD.
+      auto        accepted and at or above the threshold.
+
+    Confidence is Tesseract's own 0-100; a text-native field carries a fixed 100
+    (see TEXT_LAYER_CONFIDENCE), so it is auto whenever it passes validation. The
+    tier only ever ADDS caution on top of validation: a rejected field is never
+    promoted, and the threshold cannot make an accepted field "review".
+
+    "At or above" - a field exactly on the line is auto - matches how the per-field
+    floor treats its own line.
+    """
+    if not accepted:
+        return "review"
+    return "auto" if aggregate_confidence >= CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 else "spot_check"
+
+
 def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> FieldValidationResult:
     # OCR routinely adds stray leading/trailing whitespace that would
     # otherwise fail an already-correct read - stripped only for the
@@ -150,6 +177,7 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
         confidence=extraction.aggregate_confidence,
         accepted=not reasons,
         reasons=reasons,
+        approval_tier=approval_tier(not reasons, extraction.aggregate_confidence),
     )
 
 

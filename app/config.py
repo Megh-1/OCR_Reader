@@ -1,4 +1,5 @@
 import os
+import shutil
 
 MAX_UPLOAD_BYTES: int = 15 * 1024 * 1024
 MAX_PAGES: int = 20
@@ -372,7 +373,7 @@ BATCH_JOB_TIMEOUT: int = 600
 # Optional absolute path to the tesseract binary, for environments where
 # it's installed but not reliably on PATH (seen on this machine: a
 # winget-installed Tesseract that never added itself to PATH). Leave unset
-# to trust PATH resolution, which is what the Docker image relies on -
+# to fall through to PATH, which is where the Docker image's tesseract lives -
 # this is a local-environment escape hatch, not something to depend on.
 #
 # The filesystem-existence fallback (not just the env var) exists because
@@ -381,8 +382,30 @@ BATCH_JOB_TIMEOUT: int = 600
 # already-running shells, etc.) - a direct file check at import time is
 # immune to that class of problem, unlike an env var someone forgot to
 # (or couldn't) set for a given process. Inert on Linux/Docker, where the
-# path simply won't exist and this falls through to None.
+# path simply won't exist and resolution falls through to PATH.
 _DEFAULT_WINDOWS_TESSERACT = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-TESSERACT_CMD: str | None = os.environ.get("TESSERACT_CMD") or (
-    _DEFAULT_WINDOWS_TESSERACT if os.path.exists(_DEFAULT_WINDOWS_TESSERACT) else None
-)
+
+
+def resolve_tesseract_cmd(
+    env: dict = os.environ, exists=os.path.exists, which=shutil.which
+) -> str | None:
+    """
+    Where the tesseract binary is, in order: the TESSERACT_CMD environment
+    variable; the default Windows install location, if the file is there; whatever
+    `tesseract` is first on PATH (which is where apt puts it in the Docker image,
+    /usr/bin/tesseract); otherwise None, which leaves pytesseract to try the bare
+    name "tesseract" and fail loudly if it is absent.
+
+    The Windows check comes before PATH so this machine resolves exactly as it did
+    before PATH was consulted at all. On Linux the Windows path cannot exist and
+    the answer is the PATH lookup - an actual path, not None, so a missing binary
+    shows up as an unresolved TESSERACT_CMD rather than a mystery at first OCR.
+    """
+    if env.get("TESSERACT_CMD"):
+        return env["TESSERACT_CMD"]
+    if exists(_DEFAULT_WINDOWS_TESSERACT):
+        return _DEFAULT_WINDOWS_TESSERACT
+    return which("tesseract")
+
+
+TESSERACT_CMD: str | None = resolve_tesseract_cmd()

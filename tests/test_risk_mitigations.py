@@ -12,6 +12,7 @@ personal data and is not committed to the repository.
 from __future__ import annotations
 
 import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -112,6 +113,17 @@ def test_type_hint_alone_never_authorizes_extraction():
 
 
 @needs_real_card
+@pytest.mark.xfail(
+    sys.platform != "win32",
+    strict=False,
+    reason=(
+        "Measured on Windows (Tesseract 5.5.0.20241111). The Debian build of the same 5.5.0 with a byte-identical "
+        "eng.traineddata reads the SAME pixels of the half-resolution id_number crop as '2024A7 PS0476G' at confidence 40 "
+        "where Windows reads '2024A7PS0476G' at 52, so this exact-match claim does not hold in the Docker image. "
+        "Module 7 rejects the Debian read (see the next test), so it is a review, not a wrong value. Non-strict: "
+        "it reports XPASS if a Tesseract build ever agrees again."
+    ),
+)
 def test_same_document_at_half_resolution_extracts_identical_values():
     """The whole reason bboxes are stored as percentages. Halving the input
     resolution changes every absolute pixel coordinate in the image and must
@@ -129,6 +141,24 @@ def test_same_document_at_half_resolution_extracts_identical_values():
     for field_id, expected in TRUTH.items():
         assert full_values[field_id] == expected
         assert half_values[field_id] == expected
+
+
+@needs_real_card
+def test_at_half_resolution_no_wrong_value_is_ever_accepted():
+    """The property behind the test above that has to hold on EVERY platform: halving the resolution may
+    change what Tesseract reads (it does, on the Debian build), but a value that is not the truth must be
+    rejected by Module 7 rather than shipped."""
+    raw = REAL_CARD.read_bytes()
+    template = get_latest_template(DOC_TYPE)
+    half = preprocess_image(_rescale(raw, 0.5))
+
+    summary = validate_fields(template, extract_fields(DOC_TYPE, template.version, half.field_image_bytes))
+
+    for field_id, expected in TRUTH.items():
+        if field_id in summary.accepted:
+            assert summary.accepted[field_id].value.strip() == expected, (
+                f"{field_id}: accepted {summary.accepted[field_id].value!r}, truth is {expected!r}"
+            )
 
 
 # --- Row 3: minor scan skew/misalignment ------------------------------------

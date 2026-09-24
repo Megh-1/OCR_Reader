@@ -1,11 +1,22 @@
-# NOT run as part of this change - see Dockerfile's header note.
+# The full stack: Postgres, Redis, the API, and a batch worker. Run from the repo
+# root:
 #
-# The postgres service is a separate, isolated Postgres SERVER from the
-# native Windows Postgres this project also uses for local (non-Docker) dev
-# - they don't share data, and this maps to host port 5433, not 5432, so
-# the two coexist rather than one replacing the other. Inside the compose
-# network the app container reaches postgres via the service name on its
-# normal internal port (5432), unaffected by that host-side remap.
+#   docker compose up --build                 # API on http://localhost:8000 (APP_PORT to change it)
+#   docker compose up --scale worker=3        # more batch workers
+#   docker compose --profile test run --rm tests            # the pytest suite, in a container
+#   docker compose -f docker-compose.yml -f docker-compose.fixtures.yml \
+#       --profile test run --rm tests                        # ...plus the tests that need tests/fixtures
+#
+# Postgres here is a separate, isolated SERVER from the native Windows Postgres
+# this project also uses for local (non-Docker) dev - they don't share data, and
+# it maps to host port 5433, not 5432, so the two coexist rather than one
+# replacing the other. Inside the compose network the containers reach it via the
+# service name on its normal internal port (5432), unaffected by that remap.
+# Redis is likewise mapped to host 6380.
+#
+# The postgres image only runs docker/postgres-init/ when it creates a fresh
+# data volume. If your postgres_data volume already exists, create the test
+# database by hand:  docker compose exec postgres createdb -U idp idp_pipeline_test
 
 services:
   postgres:
@@ -18,18 +29,69 @@ services:
       - "5433:5432" # host 5433 - leaves the native Windows Postgres's 5432 alone
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro # creates idp_pipeline_test for the tests service
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U idp -d idp_pipeline"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379" # host 6380 - leaves a native Redis's 6379 alone
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
-    build: .
+    build:
+      context: .
+      target: runtime
+    image: idp-pipeline:runtime
     environment:
       DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
+      REDIS_URL: redis://redis:6379/0
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # The image has no curl; python is always there. /docs is served once startup (and so the
+      # migration in the container's CMD) has finished.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # Runs documents off the queue. Waits for the app to be healthy because the app's
+  # start-up is what migrates the database.
+  worker:
+    image: idp-pipeline:runtime
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # Not started by `up`: only `--profile test run`. Points at the *_test database on purpose -
+  # the root conftest.py only defaults to it when DATABASE_URL is unset, and here it is set.
+  tests:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    environment:
+      DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline_test
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy

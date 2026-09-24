@@ -5,3 +5,8 @@ __pycache__/
 .pytest_cache/
 frontend/node_modules/
 frontend/dist/
+
+# Personal data: an ID-card photo, a waybill with real third-party contact
+# details, and the ground truth for both. Never part of a build context, let
+# alone an image. Bind-mount it at run time if a test needs it.
+tests/fixtures/

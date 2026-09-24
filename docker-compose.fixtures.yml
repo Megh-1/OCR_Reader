@@ -1,0 +1,9 @@
+# Adds the untracked tests/fixtures/ to the tests service, read-only, at run time.
+# It holds personal data and is never copied into an image (see .dockerignore), so the
+# tests that need it are skipped unless you use this file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.fixtures.yml --profile test run --rm tests
+services:
+  tests:
+    volumes:
+      - ./tests/fixtures:/app/tests/fixtures:ro

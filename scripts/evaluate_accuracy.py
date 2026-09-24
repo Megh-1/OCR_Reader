@@ -74,9 +74,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 import fitz  # noqa: E402
 import magic  # noqa: E402
-import pytesseract  # noqa: E402
 
-from app.config import TESSERACT_CMD  # noqa: E402
+from app.runtime import configure_tesseract  # noqa: E402
 from app.modules.ingestion import extract_text_layers, ingest_file  # noqa: E402
 from app.modules.pipeline import extract_page_fields  # noqa: E402
 from app.modules.preprocessing import preprocess_image  # noqa: E402
@@ -85,8 +84,7 @@ from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD  # noqa: E402
 from app.modules.type_identification import identify_document_type  # noqa: E402
 from app.modules.validation import validate_fields  # noqa: E402
 
-if TESSERACT_CMD:
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+configure_tesseract()
 
 TIER_TEXT_PDF = "text_layer_pdf"
 TIER_SCANNED_PDF = "scanned_pdf"

@@ -344,14 +344,31 @@ DIGIT_WHITELIST_PSM: int = 7
 # Real photographed waybills have not been measured at all.
 CONFIDENCE_AUTO_APPROVE_THRESHOLD: float = 0.90
 
+# Threads each Tesseract PROCESS may use (its OpenMP OMP_THREAD_LIMIT). This matters far
+# more than it looks, and only on Linux. Every field read is its own Tesseract process
+# and a document runs FIELD_OCR_WORKERS of them at once; left alone, each also starts
+# one OpenMP thread per core, and those threads spin-wait, so they starve each other.
+# Measured on this machine (18 vCPUs), the 33-field OCR stage of one photographed
+# waybill, in the Linux container:
+#   default OpenMP, one document alone               8.7 s
+#   OMP_THREAD_LIMIT=1, one document alone           1.9 s   (4.6x faster)
+#   default OpenMP, 3 documents at once           186-191 s each  (a worker pool grinds to a halt)
+#   OMP_THREAD_LIMIT=1, 3 documents at once        4.2-4.8 s each
+#   OMP_THREAD_LIMIT=1, 6 documents at once      11.7-13.2 s each
+# On Windows it makes no difference (2.4 s default, 2.5 s limited) - which is why an
+# earlier local measurement concluded OpenMP threading did not matter. One thread per
+# process costs nothing measurable and is what Tesseract's own guidance recommends when
+# running instances in parallel. Set OMP_THREAD_LIMIT in the environment to override.
+TESSERACT_OMP_THREAD_LIMIT: int = 1
+
 # Concurrent field reads. Each OCR call is its own Tesseract subprocess over
 # its own crop, so this is a pure latency win with identical results. Measured
 # on a 33-field air waybill (99 calls at ~195ms): 19.3s serial, 5.1s at 4
 # workers, 3.2s at 8, 2.7s at 16. Past 8 the returns flatten, so this stops
 # there rather than spawning processes for another half second.
 #
-# Tesseract's own OpenMP threading was measured and makes no difference here
-# (183 vs 195 ms/call), so it is deliberately left alone.
+# Tesseract's own OpenMP threading made no difference when measured on Windows (183 vs
+# 195 ms/call) - but on Linux it is decisive; see TESSERACT_OMP_THREAD_LIMIT.
 FIELD_OCR_WORKERS: int = 8
 
 # Batch processing: POST /documents/batch enqueues each document as an RQ job on

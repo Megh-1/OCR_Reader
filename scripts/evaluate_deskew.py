@@ -47,10 +47,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import cv2  # noqa: E402
-import pytesseract  # noqa: E402
 
 import app.modules.preprocessing as preprocessing  # noqa: E402
-from app.config import TESSERACT_CMD  # noqa: E402
+from app.runtime import configure_tesseract  # noqa: E402
 from app.modules.field_extraction import extract_fields  # noqa: E402
 from app.modules.ingestion import ingest_file  # noqa: E402
 from app.modules.pipeline import preprocess_for_template  # noqa: E402
@@ -58,8 +57,7 @@ from app.modules.preprocessing import decode_image, estimate_skew_angle, estimat
 from app.modules.template_store import get_latest_template  # noqa: E402
 from app.modules.type_identification import identify_document_type  # noqa: E402
 
-if TESSERACT_CMD:
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+configure_tesseract()
 
 DEFAULT_FILES = [
     "synthetic__scan_clean_200dpi.pdf",  # control: nothing injected

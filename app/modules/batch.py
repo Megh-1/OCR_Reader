@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from redis.exceptions import RedisError
 from rq import Retry, get_current_job
 from sqlalchemy import select
@@ -50,6 +50,7 @@ from app.schemas.batch import (
     BatchDocumentSubmitted,
     BatchStatusResponse,
     BatchSubmitResponse,
+    BatchSummary,
 )
 
 router = APIRouter()
@@ -174,6 +175,25 @@ def _fail_unqueued(document_ids: list[int], error: str) -> None:
 
 
 # --------------------------------------------------------------------------- status
+
+
+@router.get("/documents/batch", response_model=list[BatchSummary])
+def list_batches(limit: int = Query(20, ge=1, le=100)) -> list[BatchSummary]:
+    """Recent batches, newest first, with per-status document counts (no results, no payloads)."""
+    with SessionLocal() as session:
+        batches = session.scalars(select(BatchRecord).order_by(BatchRecord.created_at.desc()).limit(limit)).all()
+        ids = [b.id for b in batches]
+        rows = session.execute(
+            select(BatchDocumentRecord.batch_id, BatchDocumentRecord.status).where(BatchDocumentRecord.batch_id.in_(ids))
+        ).all() if ids else []
+    counts = {b.id: {status: 0 for status in ALL_STATUSES} for b in batches}
+    for batch_id, status in rows:
+        counts[batch_id][status] += 1
+    return [
+        BatchSummary(batch_id=b.id, created_at=b.created_at, type_hint=b.type_hint, status=_batch_status(counts[b.id]),
+                     document_count=sum(counts[b.id].values()), counts=counts[b.id])
+        for b in batches
+    ]
 
 
 @router.get("/documents/batch/{batch_id}/status", response_model=BatchStatusResponse)

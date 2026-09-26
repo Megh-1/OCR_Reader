@@ -35,6 +35,15 @@ class BatchDocumentStatus(BaseModel):
     finished_at: Optional[datetime] = None
 
 
+class BatchSummary(BaseModel):
+    batch_id: str
+    created_at: datetime
+    type_hint: Optional[str] = None
+    status: BatchStatus
+    document_count: int
+    counts: dict[str, int]
+
+
 class BatchStatusResponse(BaseModel):
     batch_id: str
     status: BatchStatus

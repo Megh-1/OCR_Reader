@@ -22,6 +22,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -170,6 +171,37 @@ def get_template(doc_type: str) -> TemplateOut:
     if result is None:
         raise HTTPException(status_code=404, detail=f"No template found for doc_type '{doc_type}'")
     return result
+
+
+class TemplateVersionSummary(BaseModel):
+    version: int
+    created_at: date
+    is_archived: bool
+    anchor_count: int
+    field_count: int
+
+
+def list_template_versions(doc_type: str) -> list[TemplateVersionSummary]:
+    """Every version of doc_type, newest first - the append-only history, archived ones included."""
+    with SessionLocal() as session:
+        rows = session.execute(
+            select(TemplateRecord).where(TemplateRecord.doc_type == doc_type).order_by(TemplateRecord.version.desc())
+        ).scalars().all()
+        return [
+            TemplateVersionSummary(
+                version=row.version, created_at=row.created_at, is_archived=row.is_archived,
+                anchor_count=len(row.config.get("anchors", [])), field_count=len(row.config.get("fields", [])),
+            )
+            for row in rows
+        ]
+
+
+@router.get("/templates/{doc_type}/versions", response_model=list[TemplateVersionSummary])
+def get_template_versions(doc_type: str) -> list[TemplateVersionSummary]:
+    versions = list_template_versions(doc_type)
+    if not versions:
+        raise HTTPException(status_code=404, detail=f"No template found for doc_type '{doc_type}'")
+    return versions
 
 
 @router.get("/templates/{doc_type}/versions/{version}", response_model=TemplateOut)

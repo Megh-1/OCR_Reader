@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import io
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Query, Response
 from PIL import Image
+from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.config import REVIEW_IMAGE_JPEG_QUALITY, REVIEW_IMAGE_MAX_WIDTH
 from app.db import SessionLocal
@@ -119,6 +122,42 @@ def _record_to_compiled_result(record: ExtractionResultRecord) -> CompiledResult
         overall_status=record.overall_status,
         fields=record.fields,
     )
+
+
+class ResultSummary(BaseModel):
+    id: int
+    template_id: str
+    version: int
+    extracted_at: datetime
+    overall_status: str
+    field_count: int
+    # fields per approval_tier; "unknown" counts results stored before tiers existed
+    tier_counts: dict[str, int]
+    has_image: bool
+
+
+@router.get("/results", response_model=list[ResultSummary])
+def list_results(limit: int = Query(50, ge=1, le=200), template_id: Optional[str] = None) -> list[ResultSummary]:
+    """Newest first. Selects columns explicitly so the stored page images are never loaded."""
+    stmt = select(
+        ExtractionResultRecord.id, ExtractionResultRecord.template_id, ExtractionResultRecord.template_version,
+        ExtractionResultRecord.extracted_at, ExtractionResultRecord.overall_status, ExtractionResultRecord.fields,
+        ExtractionResultRecord.page_image.isnot(None),
+    ).order_by(ExtractionResultRecord.id.desc()).limit(limit)
+    if template_id is not None:
+        stmt = stmt.where(ExtractionResultRecord.template_id == template_id)
+    with SessionLocal() as session:
+        rows = session.execute(stmt).all()
+    summaries = []
+    for rid, tid, version, extracted_at, status, fields, has_image in rows:
+        counts = {"auto": 0, "spot_check": 0, "review": 0, "unknown": 0}
+        for field in fields.values():
+            counts[field.get("approval_tier") or "unknown"] += 1
+        summaries.append(ResultSummary(
+            id=rid, template_id=tid, version=version, extracted_at=extracted_at, overall_status=status,
+            field_count=len(fields), tier_counts=counts, has_image=bool(has_image),
+        ))
+    return summaries
 
 
 @router.get("/results/{result_id}", response_model=CompiledResult)

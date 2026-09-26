@@ -27,6 +27,11 @@ export function formatErrorDetail(detail) {
   return ['Unknown error'];
 }
 
+export function errorLines(err) {
+  if (err instanceof ApiValidationError) return formatErrorDetail(err.detail);
+  return [String(err?.message ?? err)];
+}
+
 async function requestJson(url, options) {
   const res = await fetch(url, options);
   const body = await res.json().catch(() => null);
@@ -37,6 +42,7 @@ async function requestJson(url, options) {
   return body;
 }
 
+// --- templates (Modules 3/4) ---------------------------------------------------------
 export function createTemplate(payload) {
   return requestJson('/templates', {
     method: 'POST',
@@ -44,26 +50,19 @@ export function createTemplate(payload) {
     body: JSON.stringify(payload),
   });
 }
+export const listTemplates = () => requestJson('/templates');
+export const getTemplate = (templateId) => requestJson(`/templates/${encodeURIComponent(templateId)}`);
+export const listTemplateVersions = (templateId) => requestJson(`/templates/${encodeURIComponent(templateId)}/versions`);
+export const getTemplateVersion = (templateId, version) =>
+  requestJson(`/templates/${encodeURIComponent(templateId)}/versions/${version}`);
 
-export function listTemplates() {
-  return requestJson('/templates');
-}
+// --- results (Module 8) --------------------------------------------------------------
+export const listResults = (limit = 60) => requestJson(`/results?limit=${limit}`);
+export const getExtractionResult = (resultId) => requestJson(`/results/${resultId}`);
+export const resultImageUrl = (resultId) => `/results/${resultId}/image`;
 
-export function getTemplate(templateId) {
-  return requestJson(`/templates/${encodeURIComponent(templateId)}`);
-}
-
-export function getTemplateVersion(templateId, version) {
-  return requestJson(`/templates/${encodeURIComponent(templateId)}/versions/${version}`);
-}
-
-export function getExtractionResult(resultId) {
-  return requestJson(`/results/${resultId}`);
-}
-
-export function listReviewQueue(status = 'pending') {
-  return requestJson(`/review?status=${encodeURIComponent(status)}`);
-}
+// --- review queue (Module 9) ---------------------------------------------------------
+export const listReviewQueue = (status = 'pending') => requestJson(`/review?status=${encodeURIComponent(status)}`);
 
 export function resolveFieldReview(queueId, confirmedValue) {
   return requestJson(`/review/${queueId}`, {
@@ -81,13 +80,13 @@ export function resolveNewTemplateNeeded(queueId, createdTemplateId) {
   });
 }
 
-/**
- * Multipart, not JSON - no Content-Type header is set here on purpose, so
- * the browser fills in the multipart boundary itself.
- */
-export function processDocument(file, typeHint) {
+// --- batch ---------------------------------------------------------------------------
+/** Multipart, not JSON - no Content-Type header on purpose, so the browser sets the boundary. */
+export function submitBatch(files, typeHint) {
   const formData = new FormData();
-  formData.append('file', file);
+  for (const file of files) formData.append('files', file);
   if (typeHint) formData.append('type_hint', typeHint);
-  return requestJson('/documents/process', { method: 'POST', body: formData });
+  return requestJson('/documents/batch', { method: 'POST', body: formData });
 }
+export const getBatchStatus = (batchId) => requestJson(`/documents/batch/${batchId}/status`);
+export const listBatches = (limit = 12) => requestJson(`/documents/batch?limit=${limit}`);

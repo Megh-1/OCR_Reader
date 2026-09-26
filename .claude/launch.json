@@ -12,6 +12,13 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5173"],
       "port": 5173
+    },
+    {
+      "name": "console-on-docker",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev", "--", "--port", "5174", "--strictPort"],
+      "env": { "API_TARGET": "http://localhost:8010" },
+      "port": 5174
     }
   ]
 }

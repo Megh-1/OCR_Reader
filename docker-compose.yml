@@ -1,7 +1,7 @@
-# The full stack: Postgres, Redis, the API, and a batch worker. Run from the repo
-# root:
+# The full stack: Postgres, Redis, the API, a batch worker and the console UI. Run from
+# the repo root:
 #
-#   docker compose up --build                 # API on http://localhost:8000 (APP_PORT to change it)
+#   docker compose up --build                 # UI on http://localhost:8080 (FRONTEND_PORT), API on :8000 (APP_PORT)
 #   docker compose up --scale worker=3        # more batch workers
 #   docker compose --profile test run --rm tests            # the pytest suite, in a container
 #   docker compose -f docker-compose.yml -f docker-compose.fixtures.yml \
@@ -78,6 +78,18 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
       REDIS_URL: redis://redis:6379/0
+    depends_on:
+      app:
+        condition: service_healthy
+
+  # The console UI (frontend/): nginx serving the built app and proxying the API routes to
+  # `app`, the same prefixes vite.config.js proxies in development.
+  frontend:
+    build:
+      context: ./frontend
+    image: idp-pipeline:frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
     depends_on:
       app:
         condition: service_healthy

@@ -6,6 +6,8 @@ plus routing both of Module 9's entry points exactly as the reference
 doc's architecture diagram describes:
   - Module 5 rejects (any reason) -> enqueue_new_template_needed
   - Module 7/8 flags a field       -> one enqueue_field_review call per field
+  - Module 7 accepts a field but gives it approval_tier spot_check -> one enqueue_spot_check
+    call per field, so the human-in-the-loop sees the "probably right" tier too
 """
 
 from __future__ import annotations
@@ -22,10 +24,10 @@ from app.modules.field_extraction import FieldExtractionResult, extract_fields, 
 from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
-from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed
+from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
-from app.modules.validation import validate_fields
+from app.modules.validation import has_validator, validate_fields
 from app.schemas.extraction_result import CompiledResult
 from app.schemas.template import TemplateOut
 
@@ -41,6 +43,7 @@ class PageResult(BaseModel):
     extraction_result_id: Optional[int] = None  # set only when confirmed is True
     result: Optional[CompiledResult] = None  # set only when confirmed is True
     field_review_queue_ids: list[int] = []  # one id per field Module 7 flagged, may be empty
+    spot_check_queue_ids: list[int] = []  # one id per accepted field that is spot_check rather than auto
     text_native: bool = False  # True when fields were read from the PDF's embedded text, with no OCR
 
 
@@ -176,8 +179,17 @@ def process_page(
     result_id = persist_result(compiled, page_image=make_review_render(extraction.review_image_bytes))
 
     field_review_ids = [
-        enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons)
+        enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons, flagged.confidence)
         for field_id, flagged in summary.flagged.items()
+    ]
+    template_fields = {f.id: f for f in template.fields}
+    spot_check_ids = [
+        enqueue_spot_check(
+            result_id, field_id, accepted.value, accepted.confidence,
+            "below_auto_threshold" if has_validator(template_fields[field_id]) else "no_validator",
+        )
+        for field_id, accepted in summary.accepted.items()
+        if accepted.approval_tier == "spot_check"
     ]
 
     return PageResult(
@@ -186,6 +198,7 @@ def process_page(
         extraction_result_id=result_id,
         result=compiled,
         field_review_queue_ids=field_review_ids,
+        spot_check_queue_ids=spot_check_ids,
         text_native=extraction.text_native,
     )
 

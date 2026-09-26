@@ -10,6 +10,20 @@ class FieldReviewPayload(BaseModel):
     field_id: str
     original_value: str
     reasons: list[str]
+    confidence: Optional[float] = None  # None on entries written before it was recorded
+
+
+class SpotCheckPayload(BaseModel):
+    """A field Module 7 ACCEPTED but did not auto-approve: its approval_tier is spot_check.
+    `why` says which rule held it back - confidence under CONFIDENCE_AUTO_APPROVE_THRESHOLD,
+    or no regex/checksum at all, in which case confidence was the only thing that judged it."""
+
+    entry_type: Literal["spot_check"] = "spot_check"
+    extraction_result_id: int
+    field_id: str
+    original_value: str
+    confidence: float
+    why: Literal["below_auto_threshold", "no_validator"]
 
 
 class NewTemplateNeededPayload(BaseModel):
@@ -25,12 +39,19 @@ class NewTemplateNeededPayload(BaseModel):
 # what a discriminated union needs to validate on: the discriminator field
 # must actually be present in the data being validated, not just implied
 # by which table row it came from.
-ReviewPayload = Annotated[Union[FieldReviewPayload, NewTemplateNeededPayload], Field(discriminator="entry_type")]
+ReviewPayload = Annotated[
+    Union[FieldReviewPayload, SpotCheckPayload, NewTemplateNeededPayload], Field(discriminator="entry_type")
+]
 ReviewPayloadAdapter: TypeAdapter = TypeAdapter(ReviewPayload)
 
 
 class FieldReviewResolution(BaseModel):
     entry_type: Literal["field_review"] = "field_review"
+    confirmed_value: str
+
+
+class SpotCheckResolution(BaseModel):
+    entry_type: Literal["spot_check"] = "spot_check"
     confirmed_value: str
 
 
@@ -40,7 +61,7 @@ class NewTemplateNeededResolution(BaseModel):
 
 
 ReviewResolution = Annotated[
-    Union[FieldReviewResolution, NewTemplateNeededResolution], Field(discriminator="entry_type")
+    Union[FieldReviewResolution, SpotCheckResolution, NewTemplateNeededResolution], Field(discriminator="entry_type")
 ]
 ReviewResolutionAdapter: TypeAdapter = TypeAdapter(ReviewResolution)
 

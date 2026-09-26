@@ -22,7 +22,7 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
     const canvas = new Canvas(canvasElRef.current, {
       width: canvasW,
       height: canvasH,
-      backgroundColor: '#f4f4f4',
+      backgroundColor: 'rgba(0,0,0,0)', // the bed grid shows through the letterboxing
       selection: true,
     });
     fabricCanvasRef.current = canvas;

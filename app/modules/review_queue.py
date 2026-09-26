@@ -31,6 +31,8 @@ from app.schemas.review_queue import (
     NewTemplateNeededResolution,
     ReviewQueueEntry,
     ReviewResolutionRequest,
+    SpotCheckPayload,
+    SpotCheckResolution,
 )
 
 router = APIRouter()
@@ -68,13 +70,26 @@ def _enqueue(entry_type: str, payload: dict) -> int:
         return record.id
 
 
-def enqueue_field_review(extraction_result_id: int, field_id: str, original_value: str, reasons: list[str]) -> int:
+def enqueue_field_review(
+    extraction_result_id: int, field_id: str, original_value: str, reasons: list[str], confidence: Optional[float] = None
+) -> int:
     # Constructing this model is the fail-fast validation: a malformed call
     # (wrong types, missing pieces) errors here, not as a mystery later.
     payload = FieldReviewPayload(
-        extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value, reasons=reasons
+        extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value, reasons=reasons,
+        confidence=confidence,
     )
     return _enqueue("field_review", payload.model_dump(mode="json"))
+
+
+def enqueue_spot_check(extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str) -> int:
+    """A field that passed validation but did not earn `auto`. It is not flagged - the record's
+    overall_status is unaffected - it just gets a person's glance."""
+    payload = SpotCheckPayload(
+        extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value,
+        confidence=confidence, why=why,
+    )
+    return _enqueue("spot_check", payload.model_dump(mode="json"))
 
 
 def enqueue_new_template_needed(attempted_type_hint: Optional[str], rejection_reason: str) -> int:
@@ -82,17 +97,23 @@ def enqueue_new_template_needed(attempted_type_hint: Optional[str], rejection_re
     return _enqueue("new_template_needed", payload.model_dump(mode="json"))
 
 
+VALUE_ENTRY_TYPES = ("field_review", "spot_check")  # entries a person resolves by confirming a value
+
+
 def resolve_field_review(queue_id: int, confirmed_value: str) -> None:
+    """Resolves a field_review OR a spot_check entry: both are settled by confirming (or correcting)
+    the field's value, and both write that value into the extraction result."""
     with SessionLocal() as session:
         row = session.get(ReviewQueueRecord, queue_id)
         if row is None:
             raise ReviewEntryNotFoundError(f"No review queue entry with id {queue_id}")
-        if row.entry_type != "field_review":
+        if row.entry_type not in VALUE_ENTRY_TYPES:
             raise ReviewTypeMismatchError(
-                f"queue id {queue_id} is entry_type={row.entry_type!r}, not 'field_review'"
+                f"queue id {queue_id} is entry_type={row.entry_type!r}, not one of {VALUE_ENTRY_TYPES}"
             )
 
-        payload = FieldReviewPayload.model_validate(row.payload)
+        payload_model = FieldReviewPayload if row.entry_type == "field_review" else SpotCheckPayload
+        payload = payload_model.model_validate(row.payload)
 
         result_row = session.get(ExtractionResultRecord, payload.extraction_result_id)
         if result_row is None:
@@ -120,7 +141,8 @@ def resolve_field_review(queue_id: int, confirmed_value: str) -> None:
 
         row.status = "resolved"
         row.resolved_at = datetime.now(timezone.utc)
-        row.resolution = FieldReviewResolution(confirmed_value=confirmed_value).model_dump(mode="json")
+        resolution_model = FieldReviewResolution if row.entry_type == "field_review" else SpotCheckResolution
+        row.resolution = resolution_model(confirmed_value=confirmed_value).model_dump(mode="json")
 
         session.commit()  # one transaction: both writes land together or neither does
 
@@ -193,9 +215,11 @@ def patch_review(queue_id: int, body: ReviewResolutionRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"No review queue entry with id {queue_id}")
 
     try:
-        if row.entry_type == "field_review":
+        if row.entry_type in VALUE_ENTRY_TYPES:
             if body.confirmed_value is None:
-                raise HTTPException(status_code=422, detail="confirmed_value is required to resolve a field_review entry")
+                raise HTTPException(
+                    status_code=422, detail=f"confirmed_value is required to resolve a {row.entry_type} entry"
+                )
             resolve_field_review(queue_id, body.confirmed_value)
         elif row.entry_type == "new_template_needed":
             if body.created_template_id is None:

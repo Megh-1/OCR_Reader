@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import { TIERS } from '@/lib/tiers';
+import { TIER_TAGLINE, TIERS } from '@/lib/tiers';
 
 /** The tier mark alone: filled neutral square (auto), hollow orange (spot_check), solid orange (review). */
 export function TierMark({ tier, className }) {
@@ -22,10 +22,12 @@ export function TierMark({ tier, className }) {
  * Intensity is the message: auto carries no accent at all, spot_check a hollow mark on a faint
  * warm surface, review the only solid fill in the product. Never identical rows with different words.
  */
-export function TierBadge({ tier, size = 'md', className }) {
+export function TierBadge({ tier, size = 'md', className, showTagline = false }) {
   const meta = TIERS[tier];
+  const tagline = TIER_TAGLINE[tier];
   return (
     <span
+      title={tagline ? `${meta.label} · ${tagline}` : undefined}
       className={cn(
         'caps inline-flex shrink-0 items-center gap-1.5 rounded-sm border',
         size === 'sm' ? 'h-5 px-1.5 text-[10px]' : 'h-6 px-2',
@@ -42,6 +44,7 @@ export function TierBadge({ tier, size = 'md', className }) {
         <TierMark tier={tier} />
       )}
       {meta ? meta.label : 'untiered'}
+      {showTagline && tagline && <span className="opacity-70">· {tagline}</span>}
     </span>
   );
 }

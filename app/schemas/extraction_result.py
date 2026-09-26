@@ -24,3 +24,10 @@ class CompiledResult(BaseModel):
     extracted_at: datetime
     overall_status: Literal["complete", "needs_review"]
     fields: dict[str, FieldResult]
+
+
+class FieldValueUpdate(BaseModel):
+    """PATCH /results/{id}/fields/{field_id} body: a direct correction from the Results
+    screen, independent of whether a review-queue entry exists for this field."""
+
+    value: str

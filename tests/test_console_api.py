@@ -1,6 +1,7 @@
 """
 The API surface the console UI reads: spot checks in the review queue, a template's
-version history, the recent-results list and the recent-batches list.
+version history, the recent-results list and the recent-batches list, and the Results
+screen's direct field correction.
 """
 
 from unittest.mock import Mock
@@ -156,3 +157,66 @@ def test_batches_are_listed_with_their_document_counts(client):
     mine = next(b for b in listed if b["batch_id"] == batch_id)
     assert listed[0]["batch_id"] == batch_id  # newest first
     assert mine["document_count"] == 3 and mine["counts"]["queued"] == 3 and mine["status"] == "queued"
+
+
+# --- Results screen: direct field correction -------------------------------------------------
+
+
+def test_correcting_a_field_writes_the_value_and_is_reflected_on_read(client, unique_doc_type, ocr):
+    save_template(client, unique_doc_type, name_field(r"^[A-Za-z ]+$"))
+    page = process(client, unique_doc_type, 97)  # auto - no queue entry, nothing pending
+    result_id = page["extraction_result_id"]
+
+    resp = client.patch(f"/results/{result_id}/fields/name", json={"value": "A Better Name"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "field_id": "name", "value": "A Better Name", "confidence": 97.0,
+        "needs_review": False, "reasons": [], "approval_tier": "auto",
+    }
+    assert client.get(f"/results/{result_id}").json()["fields"]["name"]["value"] == "A Better Name"
+
+
+def test_correcting_a_flagged_field_resolves_its_pending_review_entry_and_completes_the_result(client, unique_doc_type, ocr):
+    save_template(client, unique_doc_type, name_field(r"^\d+$"))  # "Some Name" will never match -> review
+    page = process(client, unique_doc_type, 97, regex=r"^\d+$")
+    result_id = page["extraction_result_id"]
+    assert page["result"]["overall_status"] == "needs_review"
+    [queue_id] = page["field_review_queue_ids"]
+
+    resp = client.patch(f"/results/{result_id}/fields/name", json={"value": "42"})
+
+    assert resp.status_code == 200 and resp.json()["needs_review"] is False
+    assert client.get(f"/results/{result_id}").json()["overall_status"] == "complete"
+    assert [e for e in client.get("/review").json() if e["id"] == queue_id] == []  # resolved, not pending
+
+
+def test_correcting_a_spot_check_field_resolves_its_pending_entry_too(client, unique_doc_type, ocr):
+    save_template(client, unique_doc_type, name_field(r"^[A-Za-z ]+$"))
+    page = process(client, unique_doc_type, 66)  # under the 0.80 test threshold -> spot_check
+    result_id = page["extraction_result_id"]
+    [queue_id] = page["spot_check_queue_ids"]
+
+    resp = client.patch(f"/results/{result_id}/fields/name", json={"value": "Some Names"})
+
+    assert resp.status_code == 200
+    assert [e for e in client.get("/review").json() if e["id"] == queue_id] == []
+
+
+def test_correcting_an_unknown_result_is_404(client):
+    assert client.patch("/results/999999/fields/name", json={"value": "x"}).status_code == 404
+
+
+def test_correcting_an_unknown_field_on_a_real_result_is_404(client, unique_doc_type, ocr):
+    save_template(client, unique_doc_type, name_field(None))
+    result_id = process(client, unique_doc_type, 97)["extraction_result_id"]
+
+    resp = client.patch(f"/results/{result_id}/fields/no_such_field", json={"value": "x"})
+    assert resp.status_code == 404
+
+
+def test_a_correction_needs_a_value(client, unique_doc_type, ocr):
+    save_template(client, unique_doc_type, name_field(None))
+    result_id = process(client, unique_doc_type, 97)["extraction_result_id"]
+
+    assert client.patch(f"/results/{result_id}/fields/name", json={}).status_code == 422

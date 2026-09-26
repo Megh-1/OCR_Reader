@@ -3,6 +3,7 @@ import { ChartColumnBig, Inbox, Layers3, ScanLine } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { listReviewQueue } from '@/api';
 import { AnimatedNumber } from '@/components/bits';
+import { TIER_TAGLINE } from '@/lib/tiers';
 import { cn } from '@/lib/utils';
 import BatchMonitor from '@/screens/BatchMonitor';
 import Results from '@/screens/Results';
@@ -107,13 +108,13 @@ export default function App() {
           <div className="caps-sm mb-2 text-faint-foreground">Signal</div>
           <div className="flex flex-col gap-1.5 text-[12px] text-muted-foreground">
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-[1px] bg-tier-auto" /> auto · trusted, quiet
+              <span className="size-2 rounded-[1px] bg-tier-auto" /> auto · {TIER_TAGLINE.auto}
             </div>
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-[1px] border-[1.5px] border-tier-spot" /> spot check · glance
+              <span className="size-2 rounded-[1px] border-[1.5px] border-tier-spot" /> spot check · {TIER_TAGLINE.spot_check}
             </div>
             <div className="flex items-center gap-2">
-              <span className="size-2 rounded-[1px] bg-tier-review" /> review · act
+              <span className="size-2 rounded-[1px] bg-tier-review" /> review · {TIER_TAGLINE.review}
             </div>
           </div>
           <div className="mt-4 flex items-center gap-2 font-mono text-[11px] text-faint-foreground">

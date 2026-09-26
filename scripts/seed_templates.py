@@ -129,7 +129,19 @@ AIR_WAYBILL = TemplateIn(
         # label "Shipper's Name and Address" (ink to y=0.0509 at 200 DPI) hung 6 rows into the box, and
         # Tesseract read it into the value. The value's own ink starts at 0.0545, so 0.0525 is the middle of
         # that 8 px gap. Measured on the synthetic corpus: 8/19 -> 16/19 exact.
-        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.1013, 0.0525, 0.3114, 0.0672],
+        #
+        # Bottom edge 0.0639, not the original 0.0672: that overlapped shipper_address's own top
+        # (0.0600) by 0.0072, and extract_field_from_text_layer's word-overlap check is per field with
+        # no cross-field exclusivity, so a word straddling the shared band counts toward both - the
+        # address's first line ("SURVEY NO.13/1, KANEKAL VILLAGE") was appended to shipper_name's value,
+        # even on the pure text-layer path at 100% confidence (no OCR, so not a misread - a box geometry
+        # bug). Measured at 200 DPI on reference__original_digital.pdf: value ink ends 0.0623, address's
+        # first line begins 0.0655; 0.0639 is the middle of that gap. Verified directly against
+        # field_extraction._overlap_of_word on the real text layer: at 0.0639 the address's first word
+        # scores 0.062 (was 0.331 at the old edge - the 0.5 threshold was never actually this close, the
+        # word's own bbox is just taller than its ink), while the value's own words still score 0.929
+        # (barely down from 0.941) - the fix removes the bleed without touching the value's own text.
+        {"id": "shipper_name", "label": "Shipper Name", "bbox": [0.1013, 0.0525, 0.3114, 0.0639],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "shipper_address", "label": "Shipper Address", "bbox": [0.098, 0.060, 0.520, 0.102],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
@@ -137,12 +149,26 @@ AIR_WAYBILL = TemplateIn(
         # ("g" of "Consignee's Name and Address", label ink down to y=0.1395 at 200 DPI) reached 2 rows
         # into the box. The value's own ink starts at 0.1450, so 0.1425 is the middle of the gap. Measured by
         # replaying cached crops from the 19 OCR-path synthetic files: 16/19 -> 19/19 exact (0.1410 and
-        # 0.1440 both give 18). The bottom edge is left alone - moving it as well dropped this to 10/19.
-        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.1013, 0.1425, 0.2117, 0.1581],
+        # 0.1440 both give 18).
+        #
+        # Bottom edge 0.1548, not the original 0.1581 (moving the top further per the 2024 note above
+        # dropped that first measurement to 10/19, but this is a DIFFERENT edge, fixing a different bug
+        # found later: 0.1581 overlapped consignee_address's own top (0.1500) by 0.0081, so the address's
+        # first line ("13-C, PLOT NO. 532-242,") bled into consignee_name the same way shipper_name did -
+        # same root cause, same fix. Measured at 200 DPI: value ink ends 0.1532, address's first line
+        # begins 0.1564; 0.1548 is the middle. Verified against _overlap_of_word: the address's first word
+        # drops from 0.330 to 0.062, the value's own words stay at 0.988 (barely down from 1.000).
+        {"id": "consignee_name", "label": "Consignee Name", "bbox": [0.1013, 0.1425, 0.2117, 0.1548],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "consignee_address", "label": "Consignee Address", "bbox": [0.098, 0.150, 0.470, 0.204],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
-        {"id": "agent_name", "label": "Issuing Agent", "bbox": [0.1013, 0.2304, 0.3663, 0.2506],
+        # Bottom edge 0.2473, not the original 0.2506: unlike the two pairs above, there is no separate
+        # "agent address" field to blame - this box was simply taller than the one line of agent-name
+        # text it was meant to hold, and swallowed the printed city line below it ("BANGALORE") on the
+        # same text-layer, no-OCR, 100%-confidence path. Measured at 200 DPI: value ink ends 0.2455, the
+        # city line begins 0.2491; 0.2473 is the middle. Verified against _overlap_of_word: "BANGALORE"
+        # drops from 0.317 to 0.078, the agent name's own words stay at 0.993 (barely down from 1.000).
+        {"id": "agent_name", "label": "Issuing Agent", "bbox": [0.1013, 0.2304, 0.3663, 0.2473],
          "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
         {"id": "agent_iata_code", "label": "Agent IATA Code", "bbox": [0.1095, 0.2898, 0.2073, 0.3099],
          "data_type": "string", "validation_regex": r"^[\d/\-]{6,20}$", "confidence_floor": _AWB_FLOOR},

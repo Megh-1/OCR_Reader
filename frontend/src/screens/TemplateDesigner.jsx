@@ -23,7 +23,7 @@ import {
   listTemplateVersions,
   resultImageUrl,
 } from '@/api';
-import { PageHeader } from '@/components/bits';
+import { EmptyState, PageHeader } from '@/components/bits';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/card';
 import { Input, Label, NativeSelect } from '@/components/ui/input';
@@ -32,7 +32,6 @@ import { useDocumentCanvas } from '@/useDocumentCanvas';
 import { cn, timeAgo } from '@/lib/utils';
 
 const MIN_BOX_SIZE = 6; // px in canvas space; drags smaller than this are accidental clicks
-const SAMPLE_IMAGE_URL = '/sample-document.png';
 const INK = '#15181c';
 // Template boxes are ink with a paper halo, never the accent: on a document, orange is
 // reserved for a field under review.
@@ -62,7 +61,9 @@ export default function TemplateDesigner() {
     w: Math.max(560, Math.min(1100, window.innerWidth - 232 - 420 - 48)),
     h: Math.max(520, window.innerHeight - 92 - 56 - 44 - 24),
   }));
-  const [imageUrl, setImageUrl] = useState(SAMPLE_IMAGE_URL);
+  // No default sample document - an empty canvas until the user uploads one or opens an
+  // existing template with a processed page to draw over.
+  const [imageUrl, setImageUrl] = useState(null);
   const { canvasElRef, fabricCanvasRef, imageRef, imageReady } = useDocumentCanvas(imageUrl, size.w, size.h);
 
   const rectsRef = useRef(new Map()); // boxId -> fabric Rect
@@ -210,9 +211,16 @@ export default function TemplateDesigner() {
     if (!id) return;
     try {
       const template = version ? await getTemplateVersion(id, version) : await getTemplate(id);
-      // Draw it over a real page of that type when one has been processed, not over the placeholder.
+      // Draw it over a real processed page of that type when one exists. With no document
+      // loaded and no such page to fall back to, there's nothing to draw boxes over yet -
+      // ask for one rather than silently doing nothing (or, as before, defaulting to an
+      // unrelated placeholder image).
       const page = results.find((r) => r.template_id === id && r.has_image);
       const url = page ? resultImageUrl(page.id) : imageUrl;
+      if (!url) {
+        setSave({ status: 'error', messages: [`No processed document found for ${id} yet - upload one or pick "Document from..." first.`] });
+        return;
+      }
       if (url !== imageUrl) {
         pendingLoadRef.current = template;
         switchImage(url);
@@ -418,12 +426,10 @@ export default function TemplateDesigner() {
           value=""
           onChange={(e) => {
             const v = e.target.value;
-            if (v === 'sample') switchImage(SAMPLE_IMAGE_URL);
-            else if (v) switchImage(resultImageUrl(v));
+            if (v) switchImage(resultImageUrl(v));
           }}
         >
           <option value="">Document from…</option>
-          <option value="sample">Sample card</option>
           {results
             .filter((r) => r.has_image)
             .slice(0, 30)
@@ -498,9 +504,16 @@ export default function TemplateDesigner() {
           </div>
 
           <div className="bed-grid relative min-h-0 flex-1 overflow-auto p-6">
-            <div className="mx-auto w-fit shadow-[0_24px_64px_-12px_rgba(0,0,0,0.7)]">
-              <canvas ref={canvasElRef} />
-            </div>
+            {imageUrl ? (
+              <div className="mx-auto w-fit shadow-[0_24px_64px_-12px_rgba(0,0,0,0.7)]">
+                <canvas ref={canvasElRef} />
+              </div>
+            ) : (
+              <EmptyState icon={FileImage} title="No document loaded" className="h-full justify-center">
+                Upload a sample document, or pick one from "Document from…" once you've processed
+                a batch, to start drawing anchors and fields.
+              </EmptyState>
+            )}
           </div>
 
           <div className="flex h-11 items-center gap-6 border-t border-border bg-card px-5 font-mono text-[11px]">

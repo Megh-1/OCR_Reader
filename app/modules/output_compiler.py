@@ -27,8 +27,9 @@ from sqlalchemy import select
 from app.config import REVIEW_IMAGE_JPEG_QUALITY, REVIEW_IMAGE_MAX_WIDTH
 from app.db import SessionLocal
 from app.models.extraction_result import ExtractionResultRecord
+from app.models.review_queue import ReviewQueueRecord
 from app.modules.validation import ValidationSummary
-from app.schemas.extraction_result import CompiledResult, FieldResult
+from app.schemas.extraction_result import CompiledResult, FieldResult, FieldValueUpdate
 
 router = APIRouter()
 
@@ -167,6 +168,53 @@ def get_result(result_id: int) -> CompiledResult:
     if record is None:
         raise HTTPException(status_code=404, detail=f"No result found for id {result_id}")
     return _record_to_compiled_result(record)
+
+
+@router.patch("/results/{result_id}/fields/{field_id}", response_model=FieldResult)
+def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) -> FieldResult:
+    """
+    Direct correction from the Results screen: writes a field's value on an already-persisted
+    result, independent of the review queue - the field need never have been flagged (an `auto`
+    field can be corrected too, if a person later notices it's wrong), and if it WAS flagged,
+    there need not still be a pending queue entry for it.
+
+    Same write pattern as review_queue.resolve_field_review (reassign the whole `fields` dict so
+    SQLAlchemy sees the JSONB column change, recompute overall_status from scratch), plus one
+    thing that function doesn't need to do: if a field_review or spot_check entry is STILL
+    pending for this exact (result, field), it is resolved here too - leaving it dangling would
+    have the Review queue keep asking for a value that's already fixed.
+    """
+    with SessionLocal() as session:
+        record = session.get(ExtractionResultRecord, result_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail=f"No result found for id {result_id}")
+        if field_id not in record.fields:
+            raise HTTPException(status_code=404, detail=f"Result {result_id} has no field {field_id!r}")
+
+        updated_fields = dict(record.fields)
+        updated_field = dict(updated_fields[field_id])
+        updated_field["value"] = body.value
+        updated_field["needs_review"] = False
+        updated_fields[field_id] = updated_field
+        record.fields = updated_fields
+
+        if not any(f["needs_review"] for f in updated_fields.values()):
+            record.overall_status = "complete"
+
+        pending = session.execute(
+            select(ReviewQueueRecord).where(
+                ReviewQueueRecord.status == "pending",
+                ReviewQueueRecord.entry_type.in_(("field_review", "spot_check")),
+            )
+        ).scalars().all()
+        for row in pending:
+            if row.payload.get("extraction_result_id") == result_id and row.payload.get("field_id") == field_id:
+                row.status = "resolved"
+                row.resolved_at = datetime.now(timezone.utc)
+                row.resolution = {"entry_type": row.entry_type, "confirmed_value": body.value}
+
+        session.commit()  # one transaction: the result write and any queue resolution land together
+        return FieldResult(**updated_field)
 
 
 @router.get("/results/{result_id}/image")

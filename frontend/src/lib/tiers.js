@@ -2,6 +2,14 @@
 // each one looks like. Kept in one place so every screen says the same thing the same way.
 export const AUTO_THRESHOLD = 90; // CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 (app/config.py)
 
+// The one line of language every screen uses for a tier - the sidebar legend, the Results
+// table, TierBadge's title attribute. One source, so they can't drift out of sync.
+export const TIER_TAGLINE = {
+  auto: 'trusted, quiet',
+  spot_check: 'glance',
+  review: 'act',
+};
+
 export const TIERS = {
   auto: {
     key: 'auto',

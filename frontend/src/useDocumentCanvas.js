@@ -19,6 +19,13 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
+    setImageReady(false);
+    setImageFailed(false);
+    // No document yet (Template Designer's empty state) - the caller doesn't render a
+    // <canvas> element in this case, so canvasElRef.current is null; skip creating a
+    // Fabric canvas against it rather than crash.
+    if (!imageUrl || !canvasElRef.current) return undefined;
+
     const canvas = new Canvas(canvasElRef.current, {
       width: canvasW,
       height: canvasH,
@@ -26,8 +33,6 @@ export function useDocumentCanvas(imageUrl, canvasW, canvasH) {
       selection: true,
     });
     fabricCanvasRef.current = canvas;
-    setImageReady(false);
-    setImageFailed(false);
 
     let cancelled = false;
     FabricImage.fromURL(imageUrl)

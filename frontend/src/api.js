@@ -61,6 +61,14 @@ export const listResults = (limit = 60) => requestJson(`/results?limit=${limit}`
 export const getExtractionResult = (resultId) => requestJson(`/results/${resultId}`);
 export const resultImageUrl = (resultId) => `/results/${resultId}/image`;
 
+export function correctResultField(resultId, fieldId, value) {
+  return requestJson(`/results/${resultId}/fields/${encodeURIComponent(fieldId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  });
+}
+
 // --- review queue (Module 9) ---------------------------------------------------------
 export const listReviewQueue = (status = 'pending') => requestJson(`/review?status=${encodeURIComponent(status)}`);
 

@@ -1,6 +1,6 @@
-import { motion } from 'framer-motion';
-import { Braces, Check, Copy, Download, FileSearch } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertTriangle, Braces, Check, Copy, Download, FileSearch, Loader2, Pencil, RotateCcw, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -12,14 +12,15 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { getExtractionResult, getTemplateVersion, listResults } from '@/api';
+import { correctResultField, errorLines, getExtractionResult, getTemplateVersion, listResults } from '@/api';
 import { EmptyState, PageHeader, Readout, TierBar } from '@/components/bits';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { TierBadge } from '@/components/TierBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { navigate } from '@/lib/nav';
-import { AUTO_THRESHOLD, REASONS, tierCounts } from '@/lib/tiers';
+import { AUTO_THRESHOLD, REASONS, TIER_TAGLINE, tierCounts } from '@/lib/tiers';
 import { cn, fmtConf, timeAgo } from '@/lib/utils';
 
 const TIER_FILL = { auto: 'var(--chart-1)', spot_check: 'var(--chart-2)', review: 'var(--chart-3)' };
@@ -103,7 +104,11 @@ export default function Results({ param }) {
 
         <div className="scroll-thin min-h-0 overflow-y-auto">
           {detail?.result && detail.id === selectedId ? (
-            <ResultDetail detail={detail} history={list.filter((r) => r.template_id === detail.result.template_id).slice(0, 14)} />
+            <ResultDetail
+              key={detail.id}
+              detail={detail}
+              history={list.filter((r) => r.template_id === detail.result.template_id).slice(0, 14)}
+            />
           ) : detail?.error ? (
             <EmptyState title="Couldn't load this result" />
           ) : (
@@ -116,7 +121,12 @@ export default function Results({ param }) {
 }
 
 function ResultDetail({ detail, history }) {
-  const { result, template, id } = detail;
+  const { template, id } = detail;
+  // Corrections write straight to the server; this is a `key={detail.id}`-scoped local
+  // mirror of that server state, replaced wholesale on every successful write (a re-fetch,
+  // not a locally-recomputed guess) so overall_status and everything else it can affect
+  // stay exactly what the API actually persisted - never an optimistic update.
+  const [result, setResult] = useState(detail.result);
   const fieldsMeta = useMemo(() => Object.fromEntries((template?.fields ?? []).map((f) => [f.id, f])), [template]);
   const fields = Object.values(result.fields);
   const counts = tierCounts(result.fields);
@@ -125,6 +135,7 @@ function ResultDetail({ detail, history }) {
   const mean = confs.reduce((a, b) => a + b, 0) / n;
   const weakest = [...fields].sort((a, b) => a.confidence - b.confidence)[0];
   const [copied, setCopied] = useState(false);
+  const [showJson, setShowJson] = useState(false);
   const json = JSON.stringify(result, null, 2);
 
   const perField = [...fields]
@@ -180,9 +191,9 @@ function ResultDetail({ detail, history }) {
       {/* ---------------------------------------------------------------- readouts */}
       <Card className="grid grid-cols-6 gap-4 p-4">
         <Readout label="Fields" value={fields.length} />
-        <Readout label="Auto" value={counts.auto} sub={`${Math.round((100 * counts.auto) / n)}% · no person needed`} />
-        <Readout label="Spot check" value={counts.spot_check} tone="spot" sub={`${Math.round((100 * counts.spot_check) / n)}% · a glance`} />
-        <Readout label="Review" value={counts.review} tone="review" sub={`${Math.round((100 * counts.review) / n)}% · must act`} />
+        <Readout label="Auto" value={counts.auto} sub={`${Math.round((100 * counts.auto) / n)}% · ${TIER_TAGLINE.auto}`} />
+        <Readout label="Spot check" value={counts.spot_check} tone="spot" sub={`${Math.round((100 * counts.spot_check) / n)}% · ${TIER_TAGLINE.spot_check}`} />
+        <Readout label="Review" value={counts.review} tone="review" sub={`${Math.round((100 * counts.review) / n)}% · ${TIER_TAGLINE.review}`} />
         <Readout label="Mean confidence" value={fmtConf(mean)} sub="tesseract, 0–100" />
         <Readout label="Weakest read" value={fmtConf(weakest?.confidence)} sub={weakest?.field_id} tone={weakest?.approval_tier === 'review' ? 'review' : 'default'} />
       </Card>
@@ -244,11 +255,16 @@ function ResultDetail({ detail, history }) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-5">
+      <div className={cn('grid gap-5', showJson ? 'grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : 'grid-cols-1')}>
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Fields</CardTitle>
-            <span className="font-mono text-[11px] text-faint-foreground">{fields.length} extracted</span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[11px] text-faint-foreground">{fields.length} extracted</span>
+              <Button variant="outline" size="sm" onClick={() => setShowJson((v) => !v)}>
+                <Braces /> {showJson ? 'Hide raw JSON' : 'View raw JSON'}
+              </Button>
+            </div>
           </CardHeader>
           <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_150px_104px] gap-3 border-b border-border px-4 h-8 items-center caps-sm text-faint-foreground">
             <span>Field</span>
@@ -275,32 +291,148 @@ function ResultDetail({ detail, history }) {
                     <div className="truncate text-[11px] text-tier-review-text">{f.reasons.map((r) => REASONS[r] ?? r).join(' · ')}</div>
                   )}
                 </div>
-                <span className={cn('truncate font-mono text-[12.5px]', f.approval_tier === 'review' && 'text-signal-300')} title={f.value}>
-                  {f.value || <span className="text-faint-foreground">∅</span>}
-                </span>
+                <FieldValueCell
+                  resultId={id}
+                  field={f}
+                  onSaved={(fresh) => setResult((r) => ({ ...r, ...fresh }))}
+                />
                 <ConfidenceGauge value={f.confidence} floor={fieldsMeta[f.field_id]?.confidence_floor} tier={f.approval_tier} size="sm" />
-                <TierBadge tier={f.approval_tier} size="sm" />
+                <TierBadge tier={f.approval_tier} size="sm" showTagline />
               </motion.div>
             ))}
         </Card>
 
-        <Card className="flex flex-col overflow-hidden">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Braces className="size-3.5" /> Output JSON
-            </CardTitle>
-            <span className="font-mono text-[11px] text-faint-foreground">exactly what the API returns</span>
-          </CardHeader>
-          <pre className="scroll-thin max-h-[760px] flex-1 overflow-auto bg-well p-4 font-mono text-[11.5px] leading-[18px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
-            <JsonView json={json} />
-          </pre>
-        </Card>
+        {showJson && (
+          <Card className="flex flex-col overflow-hidden">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Braces className="size-3.5" /> Output JSON
+              </CardTitle>
+              <span className="font-mono text-[11px] text-faint-foreground">exactly what the API returns</span>
+            </CardHeader>
+            <pre className="scroll-thin max-h-[760px] flex-1 overflow-auto bg-well p-4 font-mono text-[11.5px] leading-[18px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
+              <JsonView json={json} />
+            </pre>
+          </Card>
+        )}
       </div>
     </div>
   );
 }
 
 const order = (f) => ({ review: 0, spot_check: 1, auto: 2 })[f.approval_tier] ?? 3;
+
+/**
+ * A field's value, editable in place. The confirmation only appears once the PATCH has
+ * actually round-tripped: "saving" while the request is in flight, "saved" only on a real
+ * 200 (never optimistic), and a retry affordance - not a silent failure - if it errors.
+ * On success it re-fetches the whole result rather than trusting a locally-built guess, so
+ * overall_status and everything else the write could affect stay exactly what the server has.
+ */
+function FieldValueCell({ resultId, field, onSaved }) {
+  const [mode, setMode] = useState('view'); // view | editing
+  const [value, setValue] = useState(field.value);
+  const [state, setState] = useState({ status: 'idle' }); // idle | saving | saved | error
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (mode === 'editing') inputRef.current?.select();
+  }, [mode]);
+
+  async function save(withValue) {
+    setState({ status: 'saving' });
+    try {
+      await correctResultField(resultId, field.field_id, withValue);
+      const fresh = await getExtractionResult(resultId);
+      onSaved(fresh);
+      setMode('view');
+      setState({ status: 'saved' });
+      setTimeout(() => setState((s) => (s.status === 'saved' ? { status: 'idle' } : s)), 2000);
+    } catch (err) {
+      setState({ status: 'error', value: withValue, messages: errorLines(err) });
+    }
+  }
+
+  if (mode === 'editing') {
+    return (
+      <form
+        className="flex min-w-0 items-center gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(value);
+        }}
+      >
+        <Input
+          ref={inputRef}
+          mono
+          className="h-7 text-[12.5px]"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Escape' && (setMode('view'), setValue(field.value))}
+          disabled={state.status === 'saving'}
+        />
+        <Button type="submit" variant="ghost" size="icon" className="size-7 shrink-0" disabled={state.status === 'saving'} aria-label="Save">
+          {state.status === 'saving' ? <Loader2 className="animate-spin" /> : <Check />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-7 shrink-0"
+          disabled={state.status === 'saving'}
+          onClick={() => {
+            setMode('view');
+            setValue(field.value);
+          }}
+          aria-label="Cancel"
+        >
+          <X />
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="group flex min-w-0 items-center gap-1.5">
+        <span
+          className={cn('truncate font-mono text-[12.5px]', field.approval_tier === 'review' && 'text-signal-300')}
+          title={field.value}
+        >
+          {field.value || <span className="text-faint-foreground">∅</span>}
+        </span>
+        <button
+          className="shrink-0 text-faint-foreground opacity-0 hover:text-foreground group-hover:opacity-100"
+          onClick={() => setMode('editing')}
+          aria-label={`Correct ${field.field_id}`}
+        >
+          <Pencil className="size-3" />
+        </button>
+        <AnimatePresence>
+          {state.status === 'saved' && (
+            <motion.span
+              initial={{ opacity: 0, x: -4 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              className="caps-sm flex shrink-0 items-center gap-1 text-secondary-foreground"
+            >
+              <Check className="size-3" /> Results saved
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </div>
+      {state.status === 'error' && (
+        <div className="flex items-center gap-1.5 text-[11px] text-tier-review-text">
+          <AlertTriangle className="size-3 shrink-0" />
+          <span className="truncate">{state.messages.join('; ')}</span>
+          <button className="inline-flex shrink-0 items-center gap-1 underline underline-offset-2" onClick={() => save(state.value)}>
+            <RotateCcw className="size-3" /> Retry
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Legend() {
   return (

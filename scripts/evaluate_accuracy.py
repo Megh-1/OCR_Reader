@@ -82,7 +82,7 @@ from app.modules.preprocessing import preprocess_image  # noqa: E402
 from app.modules.template_store import get_latest_template, get_template_version, list_known_doc_types  # noqa: E402
 from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD  # noqa: E402
 from app.modules.type_identification import identify_document_type  # noqa: E402
-from app.modules.validation import validate_fields  # noqa: E402
+from app.modules.validation import has_validator, validate_fields  # noqa: E402
 
 configure_tesseract()
 
@@ -225,7 +225,7 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
     result.text_native = extraction.text_native
 
     summary = validate_fields(template, extractions)
-    validated = {f.id for f in template.fields if f.validation_regex is not None or f.checksum is not None}
+    validated = {f.id for f in template.fields if has_validator(f)}
     for field_id, expected_value in expected["fields"].items():
         actual = extractions.get(field_id)
         actual_text = actual.raw_text if actual else ""
@@ -386,6 +386,8 @@ def _tier_at(f: FieldOutcome, threshold: float) -> str:
     validation.approval_tier, parameterised so the sweep can vary it."""
     if not f.accepted:
         return "review"
+    if not f.has_validator:
+        return "spot_check"
     return "auto" if f.confidence >= threshold * 100 else "spot_check"
 
 
@@ -409,10 +411,11 @@ def approval_sweep(results: list[FileResult], thresholds: list[float], target_pr
     Per input tier: for each candidate CONFIDENCE_AUTO_APPROVE_THRESHOLD, what fraction
     of fields land in each approval tier and how precise the auto-approved ones are.
 
-    A field is `auto` when Module 7 accepted it and its confidence is at or above the
-    threshold, `spot_check` when accepted but under it, `review` when Module 7 rejected
-    it (independent of the threshold). Precision is correct / auto; it says nothing
-    about the fields that were not auto-approved.
+    A field is `auto` when Module 7 accepted it, the template gives it a regex or a
+    checksum, and its confidence is at or above the threshold; `spot_check` when accepted
+    but under it or with no validator; `review` when Module 7 rejected it (independent of
+    the threshold). Precision is correct / auto; it says nothing about the fields that
+    were not auto-approved.
 
     "Clears the target" means precision >= target at that threshold AND at every higher
     one in the grid: on a corpus this small precision is not monotonic, and a threshold
@@ -466,7 +469,8 @@ def approval_sweep(results: list[FileResult], thresholds: list[float], target_pr
             ((name, f) for name, f in outs if f.accepted and not f.correct), key=lambda item: -item[1].confidence
         )
         if wrong_accepted:
-            print(f"  wrong values Module 7 accepted ({len(wrong_accepted)}); each is `auto` at every threshold <= its confidence:")
+            print(f"  wrong values Module 7 accepted ({len(wrong_accepted)}); one with a regex/checksum is `auto` at every "
+                  "threshold <= its confidence, one with confidence only is never `auto`:")
             for name, f in wrong_accepted:
                 kind = "real" if _is_real_file(name) else "synthetic"
                 checked = "regex/checksum" if f.has_validator else "confidence only"
@@ -474,14 +478,14 @@ def approval_sweep(results: list[FileResult], thresholds: list[float], target_pr
         else:
             print("  no wrong value was accepted by Module 7")
 
-        # Same auto-approved set, split by whether anything other than confidence could have judged it.
+        # What the no-validator rule costs and buys at the configured threshold: accepted reads confident
+        # enough for auto that it holds at spot_check because nothing but confidence judges them.
         t0 = CONFIDENCE_AUTO_APPROVE_THRESHOLD
-        auto_outs = [f for _, f in outs if f.accepted and f.confidence >= t0 * 100]
-        for validated, name in ((True, "with a regex/checksum"), (False, "confidence only  ")):
-            group = [f for f in auto_outs if f.has_validator is validated]
-            if group:
-                ok = sum(f.correct for f in group)
-                print(f"  at the configured {t0:.2f}: auto fields {name} {ok}/{len(group)} correct ({100 * ok / len(group):.1f}%)")
+        held = [f for _, f in outs if f.accepted and not f.has_validator and f.confidence >= t0 * 100]
+        if held:
+            ok = sum(f.correct for f in held)
+            print(f"  at the configured {t0:.2f}: {len(held)} read(s) confident enough for auto held at spot_check for "
+                  f"having no regex/checksum ({ok} correct, {len(held) - ok} wrong)")
         print()
 
     errors = [f"{r.filename}: {r.error or r.extraction_skipped}" for r in results if r.error or r.extraction_skipped]

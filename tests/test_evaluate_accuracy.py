@@ -134,7 +134,7 @@ def test_report_says_which_path_read_each_file(capsys):
 
 # --- approval-tier sweep ----------------------------------------------------------------------
 
-def _outcome(field_id, correct, confidence, accepted=True, has_validator=False):
+def _outcome(field_id, correct, confidence, accepted=True, has_validator=True):
     return FieldOutcome(field_id, "x", "x" if correct else "y", correct, confidence, accepted, has_validator)
 
 
@@ -168,8 +168,8 @@ def test_the_sweep_reports_precision_of_the_auto_subset_and_the_tier_split(capsy
 
 def test_the_sweep_lists_the_wrong_values_module_7_accepted_and_only_those(capsys):
     approval_sweep(
-        [_camera_file(_outcome("shipper_name", False, 85.6), _outcome("rejected_one", False, 40.0, accepted=False),
-                      _outcome("fine", True, 95.0))],
+        [_camera_file(_outcome("shipper_name", False, 85.6, has_validator=False),
+                      _outcome("rejected_one", False, 40.0, accepted=False), _outcome("fine", True, 95.0))],
         thresholds=[0.90],
     )
     out = capsys.readouterr().out
@@ -177,6 +177,20 @@ def test_the_sweep_lists_the_wrong_values_module_7_accepted_and_only_those(capsy
     assert "wrong values Module 7 accepted (1)" in out
     assert "shipper_name" in out and "rejected_one" not in out
     assert "confidence only" in out  # says nothing but confidence could have caught it
+
+
+def test_the_sweep_never_auto_approves_a_field_with_no_validator(capsys):
+    """However high the confidence and however low the threshold: the rule Module 7 applies."""
+    approval_sweep(
+        [_camera_file(_outcome("checked", True, 99.0), _outcome("unchecked", True, 99.0, has_validator=False),
+                      _outcome("unchecked_wrong", False, 99.0, has_validator=False))],
+        thresholds=[0.50, 0.90],
+    )
+    out = capsys.readouterr().out
+    camera = out[out.index("camera-photo JPEG"):]
+
+    assert _cells(camera, 0.50) == ["1 (33%)", "1/1 = 100.0%", "0", "67%", "0%"]
+    assert "2 read(s) confident enough for auto held at spot_check for having no regex/checksum (1 correct, 1 wrong)" in out
 
 
 def test_a_threshold_only_clears_the_target_if_every_higher_one_does(capsys):
@@ -214,8 +228,10 @@ def test_the_harness_tier_rule_is_module_7s_rule(monkeypatch):
     from app.modules.validation import approval_tier
 
     for accepted in (True, False):
-        for confidence in (0.0, 50.0, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 - 0.1, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100, 100.0):
-            assert _tier_at(_outcome("f", True, confidence, accepted), CONFIDENCE_AUTO_APPROVE_THRESHOLD) == approval_tier(accepted, confidence)
+        for validated in (True, False):
+            for confidence in (0.0, 50.0, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 - 0.1, CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100, 100.0):
+                outcome = _outcome("f", True, confidence, accepted, has_validator=validated)
+                assert _tier_at(outcome, CONFIDENCE_AUTO_APPROVE_THRESHOLD) == approval_tier(accepted, confidence, validated)
 
 
 def test_the_grid_is_fine_where_the_decision_is_made():

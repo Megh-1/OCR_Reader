@@ -1,3 +1,5 @@
+import re
+
 from scripts.seed_templates import AIR_WAYBILL
 
 
@@ -11,6 +13,17 @@ def test_shipper_name_box_starts_below_the_printed_label_and_above_the_value():
     top = next(f for f in AIR_WAYBILL.fields if f.id == "shipper_name").bbox[1]
     label_ink_bottom, value_ink_top = 0.0509, 0.0545
     assert label_ink_bottom < top < value_ink_top
+
+
+def test_flight_date_regex_rejects_the_misread_that_was_accepted():
+    """"EKO565/27FEB" (letter O for the zero) was accepted at confidence up to 87, the most
+    confident wrong read on the synthetic corpus, when flight_date had no regex. The month is
+    enumerated for the same reason the ID card's is."""
+    pattern = next(f for f in AIR_WAYBILL.fields if f.id == "flight_date").validation_regex
+
+    assert re.fullmatch(pattern, "EK0565/27FEB")
+    assert re.fullmatch(pattern, "EKO565/27FEB") is None
+    assert re.fullmatch(pattern, "EK0565/27FE8") is None
 
 
 def test_only_awb_number_claims_a_checksum():

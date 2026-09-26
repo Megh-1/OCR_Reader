@@ -1,6 +1,7 @@
 """
-Module 7 approval tiers: review (rejected), spot_check (accepted, under the auto
-threshold) and auto (accepted, at or above it), carried through to the output JSON.
+Module 7 approval tiers: review (rejected), spot_check (accepted, but under the auto
+threshold or with no regex/checksum) and auto (accepted, validated, at or above the
+threshold), carried through to the output JSON.
 """
 
 from unittest.mock import Mock
@@ -11,7 +12,7 @@ import app.modules.field_extraction as field_extraction
 import app.modules.type_identification as type_identification
 import app.modules.validation as validation
 from app.modules.output_compiler import compile_output
-from app.modules.validation import approval_tier, validate_field, validate_fields
+from app.modules.validation import approval_tier, has_validator, validate_field, validate_fields
 from app.schemas.extraction_result import CompiledResult, FieldResult
 from tests.test_field_extraction import ocr_responses
 from tests.test_pipeline import make_image_bytes, save_template
@@ -24,20 +25,40 @@ def threshold_80(monkeypatch):
 
 
 def test_a_rejected_field_is_review_however_confident(threshold_80):
-    assert approval_tier(accepted=False, aggregate_confidence=100.0) == "review"
+    assert approval_tier(accepted=False, aggregate_confidence=100.0, has_validator=True) == "review"
+    assert approval_tier(accepted=False, aggregate_confidence=100.0, has_validator=False) == "review"
 
 
 def test_an_accepted_field_under_the_threshold_is_a_spot_check(threshold_80):
-    assert approval_tier(accepted=True, aggregate_confidence=79.9) == "spot_check"
+    assert approval_tier(accepted=True, aggregate_confidence=79.9, has_validator=True) == "spot_check"
 
 
 def test_a_field_exactly_on_the_threshold_is_auto(threshold_80):
     """Same edge as the per-field floor: exactly on the line passes."""
-    assert approval_tier(accepted=True, aggregate_confidence=80.0) == "auto"
+    assert approval_tier(accepted=True, aggregate_confidence=80.0, has_validator=True) == "auto"
 
 
 def test_a_text_native_field_is_auto_when_it_validates(threshold_80):
-    assert approval_tier(accepted=True, aggregate_confidence=100.0) == "auto"
+    assert approval_tier(accepted=True, aggregate_confidence=100.0, has_validator=True) == "auto"
+
+
+def test_a_field_with_no_validator_is_never_auto_however_confident(threshold_80):
+    """Confidence alone never auto-approves: every wrong value Module 7 accepted on the
+    synthetic corpus was in a field with nothing else to judge it. Not even the fixed 100
+    of a text-native read, which says the PDF held those words, not that they are right."""
+    for confidence in (80.0, 99.9, 100.0):
+        assert approval_tier(accepted=True, aggregate_confidence=confidence, has_validator=False) == "spot_check"
+
+
+def test_a_missing_validator_never_makes_an_accepted_field_review(threshold_80):
+    """The rule only withholds auto; it does not reject what Module 7 accepted."""
+    assert approval_tier(accepted=True, aggregate_confidence=10.0, has_validator=False) == "spot_check"
+
+
+def test_a_regex_or_a_checksum_each_counts_as_a_validator():
+    assert has_validator(make_field(validation_regex=r"^\d+$"))
+    assert has_validator(make_field().model_copy(update={"checksum": "iata_awb_mod7"}))
+    assert not has_validator(make_field())
 
 
 def test_validate_field_assigns_the_tier(threshold_80):
@@ -45,6 +66,13 @@ def test_validate_field_assigns_the_tier(threshold_80):
 
     assert validate_field(field, make_extraction(raw_text="John", aggregate_confidence=95.0)).approval_tier == "auto"
     assert validate_field(field, make_extraction(raw_text="John", aggregate_confidence=65.0)).approval_tier == "spot_check"
+
+
+def test_validate_field_holds_a_confident_unvalidated_field_at_spot_check(threshold_80):
+    field = make_field(validation_regex=None, confidence_floor=0.5)
+    result = validate_field(field, make_extraction(raw_text="ACME TRADERS", aggregate_confidence=99.0))
+
+    assert result.accepted and result.approval_tier == "spot_check"
 
 
 def test_each_way_of_being_rejected_is_review(threshold_80):
@@ -68,19 +96,23 @@ def test_a_spot_check_is_still_accepted_and_does_not_flag_the_record(threshold_8
 
 def test_the_output_carries_each_fields_tier(threshold_80):
     template = Mock(fields=[
-        make_field(field_id="sure", confidence_floor=0.5),
-        make_field(field_id="unsure", confidence_floor=0.5),
+        make_field(field_id="sure", confidence_floor=0.5, validation_regex=r"^[a-z]+$"),
+        make_field(field_id="unsure", confidence_floor=0.5, validation_regex=r"^[a-z]+$"),
+        make_field(field_id="unchecked", confidence_floor=0.5),
         make_field(field_id="bad", confidence_floor=0.5, validation_regex=r"^\d+$"),
     ])
     summary = validate_fields(template, {
         "sure": make_extraction("sure", "abc", 95.0),
         "unsure": make_extraction("unsure", "abc", 65.0),
+        "unchecked": make_extraction("unchecked", "abc", 95.0),
         "bad": make_extraction("bad", "abc", 99.0),
     })
 
     fields = compile_output("t", 1, summary).fields
 
-    assert {k: v.approval_tier for k, v in fields.items()} == {"sure": "auto", "unsure": "spot_check", "bad": "review"}
+    assert {k: v.approval_tier for k, v in fields.items()} == {
+        "sure": "auto", "unsure": "spot_check", "unchecked": "spot_check", "bad": "review",
+    }
     assert [k for k, v in fields.items() if v.needs_review] == ["bad"]
 
 

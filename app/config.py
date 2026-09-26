@@ -311,37 +311,35 @@ DIGIT_WHITELIST: str = "0123456789"
 DIGIT_WHITELIST_PSM: int = 7
 
 # Module 7 approval tiers. A field Module 7 REJECTS is "review" (unchanged). One it
-# accepts is "auto" when its confidence is at or above this, else "spot_check": it
-# passed every check but Tesseract was not very sure, so a person may want to look.
+# accepts is "auto" only when the template gives it a regex or a checksum AND its
+# confidence is at or above this; otherwise "spot_check": it passed every check, but
+# Tesseract was not very sure, or confidence was the only thing that judged it.
 # 0.0-1.0, the same scale as a template field's confidence_floor.
 #
-# PROVISIONAL, and measured almost entirely on SYNTHETIC input. Swept 0.50-1.00
-# with `evaluate_accuracy.py --sweep` over the 20-file synthetic waybill corpus
-# plus the two real files. At 0.90 (auto / spot_check / review, share of fields;
-# auto precision):
-#   text-layer PDF    100% / 0% /  0%   58/58    (all conf 100 by construction)
-#   scanned PDF        85% / 10% / 5%   222/222
-#   camera-photo JPEG  80% / 10% / 10%  234/234  (3 of its 293 reads are real)
-# Auto precision is 100% in every tier for any threshold above 0.87 (the highest
-# wrong read) up to 0.96; by 0.97 the OCR tiers have almost no auto fields left
-# (0 scanned, 2 camera).
+# Why a validator is required: every wrong value Module 7 ever accepted on the
+# synthetic corpus (shipper_name 'TE' for 'TF' and label bleed, flight_date 'EKO565'
+# for 'EK0565', declared_value_customs 'NVG' for 'NVC', accounting_information with
+# stray leading characters) was in a field with no regex or checksum, at confidence
+# 64-87. Only a 3-5 point margin under 0.90 kept them out of auto; a misread at 91
+# would have shipped. Now no confidence can auto-approve such a field. flight_date
+# has since gained a regex, which rejects 'EKO565' outright.
 #
-# Read that with three cautions:
-#  * MARGIN. Every wrong value Module 7 accepted (7 reads of 3 fields: shipper_name
-#    'TE' for 'TF' and label bleed, flight_date 'EKO565' for 'EK0565',
-#    declared_value_customs 'NVG' for 'NVC') has confidence 66-87. 0.90 is 3
-#    points above the highest (87.0). A real misread at 91 would auto-approve.
-#  * NOT INDEPENDENT. The corpus is renderings of ONE waybill: 29 distinct values,
-#    32 with the ID card. 234 clean auto reads are ~29 samples, not 234, so "100%"
-#    cannot demonstrate the 99% target; it only fails to contradict it.
-#  * EVERY wrong-accepted value is in a field with no regex or checksum, so only
-#    confidence stood between it and auto. Where a format check exists the auto
-#    subset was 147/147 (camera) and 138/138 (scanned); where none does, 87/87 and
-#    84/84 - but the errors that exist live there, and two of the three fields
-#    (a name, a 3-letter code where NVG and NVC are both valid) hold text no
-#    format check could tell from the right answer. Only flight_date has a
-#    catchable shape.
-# Real photographed waybills have not been measured at all.
+# PROVISIONAL, measured on SYNTHETIC input. The 20-file synthetic waybill corpus plus
+# the two real files, through POST /documents/batch on the Docker stack (Debian
+# Tesseract), at 0.90 - fields auto / spot_check / review, then auto precision:
+#   text-layer PDF     38 /  20 /  0 of 58   38/38    (58 / 0 / 0 before the rule)
+#   scanned PDF       136 / 112 / 13 of 261  136/136  (218 / 30 / 13)
+#   camera-photo JPEG 148 / 115 / 30 of 293  148/148  (232 / 32 / 29; 3 reads are real)
+# The drop is 186 reads held at spot_check for having no validator, ALL correct - the
+# rule's cost on this corpus; its benefit is the margin above, which the corpus never
+# tested. Text-layer reads are included: their fixed 100 says the PDF held those words,
+# not that the box caught the right ones. Auto precision is now 100% at every threshold
+# from 0.50 to 0.96 in every tier, because no validated field produced an accepted wrong
+# value - so on this corpus the threshold guards nothing observed. It still guards a
+# shape-valid misread in a validated field (a weight digit read as another digit), which
+# this corpus cannot measure: it is renderings of ONE waybill (29 distinct values, 32 with
+# the ID card), so "100%" cannot demonstrate the 99% target, only fail to contradict it.
+# Real photographed waybills are unmeasured.
 CONFIDENCE_AUTO_APPROVE_THRESHOLD: float = 0.90
 
 # Threads each Tesseract PROCESS may use (its OpenMP OMP_THREAD_LIMIT). This matters far

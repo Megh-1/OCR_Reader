@@ -138,24 +138,36 @@ def _check_confidence(aggregate_confidence: float, confidence_floor: float) -> l
     return []
 
 
-def approval_tier(accepted: bool, aggregate_confidence: float) -> ApprovalTier:
+def has_validator(field: TemplateField) -> bool:
+    """The template gives the field something besides confidence to be judged by: a regex or a checksum."""
+    return field.validation_regex is not None or field.checksum is not None
+
+
+def approval_tier(accepted: bool, aggregate_confidence: float, has_validator: bool) -> ApprovalTier:
     """
     How much human attention an ACCEPTED-or-not field still gets.
 
       review      Module 7 rejected it (format, check digit or confidence floor).
-      spot_check  accepted, but under CONFIDENCE_AUTO_APPROVE_THRESHOLD.
-      auto        accepted and at or above the threshold.
+      spot_check  accepted, but under CONFIDENCE_AUTO_APPROVE_THRESHOLD - or the
+                  template gives it no regex and no checksum, however confident.
+      auto        accepted, validated by a regex or checksum, and at or above the threshold.
 
-    Confidence is Tesseract's own 0-100; a text-native field carries a fixed 100
-    (see TEXT_LAYER_CONFIDENCE), so it is auto whenever it passes validation. The
-    tier only ever ADDS caution on top of validation: a rejected field is never
-    promoted, and the threshold cannot make an accepted field "review".
+    A field with no validator is never auto because confidence is then the only
+    check, and confidence is exactly what a wrong read can have plenty of: every
+    wrong value Module 7 accepted on the synthetic corpus was in such a field. That
+    includes a text-native field, whose fixed 100 (TEXT_LAYER_CONFIDENCE) says the
+    PDF held those words, not that the box caught the right ones. The rule trusts the
+    template author: a regex that admits anything still counts as one.
 
-    "At or above" - a field exactly on the line is auto - matches how the per-field
-    floor treats its own line.
+    The tier only ever ADDS caution on top of validation: a rejected field is never
+    promoted, and neither the threshold nor a missing validator can make an accepted
+    field "review". "At or above" - a field exactly on the line is auto - matches how
+    the per-field floor treats its own line.
     """
     if not accepted:
         return "review"
+    if not has_validator:
+        return "spot_check"
     return "auto" if aggregate_confidence >= CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 else "spot_check"
 
 
@@ -177,7 +189,7 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
         confidence=extraction.aggregate_confidence,
         accepted=not reasons,
         reasons=reasons,
-        approval_tier=approval_tier(not reasons, extraction.aggregate_confidence),
+        approval_tier=approval_tier(not reasons, extraction.aggregate_confidence, has_validator(field)),
     )
 
 

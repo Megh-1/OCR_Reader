@@ -47,6 +47,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 import httpx  # noqa: E402
 
 from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD  # noqa: E402
+from app.modules.validation import has_validator  # noqa: E402
 from scripts.evaluate_accuracy import (  # noqa: E402
     OUTCOME_AMBIGUOUS,
     OUTCOME_CORRECT,
@@ -57,6 +58,7 @@ from scripts.evaluate_accuracy import (  # noqa: E402
     FileResult,
     _approval_grid,
     _is_real_file,
+    _tier_at,
     _tiers_to_show,
     approval_sweep,
     detect_tier,
@@ -81,11 +83,7 @@ KNOWN_ACCEPTED_WRONG = {
 
 def _validated_fields() -> dict[tuple[str, str], bool]:
     """(template_id, field_id) -> the template gives the field a regex or a checksum."""
-    return {
-        (t.template_id, f.id): f.validation_regex is not None or f.checksum is not None
-        for t in ALL_TEMPLATES
-        for f in t.fields
-    }
+    return {(t.template_id, f.id): has_validator(f) for t in ALL_TEMPLATES for f in t.fields}
 
 
 def _to_file_result(filename: str, path: Path, expected: dict, doc: dict, validated: dict) -> FileResult:
@@ -219,15 +217,14 @@ def report(entries, status, wall, accepted_in, api, show_sweep: bool) -> int:
             api_tier = r.api_tiers.get(f.field_id)  # type: ignore[attr-defined]
             counts[api_tier] += 1
             auto_correct += api_tier == "auto" and f.correct
-            recomputed = "review" if not f.accepted else ("auto" if f.confidence >= CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 else "spot_check")
-            mismatches += recomputed != api_tier
+            mismatches += _tier_at(f, CONFIDENCE_AUTO_APPROVE_THRESHOLD) != api_tier
         n = len(outs)
         auto, spot, review = counts["auto"], counts["spot_check"], counts["review"]
         precision = f"{auto_correct}/{auto} = {100 * auto_correct / auto:5.1f}%" if auto else "n/a"
         auto_cell = f"{auto} ({100 * auto / n:.0f}%)"
         print(f"  {TIER_LABELS[tier]:28} {n:>6} {auto_cell:>10} {f'{100 * spot / n:.0f}%':>11} "
               f"{f'{100 * review / n:.0f}%':>7} {precision:>18}")
-    print(f"  (the API's tier disagreed with a recomputation from confidence in {mismatches} field(s))")
+    print(f"  (the API's tier disagreed with a recomputation from acceptance, validator and confidence in {mismatches} field(s))")
 
     print("\n=== Wrong values Module 7 accepted, and where each landed ===")
     slipping = 0

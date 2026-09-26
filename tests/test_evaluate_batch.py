@@ -5,7 +5,7 @@ from pathlib import Path
 from scripts.evaluate_accuracy import OUTCOME_AMBIGUOUS, OUTCOME_CORRECT, OUTCOME_NEW_TEMPLATE, OUTCOME_WRONG
 from scripts.evaluate_batch import _seconds, _to_file_result, _validated_fields
 
-EXPECTED = {"template_id": "air_waybill", "tier": "camera_photo_jpeg", "fields": {"carrier": "EMIRATES", "flight_date": "EK0565/27FEB"}}
+EXPECTED = {"template_id": "air_waybill", "tier": "camera_photo_jpeg", "fields": {"carrier": "EMIRATES", "consignee_name": "ACME TRADERS"}}
 NEVER_READ = Path("does-not-exist.jpg")  # the tier is given, so the file is not opened
 
 
@@ -22,20 +22,20 @@ def field(value, confidence, needs_review, tier):
 def test_a_confirmed_document_becomes_field_outcomes_with_the_apis_own_verdicts():
     doc = completed({
         "carrier": field("EMIRATES", 96.0, False, "auto"),
-        "flight_date": field("EKO565/27FEB", 74.5, False, "spot_check"),  # wrong, but accepted: the dangerous kind
+        "consignee_name": field("ACME TRADER5", 74.5, False, "spot_check"),  # wrong, but accepted: the dangerous kind
     })
 
     result = _to_file_result("a.jpg", NEVER_READ, EXPECTED, doc, _validated_fields())
 
     assert result.classification == OUTCOME_CORRECT and result.error is None and result.extraction_skipped is None
-    carrier, flight_date = result.fields
+    carrier, consignee = result.fields
     assert carrier.correct and carrier.accepted and carrier.has_validator  # carrier carries a regex in the template
-    assert not flight_date.correct and flight_date.accepted and not flight_date.has_validator  # flight_date has none
-    assert result.api_tiers == {"carrier": "auto", "flight_date": "spot_check"}
+    assert not consignee.correct and consignee.accepted and not consignee.has_validator  # consignee_name has none
+    assert result.api_tiers == {"carrier": "auto", "consignee_name": "spot_check"}
 
 
 def test_a_flagged_field_is_not_accepted():
-    doc = completed({"carrier": field("EMIRATE5", 55.0, True, "review"), "flight_date": field("EK0565/27FEB", 90.0, False, "auto")})
+    doc = completed({"carrier": field("EMIRATE5", 55.0, True, "review"), "consignee_name": field("ACME TRADERS", 90.0, False, "spot_check")})
     assert [f.accepted for f in _to_file_result("a.jpg", NEVER_READ, EXPECTED, doc, {}).fields] == [False, True]
 
 
@@ -59,9 +59,9 @@ def test_a_batch_document_that_failed_is_an_error_not_a_zero():
 
 
 def test_a_field_the_template_did_not_return_reads_as_empty_and_unaccepted():
-    doc = completed({"carrier": field("EMIRATES", 96.0, False, "auto")})  # flight_date absent
-    flight_date = _to_file_result("a.jpg", NEVER_READ, EXPECTED, doc, {}).fields[1]
-    assert flight_date.actual == "" and not flight_date.correct and not flight_date.accepted
+    doc = completed({"carrier": field("EMIRATES", 96.0, False, "auto")})  # consignee_name absent
+    consignee = _to_file_result("a.jpg", NEVER_READ, EXPECTED, doc, {}).fields[1]
+    assert consignee.actual == "" and not consignee.correct and not consignee.accepted
 
 
 def test_worker_seconds_come_from_the_iso_timestamps():
@@ -72,4 +72,5 @@ def test_worker_seconds_come_from_the_iso_timestamps():
 def test_the_validator_map_knows_which_seeded_fields_have_only_confidence():
     validated = _validated_fields()
     assert validated[("air_waybill", "awb_number")] and validated[("air_waybill", "pieces_rcp")]
-    assert not validated[("air_waybill", "shipper_name")] and not validated[("air_waybill", "flight_date")]
+    assert validated[("air_waybill", "flight_date")]  # since the regex that rejects "EKO565/27FEB"
+    assert not validated[("air_waybill", "shipper_name")] and not validated[("air_waybill", "consignee_name")]

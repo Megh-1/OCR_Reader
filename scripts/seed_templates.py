@@ -156,8 +156,16 @@ AIR_WAYBILL = TemplateIn(
          "data_type": "string", "validation_regex": r"^[A-Z]{3}$", "confidence_floor": _AWB_FLOOR},
         {"id": "first_carrier_code", "label": "First Carrier", "bbox": [0.1422, 0.3504, 0.1714, 0.3705],
          "data_type": "string", "validation_regex": r"^[A-Z0-9]{2}$", "confidence_floor": _AWB_FLOOR},
+        # Carrier designator, 4-digit flight number, "/", day, month: "EK0565/27FEB". The only wrong value Module 7
+        # accepted in this field is "EKO565/27FEB" (letter O for zero), on several synthetic photos and a scan, at up
+        # to confidence 87 - the most confident wrong read on the whole corpus - with nothing but confidence to stop it.
+        # As strict as the data: a letters-only designator and a zero-padded number because that is what this form
+        # carries, and an enumerated month (a shape-only one let "17-Oci-2006" through on the ID card). A carrier like
+        # 6E or an unpadded "EK565" is flagged, not misread - widen it in a new version when a real waybill shows one.
         {"id": "flight_date", "label": "Flight / Date", "bbox": [0.3072, 0.3819, 0.4148, 0.4005],
-         "data_type": "string", "validation_regex": None, "confidence_floor": _AWB_FLOOR},
+         "data_type": "string",
+         "validation_regex": r"^[A-Z]{2}\d{4}/(0[1-9]|[12]\d|3[01])(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)$",
+         "confidence_floor": _AWB_FLOOR},
 
         # --- charge declarations --------------------------------------------
         {"id": "currency", "label": "Currency", "bbox": [0.5229, 0.3504, 0.5601, 0.3705],

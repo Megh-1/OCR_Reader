@@ -161,6 +161,38 @@ def test_no_hint_matching_two_templates_is_ambiguous_not_a_guess(client, monkeyp
     assert set(result.per_anchor_scores.keys()) == {doc_a, doc_b}
 
 
+def test_hint_only_template_is_skipped_by_the_scan_but_works_by_hint(client, monkeypatch):
+    full, part = f"doc_a_{uuid4().hex}", f"doc_b_{uuid4().hex}"
+    anchor = {"text": "SAME TEXT", "bbox": [0.05, 0.05, 0.4, 0.15], "match_threshold": 0.5}
+    save_template(client, full, anchors=[anchor])
+    resp = client.post(
+        "/templates", json={"template_id": part, "anchors": [anchor], "fields": [], "hints": {"hint_only": True}}
+    )
+    assert resp.status_code == 201
+
+    monkeypatch.setattr(type_identification, "list_known_doc_types", lambda: [full, part])
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(return_value="SAME TEXT"))
+
+    scanned = identify_document_type(blank_image_bytes())
+    assert scanned.confirmed is True and scanned.template_id == full  # not ambiguous
+
+    hinted = identify_document_type(blank_image_bytes(), type_hint=part)
+    assert hinted.confirmed is True and hinted.template_id == part
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_saving_a_template_with_blank_anchor_text_is_refused(client, unique_doc_type, blank):
+    resp = client.post(
+        "/templates",
+        json={
+            "template_id": unique_doc_type,
+            "anchors": [{"text": blank, "bbox": [0.1, 0.1, 0.4, 0.2], "match_threshold": 0.7}],
+            "fields": [],
+        },
+    )
+    assert resp.status_code == 422
+
+
 def test_anchor_crop_has_exact_margin_applied(monkeypatch):
     # Discovered against a real photo: a zero-slack anchor crop is fragile
     # against Tesseract's page segmentation getting thrown off by a few

@@ -1,5 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { FabricText, Rect, Shadow } from 'fabric';
+import { FabricText, Rect } from 'fabric';
 import {
   Crosshair,
   FileImage,
@@ -24,6 +23,7 @@ import {
   resultImageUrl,
 } from '@/api';
 import { EmptyState, PageHeader } from '@/components/bits';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/card';
 import { Input, Label, NativeSelect } from '@/components/ui/input';
@@ -31,22 +31,31 @@ import { rectToRelativeBBox, relativeBBoxToRect } from '@/geometry';
 import { useDocumentCanvas } from '@/useDocumentCanvas';
 import { cn, timeAgo } from '@/lib/utils';
 
-const MIN_BOX_SIZE = 6; // px in canvas space; drags smaller than this are accidental clicks
-const INK = '#15181c';
-// Template boxes are ink with a paper halo, never the accent: on a document, orange is
-// reserved for a field under review.
-const FIELD_STYLE = { stroke: INK, fill: 'rgba(21,24,28,0.10)', strokeWidth: 2, strokeUniform: true };
-const ANCHOR_STYLE = { stroke: INK, fill: 'rgba(21,24,28,0.04)', strokeWidth: 2, strokeDashArray: [7, 4], strokeUniform: true };
-const CONTROLS = {
-  borderColor: INK,
-  cornerColor: '#ffffff',
-  cornerStrokeColor: INK,
+const MIN_BOX_SIZE = 8; // px in canvas space; drags smaller than this are accidental clicks
+
+// Layout the canvas is sized against (see the grid in the component below).
+const PANEL_W = 416;
+const BED_PADDING = 48;
+const SIDEBAR_W = { narrow: 64, wide: 240 };
+const CHROME_H = 96 + 56 + 48 + BED_PADDING; // page header + tool bar + status bar + padding
+
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const withAlpha = (hex, alpha) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+// Template boxes are drawn in the brand color: blue means "this is something you can edit".
+const fieldStyle = () => ({ stroke: cssVar('--primary'), fill: withAlpha(cssVar('--primary'), 0.12), strokeWidth: 2, strokeUniform: true });
+const anchorStyle = () => ({ stroke: cssVar('--primary'), fill: withAlpha(cssVar('--primary'), 0.04), strokeWidth: 2, strokeDashArray: [8, 4], strokeUniform: true });
+const controlStyle = () => ({
+  borderColor: cssVar('--primary'),
+  cornerColor: cssVar('--surface'),
+  cornerStrokeColor: cssVar('--primary'),
   transparentCorners: false,
   cornerSize: 8,
   cornerStyle: 'rect',
-  borderScaleFactor: 1.5,
-  shadow: new Shadow({ color: 'rgba(255,255,255,0.95)', blur: 3 }),
-};
+  borderScaleFactor: 2,
+});
 
 let nextFieldSeq = 1;
 function newBox(id, type) {
@@ -54,12 +63,15 @@ function newBox(id, type) {
   return { id, type: 'field', fieldId: `field_${nextFieldSeq++}`, label: '', dataType: 'string', validationRegex: '', confidenceFloor: 0.6, checksum: null };
 }
 
+const LABEL_MAX = 24; // characters; longer anchor text is cut so the tab stays inside the page
+const shorten = (text) => (text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX - 1)}…` : text);
+
 const fmtBox = (b) => (b ? b.map((n) => n.toFixed(4)).join('  ') : '—');
 
 export default function TemplateDesigner() {
   const [size] = useState(() => ({
-    w: Math.max(560, Math.min(1100, window.innerWidth - 232 - 420 - 48)),
-    h: Math.max(520, window.innerHeight - 92 - 56 - 44 - 24),
+    w: Math.max(560, Math.min(1100, window.innerWidth - (window.innerWidth >= 1024 ? SIDEBAR_W.wide : SIDEBAR_W.narrow) - PANEL_W - BED_PADDING)),
+    h: Math.max(520, window.innerHeight - CHROME_H),
   }));
   // No default sample document - an empty canvas until the user uploads one or opens an
   // existing template with a processed page to draw over.
@@ -76,6 +88,7 @@ export default function TemplateDesigner() {
 
   const [mode, setModeState] = useState(null); // null | 'field' | 'anchor'
   const [boxes, setBoxes] = useState([]);
+  const [hintOnly, setHintOnly] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [readout, setReadout] = useState(null);
   const [templateId, setTemplateId] = useState('');
@@ -113,7 +126,7 @@ export default function TemplateDesigner() {
     [fabricCanvasRef],
   );
 
-  const labelFor = useCallback((box) => (box.type === 'anchor' ? `⌖ ${box.text || 'anchor'}` : box.fieldId), []);
+  const labelFor = useCallback((box) => (box.type === 'anchor' ? `⌖ ${shorten(box.text || 'anchor')}` : box.fieldId), []);
 
   const syncLabel = useCallback((boxId) => {
     const rect = rectsRef.current.get(boxId);
@@ -125,13 +138,13 @@ export default function TemplateDesigner() {
   const addRect = useCallback(
     (boxId, rect, box) => {
       const canvas = fabricCanvasRef.current;
-      rect.set(CONTROLS);
+      rect.set(controlStyle());
       rectsRef.current.set(boxId, rect);
       const label = new FabricText(labelFor(box), {
         fontFamily: 'IBM Plex Mono',
-        fontSize: 10,
-        fill: '#ffffff',
-        backgroundColor: INK,
+        fontSize: 12,
+        fill: cssVar('--primary-foreground'),
+        backgroundColor: cssVar('--primary'),
         padding: 2,
         selectable: false,
         evented: false,
@@ -170,10 +183,10 @@ export default function TemplateDesigner() {
         next.push(box);
       };
       for (const a of template.anchors) {
-        place(a.bbox, ANCHOR_STYLE, { id: crypto.randomUUID(), type: 'anchor', text: a.text, matchThreshold: a.match_threshold });
+        place(a.bbox, anchorStyle(), { id: crypto.randomUUID(), type: 'anchor', text: a.text, matchThreshold: a.match_threshold });
       }
       for (const f of template.fields) {
-        place(f.bbox, FIELD_STYLE, {
+        place(f.bbox, fieldStyle(), {
           id: crypto.randomUUID(),
           type: 'field',
           fieldId: f.id,
@@ -188,6 +201,7 @@ export default function TemplateDesigner() {
       }
       canvas.requestRenderAll();
       hintsRef.current = template.hints ?? null;
+      setHintOnly(Boolean(template.hints?.hint_only));
       setBoxes(next);
       setSelectedId(null);
       setTemplateId(template.template_id);
@@ -246,7 +260,7 @@ export default function TemplateDesigner() {
       const m = modeRef.current;
       if (!m) return;
       start = canvas.getScenePoint(opt.e);
-      drawing = new Rect({ left: start.x, top: start.y, width: 0, height: 0, originX: 'left', originY: 'top', ...(m === 'anchor' ? ANCHOR_STYLE : FIELD_STYLE) });
+      drawing = new Rect({ left: start.x, top: start.y, width: 0, height: 0, originX: 'left', originY: 'top', ...(m === 'anchor' ? anchorStyle() : fieldStyle()) });
       canvas.add(drawing);
     }
     function move(opt) {
@@ -373,11 +387,13 @@ export default function TemplateDesigner() {
   const fields = boxes.filter((b) => b.type === 'field');
   const latest = versions[0]?.version ?? loaded?.version ?? 0;
   const nextVersion = templateId && templateId === loaded?.template_id ? latest + 1 : versions.length ? latest + 1 : 1;
-  const canSave = imageReady && anchors.length >= 1 && templateId.trim().length > 0;
+  const blankAnchors = anchors.filter((b) => !b.text.trim()).length;
+  const canSave = imageReady && anchors.length >= 1 && blankAnchors === 0 && fields.length >= 1 && templateId.trim().length > 0;
 
   async function handleSave() {
     const image = imageRef.current;
-    const payload = { template_id: templateId.trim(), anchors: [], fields: [], ...(hintsRef.current ? { hints: hintsRef.current } : {}) };
+    const hints = hintsRef.current || hintOnly ? { ...(hintsRef.current ?? {}), hint_only: hintOnly } : null;
+    const payload = { template_id: templateId.trim(), anchors: [], fields: [], ...(hints ? { hints } : {}) };
     for (const b of boxes) {
       const rect = rectsRef.current.get(b.id);
       if (!rect) continue;
@@ -409,11 +425,14 @@ export default function TemplateDesigner() {
   return (
     <div className="flex h-full flex-col">
       <PageHeader
-        eyebrow="01 — Template designer"
         title={loaded ? loaded.template_id : 'New template'}
-        meta={loaded ? `editing v${loaded.version} · saving writes v${nextVersion} — versions are append-only, nothing is overwritten` : 'draw anchors and fields on a sample document, then save a config'}
+        meta={
+          loaded
+            ? `Editing version ${loaded.version}. Saving creates version ${nextVersion}; earlier versions are never changed.`
+            : 'Draw a box around each value you want to extract, on a sample document, then save.'
+        }
       >
-        <NativeSelect className="w-52" value="" onChange={(e) => loadTemplate(e.target.value)}>
+        <NativeSelect className="w-52" aria-label="Open a saved template" value="" onChange={(e) => loadTemplate(e.target.value)}>
           <option value="">Open template…</option>
           {templates.map((t) => (
             <option key={t} value={t}>
@@ -423,13 +442,14 @@ export default function TemplateDesigner() {
         </NativeSelect>
         <NativeSelect
           className="w-56"
+          aria-label="Use a document you already processed"
           value=""
           onChange={(e) => {
             const v = e.target.value;
             if (v) switchImage(resultImageUrl(v));
           }}
         >
-          <option value="">Document from…</option>
+          <option value="">Use a processed document…</option>
           {results
             .filter((r) => r.has_image)
             .slice(0, 30)
@@ -440,12 +460,12 @@ export default function TemplateDesigner() {
             ))}
         </NativeSelect>
         <Button variant="outline" asChild>
-          <label className="cursor-pointer">
-            <Upload /> Upload
+          <label className="cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ring">
+            <Upload /> Upload image
             <input
               type="file"
               accept="image/*"
-              className="hidden"
+              className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
@@ -460,133 +480,130 @@ export default function TemplateDesigner() {
         </Button>
       </PageHeader>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_420px]">
-        {/* ---------------------------------------------------------------- canvas */}
-        <div className="flex min-h-0 flex-col">
-          <div className="flex h-14 items-center gap-3 border-b border-border px-5">
-            <div className="flex rounded-md border border-border-strong p-0.5">
-              {[
-                [null, 'Select', MousePointer2, 'V'],
-                ['field', 'Field', Square, 'F'],
-                ['anchor', 'Anchor', SquareDashed, 'A'],
-              ].map(([m, label, Icon, key]) => (
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_416px]">
+        <section aria-label="Document" className="flex min-h-0 flex-col">
+          <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2">
+            <div role="group" aria-label="Drawing tool" className="flex gap-1 rounded-md border border-border-strong p-1">
+              {TOOLS.map(([m, label, Icon, key]) => (
                 <button
                   key={label}
+                  aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                   className={cn(
-                    'relative flex h-8 items-center gap-2 rounded-sm px-3 text-[12.5px] font-medium transition-colors',
-                    mode === m ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                    'flex h-8 items-center gap-2 rounded-sm px-3 text-sm font-medium transition-colors',
+                    mode === m ? 'bg-primary text-primary-foreground' : 'text-foreground-secondary hover:bg-surface-sunken hover:text-foreground',
                   )}
                 >
-                  {mode === m && <motion.span layoutId="tool" className="absolute inset-0 rounded-sm bg-primary" transition={{ duration: 0.18 }} />}
-                  <Icon className="relative size-4" />
-                  <span className="relative">{label}</span>
-                  <Kbd className={cn('relative', mode === m && 'border-graphite-400 bg-transparent text-primary-foreground')}>{key}</Kbd>
+                  <Icon className="size-4" aria-hidden />
+                  {label}
+                  <Kbd className={cn(mode === m && 'border-primary-foreground bg-transparent text-primary-foreground')}>{key}</Kbd>
                 </button>
               ))}
             </div>
-            <AnimatePresence>
-              {mode && (
-                <motion.span
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-2 text-[12px] text-secondary-foreground"
-                >
-                  <Crosshair className="size-4" /> Drag on the document to draw {mode === 'anchor' ? 'an anchor — a printed label identical on every document of this type' : 'a field box'}
-                </motion.span>
-              )}
-            </AnimatePresence>
-            <div className="ml-auto flex items-center gap-4 font-mono text-[11px] text-muted-foreground">
-              <span className="caps-sm text-faint-foreground">cursor</span>
-              <span ref={cursorRef} className="w-28 text-foreground">—</span>
-            </div>
+            {mode && (
+              <p className="flex items-center gap-2 text-sm text-foreground-secondary" role="status">
+                <Crosshair className="size-4" aria-hidden />
+                {mode === 'anchor' ? 'Drag over a printed label that is identical on every document of this type' : 'Drag over a value to extract'}
+              </p>
+            )}
+            <p className="ml-auto flex items-center gap-2 text-xs text-foreground-secondary">
+              Position <span ref={cursorRef} className="w-32 font-mono text-foreground">—</span>
+            </p>
           </div>
 
-          <div className="bed-grid relative min-h-0 flex-1 overflow-auto p-6">
+          <div className="relative min-h-0 flex-1 overflow-auto bg-surface-sunken p-6">
             {imageUrl ? (
-              <div className="mx-auto w-fit shadow-[0_24px_64px_-12px_rgba(0,0,0,0.7)]">
+              <div className="mx-auto w-fit shadow-md">
                 <canvas ref={canvasElRef} />
               </div>
             ) : (
-              <EmptyState icon={FileImage} title="No document loaded" className="h-full justify-center">
-                Upload a sample document, or pick one from "Document from…" once you've processed
-                a batch, to start drawing anchors and fields.
+              <EmptyState icon={FileImage} title="No document yet" className="h-full">
+                Upload an image of a sample document, or pick one you already processed, then draw boxes on it. PDFs can't be drawn on directly: process the PDF
+                first, then choose it from the list.
               </EmptyState>
             )}
           </div>
 
-          <div className="flex h-11 items-center gap-6 border-t border-border bg-card px-5 font-mono text-[11px]">
-            <span className="caps-sm text-faint-foreground">{readout?.live ? 'measuring' : 'selection'}</span>
-            <span className="text-foreground">{fmtBox(readout?.bbox)}</span>
+          <div className="flex h-12 items-center gap-6 border-t border-border bg-surface px-4 text-xs text-foreground-secondary">
+            <span className="font-medium">{readout?.live ? 'Measuring' : 'Selected box'}</span>
+            <span className="font-mono text-foreground">{fmtBox(readout?.bbox)}</span>
             {readout?.bbox && (
-              <span className="text-muted-foreground">
+              <span>
                 w {(readout.bbox[2] - readout.bbox[0]).toFixed(4)} · h {(readout.bbox[3] - readout.bbox[1]).toFixed(4)}
               </span>
             )}
-            <span className="ml-auto text-faint-foreground">
-              {anchors.length} anchor{anchors.length === 1 ? '' : 's'} · {fields.length} fields · boxes are page-relative fractions
+            <span className="ml-auto text-foreground-subtle">
+              {anchors.length} anchor{anchors.length === 1 ? '' : 's'} · {fields.length} field{fields.length === 1 ? '' : 's'}
             </span>
           </div>
-        </div>
+        </section>
 
-        {/* ---------------------------------------------------------------- panel */}
-        <div className="flex min-h-0 flex-col border-l border-border bg-card">
+        <aside aria-label="Template settings" className="flex min-h-0 flex-col border-l border-border bg-surface">
           <div className="flex flex-col gap-3 border-b border-border p-4">
             <div className="flex items-end gap-2">
               <Label className="flex-1">
-                Template id
+                Template name
                 <Input mono value={templateId} onChange={(e) => setTemplateId(e.target.value)} placeholder="e.g. air_waybill" />
               </Label>
               <Button variant="primary" disabled={!canSave || save.status === 'saving'} onClick={handleSave}>
                 <Save /> {save.status === 'saving' ? 'Saving…' : `Save v${nextVersion}`}
               </Button>
             </div>
-            <AnimatePresence mode="wait">
-              {save.status === 'saved' && (
-                <motion.div key="ok" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-2 rounded-md border border-border-strong bg-muted px-3 py-2 text-[12px]">
-                  <GitCommitHorizontal className="size-4 text-icon" />
-                  Saved <span className="font-mono">{save.result.template_id} v{save.result.version}</span>
-                  <span className="text-muted-foreground">— earlier versions untouched</span>
-                </motion.div>
-              )}
-              {save.status === 'error' && (
-                <motion.div key="err" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-md border border-tier-review bg-tier-review-surface px-3 py-2 text-[12px] text-signal-300">
-                  {save.messages.map((m) => (
-                    <div key={m}>{m}</div>
-                  ))}
-                </motion.div>
-              )}
-              {!canSave && save.status !== 'error' && save.status !== 'saved' && (
-                <div className="text-[12px] text-muted-foreground">
-                  {anchors.length < 1 ? 'Needs at least one anchor. ' : ''}
-                  {!templateId.trim() ? 'Needs a template id.' : ''}
-                </div>
-              )}
-            </AnimatePresence>
+            <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-secondary">
+              <input type="checkbox" className="mt-1 size-4 accent-primary" checked={hintOnly} onChange={(e) => setHintOnly(e.target.checked)} />
+              <span>
+                <span className="font-medium text-foreground">Only use when I choose it.</span> Tick this for a template that reads part of a layout another template already covers, so the
+                two don't clash during automatic detection.
+              </span>
+            </label>
+            {save.status === 'saved' && (
+              <p role="status" className="flex items-center gap-2 rounded-md border border-success-border bg-success-surface px-3 py-2 text-sm text-success">
+                <GitCommitHorizontal className="size-4 shrink-0" aria-hidden />
+                Saved {save.result.template_id} v{save.result.version}
+              </p>
+            )}
+            {save.status === 'error' && (
+              <div role="alert" className="rounded-md border border-danger-border bg-danger-surface px-3 py-2 text-sm text-danger">
+                {save.messages.map((m) => (
+                  <p key={m}>{m}</p>
+                ))}
+              </div>
+            )}
+            {!canSave && save.status !== 'error' && save.status !== 'saved' && (
+              <p className="text-xs text-foreground-secondary">
+                {anchors.length < 1 ? 'Add at least one anchor. ' : ''}
+                {blankAnchors > 0 ? 'Every anchor needs its printed text (Anchors tab). ' : ''}
+                {fields.length < 1 ? 'Add at least one field. ' : ''}
+                {!templateId.trim() ? 'Give the template a name.' : ''}
+              </p>
+            )}
           </div>
 
-          <div className="flex border-b border-border px-2">
+          <div role="tablist" aria-label="Template contents" className="flex border-b border-border px-2">
             {[
-              ['fields', `Fields ${fields.length}`],
-              ['anchors', `Anchors ${anchors.length}`],
-              ['versions', `Versions ${versions.length || ''}`],
+              ['fields', `Fields (${fields.length})`],
+              ['anchors', `Anchors (${anchors.length})`],
+              ['versions', `Versions${versions.length ? ` (${versions.length})` : ''}`],
             ].map(([key, label]) => (
               <button
                 key={key}
+                role="tab"
+                aria-selected={tab === key}
                 onClick={() => setTab(key)}
-                className={cn('relative h-10 px-3 text-[12.5px] font-medium', tab === key ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                className={cn(
+                  'h-10 border-b-2 px-3 text-sm font-medium transition-colors',
+                  tab === key ? 'border-primary text-primary-text' : 'border-transparent text-foreground-secondary hover:text-foreground',
+                )}
               >
                 {label}
-                {tab === key && <motion.span layoutId="designer-tab" className="absolute inset-x-2 bottom-0 h-[2px] bg-foreground" />}
               </button>
             ))}
           </div>
 
-          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
+          <div role="tabpanel" className="scroll-thin min-h-0 flex-1 overflow-y-auto">
             {tab === 'fields' &&
               (fields.length === 0 ? (
-                <PanelHint>Press F and drag over a value on the document. Each box becomes a field in the config.</PanelHint>
+                <PanelHint>Choose the Field tool (F) and drag over a value on the document. Each box becomes one extracted field.</PanelHint>
               ) : (
                 fields.map((b) => (
                   <FieldRow key={b.id} box={b} selected={b.id === selectedId} onSelect={() => selectBox(b.id)} onChange={(p) => update(b.id, p)} onDelete={() => deleteBox(b.id)} />
@@ -594,7 +611,10 @@ export default function TemplateDesigner() {
               ))}
             {tab === 'anchors' &&
               (anchors.length === 0 ? (
-                <PanelHint>Press A and box a printed form label - Module 5 requires every anchor to match before it trusts a document type.</PanelHint>
+                <PanelHint>
+                  Choose the Anchor tool (A) and drag over a printed label that is the same on every document of this type. Before reading a document, the system checks that every
+                  anchor matches.
+                </PanelHint>
               ) : (
                 anchors.map((b) => (
                   <AnchorRow key={b.id} box={b} selected={b.id === selectedId} onSelect={() => selectBox(b.id)} onChange={(p) => update(b.id, p)} onDelete={() => deleteBox(b.id)} />
@@ -604,56 +624,64 @@ export default function TemplateDesigner() {
               (versions.length === 0 ? (
                 <PanelHint>Open or save a template to see its history.</PanelHint>
               ) : (
-                <div className="relative py-2">
-                  <div className="absolute top-4 bottom-4 left-[27px] w-px bg-border-strong" />
-                  {versions.map((v, i) => (
-                    <div key={v.version} className="relative flex items-center gap-3 px-4 py-2.5">
-                      <span className={cn('relative z-10 size-[9px] rounded-full border-2 bg-card', i === 0 ? 'border-foreground' : 'border-graphite-600')} />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[13px] font-semibold">v{v.version}</span>
-                          {i === 0 && <span className="caps-sm rounded-sm border border-border-strong px-1.5 text-secondary-foreground">latest</span>}
-                          {loaded?.version === v.version && <span className="caps-sm text-muted-foreground">on canvas</span>}
-                          {v.is_archived && <span className="caps-sm text-faint-foreground">archived</span>}
+                <div className="flex flex-col">
+                  <ul>
+                    {versions.map((v, i) => (
+                      <li key={v.version} className="flex items-center gap-3 border-b border-border px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            Version {v.version}
+                            {i === 0 && (
+                              <Badge tone="primary" size="sm">
+                                Latest
+                              </Badge>
+                            )}
+                            {loaded?.version === v.version && <Badge size="sm">On canvas</Badge>}
+                            {v.is_archived && <Badge size="sm">Archived</Badge>}
+                          </p>
+                          <p className="text-xs text-foreground-secondary">
+                            {v.created_at} · {v.anchor_count} anchors · {v.field_count} fields
+                          </p>
                         </div>
-                        <div className="font-mono text-[11px] text-faint-foreground">
-                          {v.created_at} · {v.anchor_count} anchors · {v.field_count} fields
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => loadTemplate(loaded?.template_id ?? templateId, v.version)}>
-                        Open
-                      </Button>
-                    </div>
-                  ))}
-                  <div className="mx-4 mt-2 flex items-start gap-2 rounded-md border border-border bg-muted px-3 py-2 text-[11.5px] text-muted-foreground">
-                    <Lock className="mt-0.5 size-3.5 shrink-0" /> Append-only: saving always writes a new version. Past results stay reproducible against the exact version that produced them.
-                  </div>
+                        <Button variant="outline" size="sm" onClick={() => loadTemplate(loaded?.template_id ?? templateId, v.version)}>
+                          Open
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="m-4 flex items-start gap-2 rounded-md bg-surface-sunken px-3 py-2 text-xs text-foreground-secondary">
+                    <Lock className="mt-0.5 size-4 shrink-0" aria-hidden /> Saving always creates a new version. Earlier versions stay exactly as they were, so past results can always be reproduced.
+                  </p>
                 </div>
               ))}
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
 }
 
+const TOOLS = [
+  [null, 'Select', MousePointer2, 'V'],
+  ['field', 'Field', Square, 'F'],
+  ['anchor', 'Anchor', SquareDashed, 'A'],
+];
+
 function PanelHint({ children }) {
   return (
-    <div className="m-4 flex items-start gap-2 rounded-md border border-dashed border-border-strong px-3 py-3 text-[12.5px] text-muted-foreground">
-      <FileImage className="mt-0.5 size-4 shrink-0 text-icon-muted" /> {children}
-    </div>
+    <p className="m-4 flex items-start gap-2 rounded-md border border-dashed border-border-strong px-3 py-3 text-sm text-foreground-secondary">
+      <FileImage className="mt-0.5 size-4 shrink-0 text-foreground-subtle" aria-hidden /> <span>{children}</span>
+    </p>
   );
 }
 
 function ValidatorChip({ box }) {
-  if (box.checksum)
-    return <span className="caps-sm rounded-sm border border-border-strong px-1.5 py-0.5 text-secondary-foreground">checksum</span>;
-  if (box.validationRegex)
-    return <span className="caps-sm rounded-sm border border-border-strong px-1.5 py-0.5 text-secondary-foreground">regex</span>;
+  if (box.checksum) return <Badge size="sm">Check digit</Badge>;
+  if (box.validationRegex) return <Badge size="sm">Format rule</Badge>;
   return (
-    <span className="caps-sm rounded-sm border border-tier-spot-border px-1.5 py-0.5 text-tier-spot-foreground" title="With no regex or checksum this field can never be auto-approved">
-      conf. only
-    </span>
+    <Badge tone="warning" size="sm" title="With no format rule this field can never be approved automatically">
+      No rule
+    </Badge>
   );
 }
 
@@ -663,78 +691,73 @@ function FieldRow({ box, selected, onSelect, onChange, onDelete }) {
     if (selected) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [selected]);
   return (
-    <motion.div ref={ref} layout className={cn('border-b border-border', selected && 'bg-accent')}>
-      <button onClick={onSelect} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted">
-        <Square className={cn('size-3.5 shrink-0', selected ? 'text-foreground' : 'text-icon-muted')} />
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-mono text-[12.5px]">{box.fieldId}</div>
-          <div className="truncate text-[11.5px] text-muted-foreground">{box.label || 'no label'}</div>
-        </div>
+    <div ref={ref} className={cn('border-b border-border', selected && 'bg-primary-surface')}>
+      <button onClick={onSelect} aria-expanded={selected} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-sunken">
+        <Square className={cn('size-4 shrink-0', selected ? 'text-primary' : 'text-foreground-subtle')} aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">{box.label || box.fieldId}</span>
+          <span className="block truncate font-mono text-xs text-foreground-secondary">{box.fieldId}</span>
+        </span>
         <ValidatorChip box={box} />
-        <span className="w-9 text-right font-mono text-[11px] text-faint-foreground">≥{Math.round(Number(box.confidenceFloor) * 100)}</span>
       </button>
-      <AnimatePresence initial={false}>
-        {selected && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="grid grid-cols-2 gap-3 px-4 pt-1 pb-4">
-              <Label>
-                Field id
-                <Input mono value={box.fieldId} onChange={(e) => onChange({ fieldId: e.target.value })} />
-              </Label>
-              <Label>
-                Label
-                <Input value={box.label} onChange={(e) => onChange({ label: e.target.value })} placeholder="Shipper Name" />
-              </Label>
-              <Label className="col-span-2">
-                Validation regex
-                <Input mono value={box.validationRegex} onChange={(e) => onChange({ validationRegex: e.target.value })} placeholder="^[A-Z]{3}$  — empty means confidence only" />
-              </Label>
-              <Label>
-                Data type
-                <NativeSelect value={box.dataType} onChange={(e) => onChange({ dataType: e.target.value })}>
-                  <option value="string">string</option>
-                  <option value="enum">enum</option>
-                </NativeSelect>
-              </Label>
-              <Label>
-                Confidence floor
-                <Input mono type="number" min="0" max="1" step="0.01" value={box.confidenceFloor} onChange={(e) => onChange({ confidenceFloor: e.target.value })} />
-              </Label>
-              {box.checksum && <div className="col-span-2 font-mono text-[11px] text-muted-foreground">checksum {box.checksum} · kept on save</div>}
-              {!box.validationRegex && !box.checksum && (
-                <div className="col-span-2 text-[11.5px] text-tier-spot-foreground">No validator: this field can never be auto-approved — every read goes to a spot check.</div>
-              )}
-              <Button variant="ghost" size="sm" className="col-span-2 justify-self-start text-tier-review-text hover:text-signal-300" onClick={onDelete}>
-                <Trash2 /> Delete box <Kbd>Del</Kbd>
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {selected && (
+        <div className="grid grid-cols-2 gap-3 px-4 pt-1 pb-4">
+          <Label>
+            Field name
+            <Input mono value={box.fieldId} onChange={(e) => onChange({ fieldId: e.target.value })} />
+          </Label>
+          <Label>
+            Display label
+            <Input value={box.label} onChange={(e) => onChange({ label: e.target.value })} placeholder="Shipper Name" />
+          </Label>
+          <Label className="col-span-2">
+            Format rule (optional)
+            <Input mono value={box.validationRegex} onChange={(e) => onChange({ validationRegex: e.target.value })} placeholder="e.g. ^[A-Z]{3}$" />
+          </Label>
+          <Label>
+            Field type
+            <NativeSelect value={box.dataType} onChange={(e) => onChange({ dataType: e.target.value })}>
+              <option value="string">Text</option>
+              <option value="enum">One of a fixed list</option>
+            </NativeSelect>
+          </Label>
+          <Label>
+            Minimum confidence (0–1)
+            <Input mono type="number" min="0" max="1" step="0.01" value={box.confidenceFloor} onChange={(e) => onChange({ confidenceFloor: e.target.value })} />
+          </Label>
+          {box.checksum && <p className="col-span-2 text-xs text-foreground-secondary">Check digit "{box.checksum}" is kept when you save.</p>}
+          {!box.validationRegex && !box.checksum && (
+            <p className="col-span-2 text-xs text-warning">Without a format rule, every read of this field goes to a spot check and is never approved automatically.</p>
+          )}
+          <Button variant="ghost" size="sm" className="col-span-2 justify-self-start text-danger hover:text-danger-hover" onClick={onDelete}>
+            <Trash2 /> Delete box <Kbd>Del</Kbd>
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
 function AnchorRow({ box, selected, onSelect, onChange, onDelete }) {
   return (
-    <div className={cn('border-b border-border', selected && 'bg-accent')}>
-      <button onClick={onSelect} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-muted">
-        <SquareDashed className="size-3.5 shrink-0 text-icon-muted" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[12.5px]">{box.text || 'untitled anchor'}</span>
-        <span className="font-mono text-[11px] text-faint-foreground">≥{Math.round(Number(box.matchThreshold) * 100)}</span>
+    <div className={cn('border-b border-border', selected && 'bg-primary-surface')}>
+      <button onClick={onSelect} aria-expanded={selected} className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-sunken">
+        <SquareDashed className={cn('size-4 shrink-0', selected ? 'text-primary' : 'text-foreground-subtle')} aria-hidden />
+        <span className={cn('min-w-0 flex-1 truncate text-sm', box.text ? 'font-medium text-foreground' : 'text-danger')}>{box.text || 'Needs its printed text'}</span>
+        <span className="text-xs text-foreground-secondary">Match {Math.round(Number(box.matchThreshold) * 100)}%</span>
       </button>
       {selected && (
-        <div className="grid grid-cols-[1fr_110px] gap-3 px-4 pb-4">
+        <div className="grid grid-cols-[1fr_112px] gap-3 px-4 pb-4">
           <Label>
-            Anchor text
+            Printed text
             <Input value={box.text} onChange={(e) => onChange({ text: e.target.value })} placeholder="Not Negotiable Air Waybill" />
           </Label>
           <Label>
-            Match
+            Match (0–1)
             <Input mono type="number" min="0" max="1" step="0.01" value={box.matchThreshold} onChange={(e) => onChange({ matchThreshold: e.target.value })} />
           </Label>
-          <Button variant="ghost" size="sm" className="justify-self-start text-tier-review-text" onClick={onDelete}>
-            <Trash2 /> Delete
+          <Button variant="ghost" size="sm" className="justify-self-start text-danger hover:text-danger-hover" onClick={onDelete}>
+            <Trash2 /> Delete box
           </Button>
         </div>
       )}

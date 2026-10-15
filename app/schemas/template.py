@@ -34,6 +34,20 @@ class TemplateAnchor(BaseModel):
     _check_bbox = field_validator("bbox")(_validate_bbox)
 
 
+class TemplateAnchorIn(TemplateAnchor):
+    """Write-side anchor. An empty anchor text scores 100 (rapidfuzz: '' vs '') against any
+    crop OCR reads as blank, so it "verifies" empty paper; refuse it when saving. Reads
+    (TemplateOut) stay on the plain TemplateAnchor so templates saved before this rule still
+    load instead of breaking Module 5's scan of every known type."""
+
+    @field_validator("text")
+    @classmethod
+    def _text_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("anchor text must not be empty: type the printed label this box covers")
+        return v
+
+
 class TemplateField(BaseModel):
     id: str
     label: str
@@ -75,6 +89,15 @@ class TemplateHints(BaseModel):
     sideways. Knowing the real ratio removes the guess.
     """
 
+    hint_only: bool = False
+    """
+    Skip this template in Module 5's no-hint scan; it is used only when an upload
+    names it as its type_hint. For a template that reads part of a layout another
+    template already covers: both would pass the same anchors, every un-hinted
+    upload would come back ambiguous_match, and the scan would stop working for the
+    full template too. A hint still has to pass this template's own anchors.
+    """
+
     ruled_form: bool = False
     """
     Whether this document is a ruled grid form (air waybill, invoice table,
@@ -91,7 +114,7 @@ class TemplateIn(BaseModel):
     """POST /templates request body. version and created_at are server-assigned, never client-supplied."""
 
     template_id: str
-    anchors: list[TemplateAnchor] = PydField(min_length=1)
+    anchors: list[TemplateAnchorIn] = PydField(min_length=1)
     fields: list[TemplateField] = PydField(default_factory=list)
     hints: TemplateHints = PydField(default_factory=TemplateHints)
 

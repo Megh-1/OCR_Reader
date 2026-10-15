@@ -243,7 +243,34 @@ AIR_WAYBILL = TemplateIn(
     ],
 )
 
-ALL_TEMPLATES = [BITS_GOA_ID_CARD, AIR_WAYBILL]
+# A deliberately partial read of the same layout: only the routing and currency block.
+# Its field boxes are the air_waybill ones (taken from it, so the two cannot drift apart).
+# hint_only keeps it out of Module 5's no-hint scan, where its anchors would pass on the
+# same pages as air_waybill's and turn every un-hinted upload into an ambiguous_match; it
+# is used by choosing it as the type hint. Its anchors still have to pass on that page.
+_ROUTING_FIELD_IDS = (
+    "awb_number", "airport_of_departure", "destination_code", "first_carrier_code",
+    "airport_of_destination", "flight_date", "currency", "charges_code",
+)
+AIR_WAYBILL_ROUTING = TemplateIn(
+    template_id="air_waybill_routing",
+    hints={**AIR_WAYBILL.hints.model_dump(), "hint_only": True},
+    anchors=[
+        {
+            "text": "Airport of Departure (Addr. of First Carrier) and Requested Routing",
+            "bbox": [0.100, 0.3104, 0.420, 0.3242],
+            "match_threshold": 0.70,
+        },
+        {
+            "text": "Issuing Carrier's Agent Name and City",
+            "bbox": [0.1003, 0.2213, 0.2588, 0.2300],
+            "match_threshold": 0.70,
+        },
+    ],
+    fields=[f for f in AIR_WAYBILL.fields if f.id in _ROUTING_FIELD_IDS],
+)
+
+ALL_TEMPLATES = [BITS_GOA_ID_CARD, AIR_WAYBILL, AIR_WAYBILL_ROUTING]
 
 
 def seed(templates=ALL_TEMPLATES) -> list[tuple[str, int]]:

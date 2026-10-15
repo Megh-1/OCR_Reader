@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
-const TIER_STROKE = { auto: '#8793a0', spot_check: '#ff7a3d', review: '#ff5b1f' };
+// Canvas drawing can't use CSS classes, so read the design tokens at draw time.
+const TIER_TOKEN = { auto: '--success-solid', spot_check: '--warning-solid', review: '--danger-solid' };
+const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
 /**
  * The original document region a value was read from: the stored page render (Module 8),
@@ -69,15 +71,15 @@ export function FieldCrop({ src, bbox, tier, mode = 'crop', className, contextFr
     const ry = (y1 * H - sy) * k;
     const rw = (x2 - x1) * W * k;
     const rh = (y2 - y1) * H * k;
-    const stroke = TIER_STROKE[tier] ?? '#15181c';
+    const stroke = token(TIER_TOKEN[tier] ?? '--foreground');
     if (mode === 'page') {
       // dim everything but the field
-      ctx.fillStyle = 'rgba(7,9,11,0.45)';
+      ctx.fillStyle = 'rgba(17,24,39,0.45)';
       ctx.fillRect(0, 0, cssW, cssH);
       ctx.drawImage(img, x1 * W, y1 * H, (x2 - x1) * W, (y2 - y1) * H, rx, ry, rw, rh);
     }
     ctx.lineWidth = mode === 'page' ? 1.5 : 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.strokeStyle = token('--surface');
     ctx.strokeRect(rx - 2, ry - 2, rw + 4, rh + 4);
     ctx.strokeStyle = stroke;
     ctx.setLineDash(tier === 'spot_check' ? [6, 4] : []);
@@ -88,9 +90,9 @@ export function FieldCrop({ src, bbox, tier, mode = 'crop', className, contextFr
   return (
     <div ref={wrapRef} className={cn('relative w-full', className)}>
       {failed ? (
-        <div className="grid h-32 place-items-center font-mono text-[12px] text-faint-foreground">no stored page image</div>
+        <div className="grid h-32 place-items-center text-xs text-foreground-subtle">No page image was saved for this document</div>
       ) : (
-        <canvas ref={canvasRef} className={cn('block w-full', !img && 'h-32 animate-pulse bg-muted')} />
+        <canvas ref={canvasRef} className={cn('block w-full', !img && 'h-32 animate-pulse bg-surface-sunken')} />
       )}
     </div>
   );

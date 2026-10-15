@@ -1,56 +1,44 @@
-import { motion } from 'framer-motion';
-import { cn, fmtConf } from '@/lib/utils';
 import { AUTO_THRESHOLD } from '@/lib/tiers';
+import { cn, fmtConf } from '@/lib/utils';
+
+const FILL = { auto: 'bg-success-solid', spot_check: 'bg-warning-solid', review: 'bg-danger-solid' };
+const TEXT = { auto: 'text-foreground', spot_check: 'text-warning', review: 'text-danger' };
+const HEIGHT = { sm: 'h-2', md: 'h-2', lg: 'h-3' };
 
 /**
- * Confidence shown as a measurement, not a checkmark: a 0-100 scale with the field's own
- * confidence floor and the 0.90 auto line marked, and the reading between them. A value can
- * clear both lines and still be wrong - the gauge says where it sits, the tier says what that means.
+ * Confidence on a 0-100 bar. The thin marker is the field's minimum confidence (below it the
+ * field is always flagged); the thick marker is the auto-approval line. A value can clear both
+ * and still be wrong - the bar says where it sits, the approval level says what that means.
  */
 export function ConfidenceGauge({ value, floor, tier, size = 'md', showScale = false, className }) {
   const v = Math.max(0, Math.min(100, Number(value ?? 0)));
   const floorPct = floor != null ? Math.round(floor * 100) : null;
-  const h = size === 'lg' ? 'h-3' : size === 'sm' ? 'h-1.5' : 'h-2';
   return (
-    <div className={cn('flex min-w-0 items-center gap-2.5', className)}>
+    <div className={cn('flex min-w-0 items-center gap-2', className)}>
       <div className="relative min-w-0 flex-1">
-        <div className={cn('relative w-full overflow-hidden rounded-[1px] bg-graphite-850', h)}>
-          {/* decile ticks */}
-          {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((t) => (
-            <span key={t} className="absolute top-0 h-full w-px bg-graphite-800" style={{ left: `${t}%` }} />
-          ))}
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${v}%` }}
-            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            className={cn(
-              'absolute inset-y-0 left-0',
-              tier === 'auto' && 'bg-tier-auto',
-              tier === 'spot_check' && 'hatch-spot border-r-2 border-tier-spot',
-              tier === 'review' && 'bg-tier-review',
-              !tier && 'bg-graphite-500',
-            )}
-          />
+        <div className={cn('w-full overflow-hidden rounded-sm bg-surface-sunken', HEIGHT[size])}>
+          <div className={cn('h-full', FILL[tier] ?? 'bg-foreground-subtle')} style={{ width: `${v}%` }} />
         </div>
-        {/* reference lines, drawn over the track */}
         {floorPct != null && (
           <span
-            title={`confidence floor ${floorPct}`}
-            className="absolute -top-1 -bottom-1 w-px bg-graphite-300"
+            aria-hidden
+            title={`Minimum confidence ${floorPct}`}
+            className="absolute -inset-y-1 w-0 border-l border-foreground-subtle"
             style={{ left: `${floorPct}%` }}
           />
         )}
         <span
-          title={`auto line ${AUTO_THRESHOLD}`}
-          className="absolute -top-1 -bottom-1 w-[2px] bg-foreground"
+          aria-hidden
+          title={`Auto-approval line ${AUTO_THRESHOLD}`}
+          className="absolute -inset-y-1 w-0 border-l-2 border-foreground"
           style={{ left: `${AUTO_THRESHOLD}%` }}
         />
         {showScale && (
-          <div className="relative mt-1.5 h-3 whitespace-nowrap font-mono text-[10px] text-faint-foreground">
+          <div className="relative mt-2 h-4 whitespace-nowrap text-xs text-foreground-subtle">
             <span className="absolute left-0">0</span>
             {floorPct != null && (
-              <span className="absolute -translate-x-1/2 text-secondary-foreground" style={{ left: `${floorPct}%` }}>
-                floor {floorPct}
+              <span className="absolute -translate-x-1/2 text-foreground-secondary" style={{ left: `${floorPct}%` }}>
+                minimum {floorPct}
               </span>
             )}
             <span className="absolute -translate-x-1/2 text-foreground" style={{ left: `${AUTO_THRESHOLD}%` }}>
@@ -61,9 +49,9 @@ export function ConfidenceGauge({ value, floor, tier, size = 'md', showScale = f
       </div>
       <span
         className={cn(
-          'w-11 shrink-0 text-right font-mono tabular-nums',
-          size === 'lg' ? 'text-[15px] font-semibold' : 'text-[12px]',
-          tier === 'review' ? 'text-tier-review-text' : tier === 'spot_check' ? 'text-tier-spot-foreground' : 'text-foreground',
+          'w-10 shrink-0 text-right font-mono tabular-nums',
+          size === 'lg' ? 'text-base font-semibold' : 'text-xs',
+          TEXT[tier] ?? 'text-foreground',
         )}
       >
         {fmtConf(value)}

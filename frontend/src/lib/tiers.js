@@ -5,9 +5,16 @@ export const AUTO_THRESHOLD = 90; // CONFIDENCE_AUTO_APPROVE_THRESHOLD * 100 (ap
 // The one line of language every screen uses for a tier - the sidebar legend, the Results
 // table, TierBadge's title attribute. One source, so they can't drift out of sync.
 export const TIER_TAGLINE = {
-  auto: 'trusted, quiet',
-  spot_check: 'glance',
-  review: 'act',
+  auto: 'approved automatically',
+  spot_check: 'check quickly',
+  review: 'needs a person',
+};
+
+// Which data-state tone each tier uses (see ui/badge.jsx).
+export const TIER_TONE = {
+  auto: 'success',
+  spot_check: 'warning',
+  review: 'danger',
 };
 
 export const TIERS = {
@@ -15,19 +22,19 @@ export const TIERS = {
     key: 'auto',
     label: 'Auto',
     short: 'Auto',
-    blurb: 'Accepted, validated by a regex or checksum, confidence ≥ 0.90.',
+    blurb: 'Passed its format check and the system is confident (0.90 or higher).',
   },
   spot_check: {
     key: 'spot_check',
     label: 'Spot check',
     short: 'Spot',
-    blurb: 'Accepted — but under 0.90, or nothing but confidence checked it.',
+    blurb: 'Looks right, but confidence is under 0.90 or there is no format rule to check it against.',
   },
   review: {
     key: 'review',
     label: 'Review',
     short: 'Review',
-    blurb: 'Rejected by format, check digit or confidence floor.',
+    blurb: 'Failed its format check, its check digit or the minimum confidence.',
   },
 };
 
@@ -35,15 +42,15 @@ export const TIER_ORDER = ['auto', 'spot_check', 'review'];
 
 // Module 7's rejection reasons, said plainly.
 export const REASONS = {
-  format_invalid: 'Format check failed',
-  check_digit_invalid: 'Check digit fails',
-  low_confidence: 'Below confidence floor',
-  enum_missing_regex: 'Enum without a regex',
+  format_invalid: 'Wrong format',
+  check_digit_invalid: 'Check digit does not match',
+  low_confidence: 'Confidence too low',
+  enum_missing_regex: 'Template is missing a format rule',
 };
 
 export const SPOT_WHY = {
-  below_auto_threshold: 'Below the 0.90 auto line',
-  no_validator: 'No regex or checksum — confidence is the only check',
+  below_auto_threshold: 'Confidence is under 90, so it needs a quick look.',
+  no_validator: 'This field has no format rule, so confidence is the only check.',
 };
 
 export function tierCounts(fields) {

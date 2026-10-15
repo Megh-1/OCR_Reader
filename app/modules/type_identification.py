@@ -105,6 +105,8 @@ def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) 
         template = get_latest_template(doc_type)
         if template is None:
             continue  # doc_type came from the store itself; a race here is not this function's problem to solve
+        if template.hints.hint_only:
+            continue  # only ever chosen by an explicit type_hint, never by scanning
         passed, scores = _check_template(image, template)
         per_anchor_scores[doc_type] = scores
         if passed:

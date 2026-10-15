@@ -4,189 +4,134 @@
 @import '@fontsource/ibm-plex-sans/600.css';
 @import '@fontsource/ibm-plex-mono/400.css';
 @import '@fontsource/ibm-plex-mono/500.css';
-@import '@fontsource/ibm-plex-mono/600.css';
-@import '@fontsource/ibm-plex-sans-condensed/500.css';
-@import '@fontsource/ibm-plex-sans-condensed/600.css';
 
 /*
- * Tokens - one-to-one with the Figma file "IDP Pipeline - Extraction Console"
- * (collections Primitives / Color / Spacing / Typography). The CSS names ARE the
- * variables' WEB code syntax there, so a value changes in one place per side.
+ * Design system.
  *
- * One accent, signal orange, means one thing: a person is needed. Its intensity
- * says how urgently - auto has none, spot_check is hollow + a faint tint,
- * review is the only solid fill in the product.
+ * Spacing: 4pt base. The only steps used are 1, 2, 3, 4, 6, 8, 12 (4, 8, 12, 16, 24, 32, 48 px).
+ * Type: IBM Plex Sans; mono only for IDs, JSON and extracted values. Weights 400 / 500 / 600.
+ * Color: one brand color (blue) for everything interactive. Green / amber / red are data
+ * states only (auto / spot check / review, queued / retrying / failed) - never decoration.
+ * Depth: a 1px border, plus shadow-sm on raised surfaces and shadow-md on menus.
+ *
+ * Every text/background pair below meets WCAG AA (4.5:1); scripts/check_contrast.mjs checks them.
  */
 :root {
-  /* primitives */
-  --graphite-50: #f4f6f8;
-  --graphite-100: #e6eaee;
-  --graphite-200: #cdd4db;
-  --graphite-300: #aab4bf;
-  --graphite-400: #8793a0;
-  --graphite-500: #687482;
-  --graphite-600: #4e5865;
-  --graphite-700: #39414c;
-  --graphite-800: #262d36;
-  --graphite-850: #1c2229;
-  --graphite-900: #14181d;
-  --graphite-950: #0d1014;
-  --graphite-1000: #07090b;
-  --signal-50: #fff3ed;
-  --signal-100: #ffe3d3;
-  --signal-200: #ffc3a3;
-  --signal-300: #ff9c6b;
-  --signal-400: #ff7a3d;
-  --signal-500: #ff5b1f;
-  --signal-600: #e54510;
-  --signal-700: #b8340c;
-  --signal-800: #7a2a10;
-  --signal-900: #4a1a0b;
-  --signal-950: #2a1309;
-  --paper-0: #ffffff;
-  --paper-100: #f5f3ee;
-  --ink-900: #15181c;
-  --ink-a10: #15181c1a;
+  /* neutrals (cool gray) */
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-300: #d1d5db;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-900: #111827;
+  --white: #ffffff;
 
-  /* surfaces */
-  --background: var(--graphite-950);
-  --card: var(--graphite-900);
-  --popover: var(--graphite-850);
-  --well: var(--graphite-1000);
-  --accent: var(--graphite-800);
-  --muted: var(--graphite-850);
-  --secondary: var(--graphite-800);
-  --primary: var(--graphite-100);
-  --paper: var(--paper-100);
-  /* text */
-  --foreground: var(--graphite-100);
-  --card-foreground: var(--graphite-100);
-  --popover-foreground: var(--graphite-100);
-  --accent-foreground: var(--graphite-100);
-  --secondary-foreground: var(--graphite-300);
-  --muted-foreground: var(--graphite-400);
-  --faint-foreground: var(--graphite-500);
-  --primary-foreground: var(--graphite-950);
-  --paper-foreground: var(--ink-900);
-  /* borders */
-  --border: var(--graphite-800);
-  --border-strong: var(--graphite-700);
-  --input: var(--graphite-700);
-  --ring: var(--graphite-200);
-  /* icons */
-  --icon: var(--graphite-300);
-  --icon-muted: var(--graphite-500);
-  --icon-inverse: var(--graphite-950);
-  /* approval tiers - the one accent */
-  --tier-auto-foreground: var(--graphite-300);
-  --tier-auto: var(--graphite-400);
-  --tier-spot-foreground: var(--signal-300);
-  --tier-spot: var(--signal-400);
-  --tier-spot-surface: var(--signal-950);
-  --tier-spot-border: var(--signal-700);
-  --tier-review: var(--signal-500);
-  --tier-review-foreground: var(--graphite-950);
-  --tier-review-text: var(--signal-400);
-  --tier-review-surface: var(--signal-900);
-  /* batch status - reuses the tier scale */
-  --status-queued: var(--graphite-500);
-  --status-processing: var(--graphite-100);
-  --status-completed: var(--graphite-400);
-  --status-retrying: var(--signal-400);
-  --status-failed: var(--signal-500);
-  --destructive: var(--signal-500);
-  /* charts */
-  --chart-1: var(--graphite-400);
-  --chart-2: var(--signal-300);
-  --chart-3: var(--signal-500);
-  --chart-grid: var(--graphite-800);
-  /* document overlay */
-  --overlay: var(--ink-900);
-  --overlay-fill: var(--ink-a10);
-  --overlay-halo: var(--paper-0);
-  --overlay-tab: var(--ink-900);
-  --overlay-tab-foreground: var(--paper-0);
-  /* radius (Spacing collection) */
-  --radius-none: 0px;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 10px;
-  --radius-full: 9999px;
+  /* brand */
+  --blue-50: #eff6ff;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+
+  /* data states */
+  --green-50: #f0fdf4;
+  --green-200: #bbf7d0;
+  --green-700: #15803d;
+  --amber-50: #fffbeb;
+  --amber-200: #fde68a;
+  --amber-700: #b45309;
+  --amber-800: #92400e;
+  --red-50: #fef2f2;
+  --red-200: #fecaca;
+  --red-600: #dc2626;
+  --red-700: #b91c1c;
+  --red-800: #991b1b;
+
+  /* semantic roles */
+  --background: var(--gray-50);
+  --surface: var(--white);
+  --surface-sunken: var(--gray-100);
+  --foreground: var(--gray-900);
+  --foreground-secondary: var(--gray-600);
+  --foreground-subtle: var(--gray-500);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --primary: var(--blue-600);
+  --primary-hover: var(--blue-700);
+  --primary-active: var(--blue-800);
+  --primary-foreground: var(--white);
+  --primary-surface: var(--blue-50);
+  --primary-text: var(--blue-700);
+  --ring: var(--blue-600);
+
+  /* *-solid: fills for bars, dots and markers (non-text, 3:1); the plain tokens are for text */
+  --success-solid: var(--green-700);
+  --warning-solid: var(--amber-700);
+  --danger-solid: var(--red-600);
+  --success: var(--green-700);
+  --success-surface: var(--green-50);
+  --success-border: var(--green-200);
+  --warning: var(--amber-800);
+  --warning-surface: var(--amber-50);
+  --warning-border: var(--amber-200);
+  --danger: var(--red-700);
+  --danger-hover: var(--red-800);
+  --danger-surface: var(--red-50);
+  --danger-border: var(--red-200);
 }
 
 @theme inline {
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
-  --font-condensed: 'IBM Plex Sans Condensed', 'IBM Plex Sans', ui-sans-serif, sans-serif;
+
+  /* type scale: body 1.5, headings 1.1-1.3 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.3;
+  --text-xl: 1.5rem;
+  --text-xl--line-height: 1.1;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-sm: 0 1px 2px 0 rgb(17 24 39 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(17 24 39 / 0.1), 0 2px 4px -2px rgb(17 24 39 / 0.06);
 
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
   --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-well: var(--well);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-faint-foreground: var(--faint-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-paper: var(--paper);
-  --color-paper-foreground: var(--paper-foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-subtle: var(--foreground-subtle);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
-  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-surface: var(--primary-surface);
+  --color-primary-text: var(--primary-text);
   --color-ring: var(--ring);
-  --color-icon: var(--icon);
-  --color-icon-muted: var(--icon-muted);
-  --color-destructive: var(--destructive);
-  --color-tier-auto: var(--tier-auto);
-  --color-tier-auto-foreground: var(--tier-auto-foreground);
-  --color-tier-spot: var(--tier-spot);
-  --color-tier-spot-foreground: var(--tier-spot-foreground);
-  --color-tier-spot-surface: var(--tier-spot-surface);
-  --color-tier-spot-border: var(--tier-spot-border);
-  --color-tier-review: var(--tier-review);
-  --color-tier-review-foreground: var(--tier-review-foreground);
-  --color-tier-review-text: var(--tier-review-text);
-  --color-tier-review-surface: var(--tier-review-surface);
-  --color-status-queued: var(--status-queued);
-  --color-status-processing: var(--status-processing);
-  --color-status-completed: var(--status-completed);
-  --color-status-retrying: var(--status-retrying);
-  --color-status-failed: var(--status-failed);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-grid: var(--chart-grid);
-  --color-signal: var(--signal-500);
-  --color-signal-300: var(--signal-300);
-  --color-signal-400: var(--signal-400);
-  --color-signal-500: var(--signal-500);
-  --color-signal-700: var(--signal-700);
-  --color-signal-900: var(--signal-900);
-  --color-signal-950: var(--signal-950);
-  --color-graphite-100: var(--graphite-100);
-  --color-graphite-200: var(--graphite-200);
-  --color-graphite-300: var(--graphite-300);
-  --color-graphite-400: var(--graphite-400);
-  --color-graphite-500: var(--graphite-500);
-  --color-graphite-600: var(--graphite-600);
-  --color-graphite-700: var(--graphite-700);
-  --color-graphite-800: var(--graphite-800);
-  --color-graphite-850: var(--graphite-850);
-  --color-graphite-900: var(--graphite-900);
-  --color-graphite-950: var(--graphite-950);
-
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-xl: var(--radius-xl);
+  --color-success-solid: var(--success-solid);
+  --color-warning-solid: var(--warning-solid);
+  --color-danger-solid: var(--danger-solid);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-surface: var(--danger-surface);
+  --color-danger-border: var(--danger-border);
 }
 
 @layer base {
@@ -199,13 +144,16 @@
     height: 100%;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-size: 14px;
-    line-height: 20px;
+    @apply bg-background text-foreground font-sans text-sm antialiased;
     font-feature-settings: 'tnum' 1;
   }
+  h1,
+  h2,
+  h3 {
+    @apply font-semibold;
+  }
   ::selection {
-    background: var(--graphite-700);
+    background: var(--blue-50);
   }
   :focus-visible {
     outline: 2px solid var(--ring);
@@ -214,59 +162,21 @@
 }
 
 @layer components {
-  /* Label/Caps - the instrument-panel voice */
-  .caps {
-    font-family: var(--font-condensed);
-    font-weight: 600;
-    font-size: 11px;
-    line-height: 14px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .caps-sm {
-    font-family: var(--font-condensed);
-    font-weight: 500;
-    font-size: 10px;
-    line-height: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-  /* the document bed: a measured grid under the page */
-  .bed-grid {
-    background-color: var(--well);
-    background-image:
-      linear-gradient(to right, color-mix(in srgb, var(--graphite-700) 22%, transparent) 1px, transparent 1px),
-      linear-gradient(to bottom, color-mix(in srgb, var(--graphite-700) 22%, transparent) 1px, transparent 1px);
-    background-size: 24px 24px;
+  /* the one small-label style: field labels, table heads, stat captions */
+  .label {
+    @apply text-xs font-medium text-foreground-secondary;
   }
   .scroll-thin {
     scrollbar-width: thin;
-    scrollbar-color: var(--graphite-700) transparent;
+    scrollbar-color: var(--gray-300) transparent;
   }
-  /* live work: a scan line sweeping a processing row / progress segment */
-  .scanning {
-    background-image: linear-gradient(
-      100deg,
-      transparent 0%,
-      color-mix(in srgb, var(--graphite-100) 18%, transparent) 45%,
-      transparent 60%
-    );
-    background-size: 200% 100%;
-    animation: scan 1.4s linear infinite;
-  }
-  @keyframes scan {
-    from {
-      background-position: 150% 0;
-    }
-    to {
-      background-position: -50% 0;
-    }
-  }
-  .hatch-spot {
-    background-image: repeating-linear-gradient(
-      -45deg,
-      color-mix(in srgb, var(--signal-400) 55%, transparent) 0 2px,
-      transparent 2px 5px
-    );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

@@ -6,3 +6,9 @@ __pycache__/
 
 frontend/node_modules/
 frontend/dist/
+
+# local database dumps
+backups/
+
+# personal ID-card photo and a waybill PDF with real third-party contact data: never commit
+tests/fixtures/

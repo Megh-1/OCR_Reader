@@ -215,6 +215,42 @@ ADAPTIVE_THRESH_C: int = 11
 # theoretically-derived constant.
 ANCHOR_CROP_MARGIN_PX: int = 40
 
+# Page alignment (app/modules/alignment.py) - ALL PROVISIONAL: measured on 16 real air
+# waybills from three printers plus the reference, no negative set beyond them.
+#
+# A template stores boxes as page fractions, which assumes the form sits at the same place on
+# every page. Real files break that (A4 vs Letter, scan margins, a form printed 4% lower): of 16
+# real waybills one matched its anchors, all 15 others were refused with the anchor crop reading
+# blank paper. Alignment finds the template's printed words on the page and moves every box by the
+# shift and stretch they imply. Measured: 20-105 matching words per same-layout page agreeing to
+# about 0.4% of the page, 10 on a different vendor's form.
+#
+# Words shorter than this, or read at lower confidence, are not used as landmarks: short tokens
+# match by accident and low-confidence reads are mostly noise.
+ALIGN_MIN_WORD_LEN: int = 4
+ALIGN_MIN_WORD_CONF: float = 30.0
+# Full-page OCR mode. 3 and 11 found the same labels (psm 3 slightly more on the multi-page
+# files) and 3 is the Tesseract default.
+ALIGN_OCR_PSM: int = 3
+# A page word is the same landmark when its letters are equal, or within this fuzz ratio when the
+# lengths are within 2 (OCR drops and swaps characters).
+ALIGN_MATCH_RATIO: int = 88
+# RANSAC inlier tolerance, in page fractions. Loose on purpose: a form version whose columns sit
+# elsewhere is rejected by the minimum count below, not by a tight tolerance, and the local
+# correction handles genuine small distortion.
+ALIGN_RANSAC_TOL: float = 0.02
+ALIGN_RANSAC_ITERS: int = 3000
+# Fewest distinct landmarks that must agree, and the fraction of the template's landmarks. The
+# different-vendor form agreed on 10; same-layout pages on 20 or more.
+ALIGN_MIN_LANDMARKS: int = 12
+ALIGN_MIN_LANDMARK_FRACTION: float = 0.15
+# The fit is refused when the page would have to be scaled outside this range on either axis
+# (A4 against Letter measured 0.91-0.94 vertically).
+ALIGN_SCALE_RANGE: tuple[float, float] = (0.75, 1.3)
+# Each box is moved by the median leftover of this many nearest landmarks, on top of the global
+# shift and stretch.
+ALIGN_LOCAL_NEIGHBOURS: int = 8
+
 # Module 8 — Output Compiler
 
 # A stored page render only has to be legible to a human in the review

@@ -32,6 +32,7 @@ from app.config import (
     TEXT_LAYER_MIN_WORD_OVERLAP,
 )
 from app.models.text_layer import TextLayer, TextWord
+from app.modules.alignment import Alignment
 from app.modules.template_store import get_template_version
 from app.schemas.template import TemplateField, TemplateOut
 from app.utils.geometry import clamped_crop_box
@@ -315,7 +316,16 @@ def extract_field_from_text_layer(layer: TextLayer, field: TemplateField) -> Fie
     )
 
 
-def extract_fields_from_text_layer(template_id: str, version: int, layer: TextLayer) -> dict[str, FieldExtractionResult]:
+def _fields_on_page(template: TemplateOut, alignment: Alignment | None) -> list[TemplateField]:
+    """The template's fields with each box moved to where it sits on THIS page (unchanged without an alignment)."""
+    if alignment is None:
+        return list(template.fields)
+    return [f.model_copy(update={"bbox": alignment.map_box(f.bbox)}) for f in template.fields]
+
+
+def extract_fields_from_text_layer(
+    template_id: str, version: int, layer: TextLayer, alignment: Alignment | None = None
+) -> dict[str, FieldExtractionResult]:
     """
     Text-native counterpart of extract_fields: same exact-version lookup, same
     result shape, no image and no Tesseract. Module 7 consumes the result
@@ -324,15 +334,20 @@ def extract_fields_from_text_layer(template_id: str, version: int, layer: TextLa
     template: TemplateOut | None = get_template_version(template_id, version)
     if template is None:
         raise ValueError(f"No template found for {template_id!r} version {version} - was it deleted after Module 5 ran?")
-    return {field.id: extract_field_from_text_layer(layer, field) for field in template.fields}
+    return {field.id: extract_field_from_text_layer(layer, field) for field in _fields_on_page(template, alignment)}
 
 
-def extract_fields(template_id: str, version: int, image_bytes: bytes) -> dict[str, FieldExtractionResult]:
+def extract_fields(
+    template_id: str, version: int, image_bytes: bytes, alignment: Alignment | None = None
+) -> dict[str, FieldExtractionResult]:
     """
     Entry point. `image_bytes` is Module 2's output shape. Fetches the
     exact confirmed version, never "latest" for this doc_type - Module 5
     may have confirmed against an older version than whatever is newest by
     the time this runs.
+
+    With an `alignment` (Module 5 found the template's printed words on this page) every box is
+    read where it sits on this page rather than where the template stored it.
     """
     template: TemplateOut | None = get_template_version(template_id, version)
     if template is None:
@@ -341,6 +356,7 @@ def extract_fields(template_id: str, version: int, image_bytes: bytes) -> dict[s
     image = Image.open(io.BytesIO(image_bytes))
     if not template.fields:
         return {}
+    fields = _fields_on_page(template, alignment)
 
     # Decode now, on this thread. Image.open is lazy and the first crop()
     # triggers the decode - so without this, several workers enter load()
@@ -359,5 +375,5 @@ def extract_fields(template_id: str, version: int, image_bytes: bytes) -> dict[s
     # 3.2s across 8 workers. The GIL is not a factor - the work happens in
     # subprocesses, and the calling thread is blocked on I/O throughout.
     with ThreadPoolExecutor(max_workers=FIELD_OCR_WORKERS) as pool:
-        results = pool.map(lambda field: extract_field(image, field), template.fields)
+        results = pool.map(lambda field: extract_field(image, field), fields)
         return {result.field_id: result for result in results}

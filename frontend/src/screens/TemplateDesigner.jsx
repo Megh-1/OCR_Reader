@@ -87,6 +87,8 @@ export default function TemplateDesigner() {
   // Not editable here yet, but they must survive a load-and-save like `checksum` and `hints` do:
   // every version is rebuilt from this state, so anything not carried is silently dropped.
   const [checks, setChecks] = useState([]);
+  // Printed-word positions for page alignment; made by scripts/build_landmarks.py, carried untouched.
+  const landmarksRef = useRef([]);
   const uploadedUrlRef = useRef(null);
 
   const [mode, setModeState] = useState(null); // null | 'field' | 'anchor'
@@ -166,6 +168,7 @@ export default function TemplateDesigner() {
     labelsRef.current = new Map();
     setBoxes([]);
     setChecks([]); // they name fields of the template that was on the old image
+    landmarksRef.current = []; // and these are positions on it
     setSelectedId(null);
     setImageUrl(url);
   }
@@ -206,6 +209,7 @@ export default function TemplateDesigner() {
       canvas.requestRenderAll();
       hintsRef.current = template.hints ?? null;
       setChecks(template.checks ?? []);
+      landmarksRef.current = template.landmarks ?? [];
       setHintOnly(Boolean(template.hints?.hint_only));
       setBoxes(next);
       setSelectedId(null);
@@ -398,7 +402,10 @@ export default function TemplateDesigner() {
   async function handleSave() {
     const image = imageRef.current;
     const hints = hintsRef.current || hintOnly ? { ...(hintsRef.current ?? {}), hint_only: hintOnly } : null;
-    const payload = { template_id: templateId.trim(), anchors: [], fields: [], checks, ...(hints ? { hints } : {}) };
+    const payload = {
+      template_id: templateId.trim(), anchors: [], fields: [], checks, landmarks: landmarksRef.current,
+      ...(hints ? { hints } : {}),
+    };
     for (const b of boxes) {
       const rect = rectsRef.current.get(b.id);
       if (!rect) continue;

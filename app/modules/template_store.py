@@ -72,6 +72,7 @@ def create_template_version(session: Session, payload: TemplateIn) -> TemplateOu
         "fields": [f.model_dump(mode="json") for f in payload.fields],
         "checks": [c.model_dump(mode="json") for c in payload.checks],
         "hints": payload.hints.model_dump(mode="json"),
+        "landmarks": [m.model_dump(mode="json") for m in payload.landmarks],
         "created_at": created_at.isoformat(),
     }
 

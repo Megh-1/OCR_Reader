@@ -201,6 +201,7 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
 
     if result.classification == OUTCOME_CORRECT:
         confirmed_version = identification.version
+        confirmed_alignment = identification.alignment
     else:
         hinted = identify_document_type(generic.image_bytes, type_hint=result.expected_template)
         if not hinted.confirmed:
@@ -210,6 +211,7 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
             )
             return result
         confirmed_version = hinted.version
+        confirmed_alignment = hinted.alignment
 
     version = expected.get("version") or confirmed_version
     template = get_template_version(result.expected_template, version)
@@ -220,7 +222,7 @@ def evaluate_file(path: Path, filename: str, expected: dict) -> FileResult:
     text_layer = None
     if metadata.text_native_pages and metadata.text_native_pages[0]:
         text_layer = extract_text_layers(data)[0]
-    extraction = extract_page_fields(template, page, generic, text_layer)
+    extraction = extract_page_fields(template, page, generic, text_layer, confirmed_alignment)
     extractions = extraction.fields
     result.text_native = extraction.text_native
 

@@ -17,6 +17,7 @@ new version rather than editing one - re-running is safe but not a no-op.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -24,6 +25,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.schemas.template import TemplateCheck, TemplateIn  # noqa: E402
+
+
+def _landmarks(name: str) -> list[dict]:
+    """Printed-word positions for page alignment (app/modules/alignment.py), built by
+    scripts/build_landmarks.py from words that recur across real documents. Missing file = none,
+    so a checkout without it seeds a template that behaves as before alignment existed."""
+    path = Path(__file__).resolve().parent / "landmarks" / f"{name}.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+
 
 # --- bits_goa_id_card -------------------------------------------------------
 #
@@ -133,6 +143,7 @@ AIR_WAYBILL = TemplateIn(
     # grid's printed borders, without which "65" reads as "Jos".
     hints={"page_aspect_ratio": 612 / 792, "ruled_form": True},
     checks=_AWB_CHECKS,
+    landmarks=_landmarks("air_waybill"),
     anchors=[
         {
             "text": "Not Negotiable Air Waybill",
@@ -286,6 +297,7 @@ _ROUTING_FIELD_IDS = (
 AIR_WAYBILL_ROUTING = TemplateIn(
     template_id="air_waybill_routing",
     hints={**AIR_WAYBILL.hints.model_dump(), "hint_only": True},
+    landmarks=AIR_WAYBILL.landmarks,  # same layout, same page frame
     anchors=[
         {
             "text": "Airport of Departure (Addr. of First Carrier) and Requested Routing",

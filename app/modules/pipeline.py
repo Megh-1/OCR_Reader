@@ -12,14 +12,17 @@ doc's architecture diagram describes:
 
 from __future__ import annotations
 
+import io
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from PIL import Image
 from pydantic import BaseModel
 
 from app.models.text_layer import TextLayer
+from app.modules.alignment import Alignment, align_page
 from app.modules.field_extraction import FieldExtractionResult, extract_fields, extract_fields_from_text_layer
 from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
@@ -45,6 +48,9 @@ class PageResult(BaseModel):
     field_review_queue_ids: list[int] = []  # one id per field Module 7 flagged, may be empty
     spot_check_queue_ids: list[int] = []  # one id per accepted field that is spot_check rather than auto
     text_native: bool = False  # True when fields were read from the PDF's embedded text, with no OCR
+    # How the template's boxes were moved to fit this page (landmarks matched, scale, shift, rms);
+    # None when they were read exactly where the template stored them.
+    alignment: Optional[dict] = None
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -82,13 +88,30 @@ class PageExtraction:
     fields: dict[str, FieldExtractionResult]
     review_image_bytes: bytes  # the rendering a human reviewer should see for this page
     text_native: bool
+    alignment: Optional[Alignment] = None  # the boxes were moved by this; None = read at the stored positions
+
+
+def _image_size(image_bytes: bytes) -> tuple[int, int]:
+    with Image.open(io.BytesIO(image_bytes)) as im:
+        return im.size
 
 
 def extract_page_fields(
-    template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, text_layer: Optional[TextLayer]
+    template: TemplateOut,
+    page_bytes: bytes,
+    generic: ProcessedImage,
+    text_layer: Optional[TextLayer],
+    alignment: Optional[Alignment] = None,
 ) -> PageExtraction:
     """
     Module 6 for one page, choosing its path.
+
+    `alignment` is the one Module 5 verified the page with. Boxes are read where it puts them, so
+    the boxes that confirmed the document are the boxes that read it. Pass 2 can change the page's
+    frame (a photographed page warped to the template's aspect ratio): then the alignment found
+    in pass 1 no longer describes the pixels, so it is fitted again on the pass-2 page. If that
+    fails the page is read at the stored positions and Module 7 is left to flag what it cannot
+    validate - logged, since it means the two passes disagreed about the page.
 
     A page with an embedded text layer is read straight from it: no second
     preprocessing pass and no OCR, since the second pass exists only to make a
@@ -102,15 +125,23 @@ def extract_page_fields(
     """
     if text_layer is not None:
         return PageExtraction(
-            fields=extract_fields_from_text_layer(template.template_id, template.version, text_layer),
+            fields=extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment),
             review_image_bytes=generic.field_image_bytes,
             text_native=True,
+            alignment=alignment,
         )
     processed = preprocess_for_template(page_bytes, template, generic)
+    if alignment is not None and _image_size(processed.image_bytes) != _image_size(generic.image_bytes):
+        with Image.open(io.BytesIO(processed.image_bytes)) as pass2_page:
+            pass2_page.load()
+            alignment = align_page(pass2_page, template.landmarks)
+        if alignment is None:
+            log.warning("template %s: alignment found in pass 1 could not be refitted on the pass-2 page", template.template_id)
     return PageExtraction(
-        fields=extract_fields(template.template_id, template.version, processed.field_image_bytes),
+        fields=extract_fields(template.template_id, template.version, processed.field_image_bytes, alignment),
         review_image_bytes=processed.field_image_bytes,
         text_native=False,
+        alignment=alignment,
     )
 
 
@@ -170,7 +201,9 @@ def process_page(
     # Reads from field_image_bytes, never image_bytes, on the raster path: the
     # binarized rendering that makes anchors detectable destroys the stroke
     # detail character recognition needs (see ProcessedImage).
-    extraction = extract_page_fields(template, page_bytes, processed, text_layer)
+    extraction = extract_page_fields(template, page_bytes, processed, text_layer, identification.alignment)
+    if extraction.alignment is not None:
+        log.info("page %d aligned: %s", page_index, extraction.alignment.summary())
     summary = validate_fields(template, extraction.fields)
 
     compiled = compile_output(identification.template_id, identification.version, summary)
@@ -200,6 +233,7 @@ def process_page(
         field_review_queue_ids=field_review_ids,
         spot_check_queue_ids=spot_check_ids,
         text_native=extraction.text_native,
+        alignment=extraction.alignment.summary() if extraction.alignment is not None else None,
     )
 
 

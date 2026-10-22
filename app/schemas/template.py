@@ -49,6 +49,20 @@ class TemplateAnchorIn(TemplateAnchor):
         return v
 
 
+class TemplateLandmark(BaseModel):
+    """
+    A printed word that sits at the same place on every document of this layout, with that place
+    as page fractions (x of its left edge, y of its vertical centre). Module 5 and Module 6 find
+    these words again on the page and move every box by the shift and stretch they imply
+    (app/modules/alignment.py). `text` is lower-case letters only. Built by
+    scripts/build_landmarks.py from words that recur across real documents, never typed by hand.
+    """
+
+    text: str
+    x: float = PydField(ge=0.0, le=1.0)
+    y: float = PydField(ge=0.0, le=1.0)
+
+
 class TemplateField(BaseModel):
     id: str
     label: str
@@ -196,6 +210,7 @@ class TemplateIn(BaseModel):
     fields: list[TemplateField] = PydField(default_factory=list)
     checks: list[TemplateCheck] = PydField(default_factory=list)
     hints: TemplateHints = PydField(default_factory=TemplateHints)
+    landmarks: list[TemplateLandmark] = PydField(default_factory=list)
 
     @model_validator(mode="after")
     def _checks_refer_to_real_fields(self) -> "TemplateIn":
@@ -229,3 +244,6 @@ class TemplateOut(BaseModel):
     created_at: date
     # Defaulted so template versions written before hints existed still load.
     hints: TemplateHints = PydField(default_factory=TemplateHints)
+    # Defaulted so versions written before alignment existed still load; none means the boxes
+    # are used exactly where they are stored, as before.
+    landmarks: list[TemplateLandmark] = PydField(default_factory=list)

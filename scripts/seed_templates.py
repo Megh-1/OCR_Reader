@@ -23,7 +23,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.schemas.template import TemplateIn  # noqa: E402
+from app.schemas.template import TemplateCheck, TemplateIn  # noqa: E402
 
 # --- bits_goa_id_card -------------------------------------------------------
 #
@@ -95,6 +95,36 @@ BITS_GOA_ID_CARD = TemplateIn(
 # and distorted renderings, not what a human reads off the form.
 _AWB_FLOOR = 0.60  # photographed forms read lower than a flat scan; see notes below
 
+# Cross-field checks (app/modules/checks.py). Each one is a fact about air waybills, not about the
+# one reference document, and each only ADDS caution: a failure flags every field it names.
+_AWB_CHECKS = [
+    # Rating: chargeable weight x rate = total charge. Only for class Q (normal rate); a minimum
+    # charge (M), a specific commodity rate (C) and others are not a plain product.
+    TemplateCheck(
+        id="total_equals_weight_times_rate", label="Total charge = chargeable weight x rate",
+        kind="product", inputs=["chargeable_weight", "rate_charge"], target="total_charge",
+        tolerance=0.01, when={"field": "rate_class", "equals": "Q"},
+    ),
+    # The flight number starts with the airline's 2-character code, which is also the first carrier.
+    TemplateCheck(
+        id="flight_prefix_matches_first_carrier", label="Flight prefix = first carrier code",
+        kind="equal", inputs=["flight_date", "first_carrier_code"],
+        patterns={"flight_date": r"^([A-Z0-9]{2})\d{1,4}/"},
+    ),
+    TemplateCheck(
+        id="currency_is_iso_4217", label="Currency is a real ISO 4217 code",
+        kind="one_of", inputs=["currency"], lookup="iso4217",
+    ),
+    # IATA airline prefix -> carrier. Only 176 is listed because it is the only pair we have a
+    # document for; a prefix not in the table is skipped, so other carriers are not blocked.
+    # Add pairs as real documents confirm them.
+    TemplateCheck(
+        id="awb_prefix_matches_carrier", label="AWB prefix matches the carrier",
+        kind="maps_to", inputs=["awb_number"], target="carrier",
+        patterns={"awb_number": r"^(\d{3})"}, table={"176": "EMIRATES"},
+    ),
+]
+
 AIR_WAYBILL = TemplateIn(
     template_id="air_waybill",
     # 612x792pt US Letter. Supplying the true ratio stops the perspective warp
@@ -102,6 +132,7 @@ AIR_WAYBILL = TemplateIn(
     # field boxes off their cells on angled photos. ruled_form erases the
     # grid's printed borders, without which "65" reads as "Jos".
     hints={"page_aspect_ratio": 612 / 792, "ruled_form": True},
+    checks=_AWB_CHECKS,
     anchors=[
         {
             "text": "Not Negotiable Air Waybill",
@@ -268,6 +299,11 @@ AIR_WAYBILL_ROUTING = TemplateIn(
         },
     ],
     fields=[f for f in AIR_WAYBILL.fields if f.id in _ROUTING_FIELD_IDS],
+    # a check is kept only when every field it needs is in this template (TemplateIn refuses the rest)
+    checks=[
+        c for c in AIR_WAYBILL.checks
+        if {*c.field_ids(), *c.patterns, *([c.when.field] if c.when else [])} <= set(_ROUTING_FIELD_IDS)
+    ],
 )
 
 ALL_TEMPLATES = [BITS_GOA_ID_CARD, AIR_WAYBILL, AIR_WAYBILL_ROUTING]

@@ -33,6 +33,7 @@ from typing import Callable, Literal, Optional
 from pydantic import BaseModel, ValidationError, field_validator
 
 from app.config import CONFIDENCE_AUTO_APPROVE_THRESHOLD
+from app.modules.checks import CheckOutcome, evaluate_checks
 from app.modules.field_extraction import FieldExtractionResult
 from app.schemas.template import TemplateField, TemplateOut
 
@@ -55,6 +56,8 @@ class FieldValidationResult:
 class ValidationSummary:
     accepted: dict[str, FieldValidationResult]
     flagged: dict[str, FieldValidationResult]
+    # Every cross-field check that ran, passed / failed / skipped, for reporting and tests.
+    checks: list[CheckOutcome] = dataclass_field(default_factory=list)
 
 
 class _FormatCheck(BaseModel):
@@ -193,9 +196,19 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
     )
 
 
+def cross_check_reason(outcome: CheckOutcome) -> str:
+    """The reason string a failed check adds to each field it names (the label is shown to a reviewer)."""
+    return f"cross_check_failed:{outcome.label}"
+
+
 def validate_fields(template: TemplateOut, extractions: dict[str, FieldExtractionResult]) -> ValidationSummary:
     """Runs validate_field for every field in `template`, pre-partitioned
-    into accepted/flagged so Module 8 doesn't have to re-derive the split."""
+    into accepted/flagged so Module 8 doesn't have to re-derive the split.
+
+    Then the template's cross-field checks run on what was read. A failed check flags EVERY field
+    it names - including one that passed its own checks, since a value can look right alone and
+    still disagree with the others - with its reason added. That only ever adds caution: a field
+    already flagged stays flagged and just gains a reason; nothing is promoted or edited."""
     accepted: dict[str, FieldValidationResult] = {}
     flagged: dict[str, FieldValidationResult] = {}
 
@@ -206,4 +219,19 @@ def validate_fields(template: TemplateOut, extractions: dict[str, FieldExtractio
         else:
             flagged[field.id] = result
 
-    return ValidationSummary(accepted=accepted, flagged=flagged)
+    outcomes = evaluate_checks(template.checks, {f.id: extractions[f.id].raw_text for f in template.fields})
+    for outcome in outcomes:
+        if outcome.status != "failed":
+            continue
+        reason = cross_check_reason(outcome)
+        for field_id in outcome.fields:
+            if field_id in accepted:
+                was = accepted.pop(field_id)
+                flagged[field_id] = FieldValidationResult(
+                    field_id=was.field_id, value=was.value, confidence=was.confidence,
+                    accepted=False, reasons=[reason], approval_tier="review",
+                )
+            elif field_id in flagged and reason not in flagged[field_id].reasons:
+                flagged[field_id].reasons.append(reason)
+
+    return ValidationSummary(accepted=accepted, flagged=flagged, checks=outcomes)

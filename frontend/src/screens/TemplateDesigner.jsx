@@ -84,6 +84,9 @@ export default function TemplateDesigner() {
   const cursorRef = useRef(null);
   const pendingLoadRef = useRef(null); // a template waiting for its page image to finish loading
   const hintsRef = useRef(null);
+  // Not editable here yet, but they must survive a load-and-save like `checksum` and `hints` do:
+  // every version is rebuilt from this state, so anything not carried is silently dropped.
+  const [checks, setChecks] = useState([]);
   const uploadedUrlRef = useRef(null);
 
   const [mode, setModeState] = useState(null); // null | 'field' | 'anchor'
@@ -162,6 +165,7 @@ export default function TemplateDesigner() {
     rectsRef.current = new Map();
     labelsRef.current = new Map();
     setBoxes([]);
+    setChecks([]); // they name fields of the template that was on the old image
     setSelectedId(null);
     setImageUrl(url);
   }
@@ -201,6 +205,7 @@ export default function TemplateDesigner() {
       }
       canvas.requestRenderAll();
       hintsRef.current = template.hints ?? null;
+      setChecks(template.checks ?? []);
       setHintOnly(Boolean(template.hints?.hint_only));
       setBoxes(next);
       setSelectedId(null);
@@ -393,7 +398,7 @@ export default function TemplateDesigner() {
   async function handleSave() {
     const image = imageRef.current;
     const hints = hintsRef.current || hintOnly ? { ...(hintsRef.current ?? {}), hint_only: hintOnly } : null;
-    const payload = { template_id: templateId.trim(), anchors: [], fields: [], ...(hints ? { hints } : {}) };
+    const payload = { template_id: templateId.trim(), anchors: [], fields: [], checks, ...(hints ? { hints } : {}) };
     for (const b of boxes) {
       const rect = rectsRef.current.get(b.id);
       if (!rect) continue;
@@ -583,6 +588,7 @@ export default function TemplateDesigner() {
             {[
               ['fields', `Fields (${fields.length})`],
               ['anchors', `Anchors (${anchors.length})`],
+              ['checks', `Checks (${checks.length})`],
               ['versions', `Versions${versions.length ? ` (${versions.length})` : ''}`],
             ].map(([key, label]) => (
               <button
@@ -619,6 +625,25 @@ export default function TemplateDesigner() {
                 anchors.map((b) => (
                   <AnchorRow key={b.id} box={b} selected={b.id === selectedId} onSelect={() => selectBox(b.id)} onChange={(p) => update(b.id, p)} onDelete={() => deleteBox(b.id)} />
                 ))
+              ))}
+            {tab === 'checks' &&
+              (checks.length === 0 ? (
+                <PanelHint>
+                  Checks compare fields with each other, for example "total = weight x rate". A value that fails one is sent to Review. They are kept when you save, and are added
+                  through the API for now.
+                </PanelHint>
+              ) : (
+                <ul>
+                  {checks.map((c) => (
+                    <li key={c.id} className="border-b border-border px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{c.label}</p>
+                      <p className="text-xs text-foreground-secondary">
+                        {c.kind.replace('_', ' ')} · {[...c.inputs, c.target].filter(Boolean).join(', ')}
+                        {c.when ? ` · only when ${c.when.field} is ${c.when.equals}` : ''}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
               ))}
             {tab === 'versions' &&
               (versions.length === 0 ? (

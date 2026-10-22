@@ -17,7 +17,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, Kbd } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
-import { AUTO_THRESHOLD, REASONS, SPOT_WHY } from '@/lib/tiers';
+import { AUTO_THRESHOLD, reasonText, SPOT_WHY } from '@/lib/tiers';
 import { cn, fmtConf, timeAgo } from '@/lib/utils';
 
 const CONFIDENT = 80; // a rejected read at or above this is "confident but failed a check": the case to surface first
@@ -261,7 +261,7 @@ function QueueRow({ entry, selected, onClick, context }) {
           {t === 'review' ? (
             p.reasons.map((r) => (
               <Badge key={r} tone="danger" size="sm">
-                {REASONS[r] ?? r}
+                {reasonText(r)}
               </Badge>
             ))
           ) : (
@@ -379,11 +379,11 @@ function FieldDetail({ entry, context, position, onMove, onResolved }) {
               contra ? (
                 <>
                   <strong>Looked right, but failed a check.</strong> The system was {fmtConf(confidence)} sure of this reading, yet it
-                  {' '}failed: {p.reasons.filter((r) => r !== 'low_confidence').map((r) => (REASONS[r] ?? r).toLowerCase()).join(' and ')}.
+                  {' '}failed: {p.reasons.filter((r) => r !== 'low_confidence').map((r) => reasonText(r).toLowerCase()).join(' and ')}.
                 </>
               ) : (
                 <>
-                  <strong>This value was not accepted.</strong> {p.reasons.map((r) => REASONS[r] ?? r).join(' · ')}.
+                  <strong>This value was not accepted.</strong> {p.reasons.map(reasonText).join(' · ')}.
                 </>
               )
             ) : (

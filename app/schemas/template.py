@@ -1,9 +1,10 @@
+import re
 from datetime import date
 from typing import Literal, Optional
 
 from pydantic import BaseModel
 from pydantic import Field as PydField
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 BBox = tuple[float, float, float, float]
 
@@ -110,13 +111,110 @@ class TemplateHints(BaseModel):
     """
 
 
+CheckKind = Literal["product", "sum", "equal", "one_of", "maps_to"]
+_CHECK_ID = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+class CheckCondition(BaseModel):
+    """Run a check only when `field` reads exactly `equals` (case-insensitive). With the field
+    missing or different the check is skipped, never failed: it does not apply."""
+
+    field: str
+    equals: str
+
+
+class TemplateCheck(BaseModel):
+    """
+    A rule between fields, written by whoever builds the template and evaluated by Module 7
+    AFTER each field's own checks (app/modules/checks.py). It never changes a value: when it
+    fails it flags every field it names, so it can only add caution. It is skipped (neither
+    passed nor failed) when it cannot decide - an input missing, empty or unparseable - because
+    that is the field's own format check to report.
+
+      product   inputs[0] * inputs[1] == target, within `tolerance` (absolute)
+      sum       sum(inputs) == target, within `tolerance`
+      equal     the two inputs agree (after `patterns`, case-insensitive)
+      one_of    inputs[0] is one of `values` or the built-in `lookup` list
+      maps_to   table[inputs[0]] == the target field; an input not in the table is skipped
+
+    `patterns` maps a field id to a regex with exactly ONE capture group; the group is what is
+    compared, so "EK0565/27FEB" can be compared as "EK". There is no expression language and
+    nothing is evaluated as code.
+    """
+
+    id: str
+    label: str
+    kind: CheckKind
+    inputs: list[str] = PydField(min_length=1)
+    target: Optional[str] = None
+    tolerance: float = PydField(default=0.01, ge=0.0)
+    patterns: dict[str, str] = PydField(default_factory=dict)
+    values: list[str] = PydField(default_factory=list)
+    lookup: Optional[Literal["iso4217"]] = None
+    table: dict[str, str] = PydField(default_factory=dict)
+    when: Optional[CheckCondition] = None
+
+    @model_validator(mode="after")
+    def _shape_matches_kind(self) -> "TemplateCheck":
+        n = len(self.inputs)
+        problems = []
+        if self.kind == "product" and (n != 2 or not self.target):
+            problems.append("product needs exactly 2 inputs and a target")
+        if self.kind == "sum" and (n < 2 or not self.target):
+            problems.append("sum needs at least 2 inputs and a target")
+        if self.kind == "equal" and n != 2:
+            problems.append("equal needs exactly 2 inputs")
+        if self.kind == "one_of" and (n != 1 or not (self.values or self.lookup)):
+            problems.append("one_of needs exactly 1 input and either values or a lookup")
+        if self.kind == "maps_to" and (n != 1 or not self.target or not self.table):
+            problems.append("maps_to needs exactly 1 input, a target and a table")
+        for field_id, pattern in self.patterns.items():
+            try:
+                groups = re.compile(pattern).groups
+            except re.error as exc:
+                problems.append(f"pattern for {field_id!r} is not a valid regex: {exc}")
+                continue
+            if groups != 1:
+                problems.append(f"pattern for {field_id!r} must have exactly one capture group, has {groups}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
+
+    def field_ids(self) -> list[str]:
+        """Every field this check blames when it fails (the `when` field only gates it)."""
+        ids = list(self.inputs)
+        if self.target:
+            ids.append(self.target)
+        return list(dict.fromkeys(ids))
+
+
 class TemplateIn(BaseModel):
     """POST /templates request body. version and created_at are server-assigned, never client-supplied."""
 
     template_id: str
     anchors: list[TemplateAnchorIn] = PydField(min_length=1)
     fields: list[TemplateField] = PydField(default_factory=list)
+    checks: list[TemplateCheck] = PydField(default_factory=list)
     hints: TemplateHints = PydField(default_factory=TemplateHints)
+
+    @model_validator(mode="after")
+    def _checks_refer_to_real_fields(self) -> "TemplateIn":
+        known = {f.id for f in self.fields}
+        seen: set[str] = set()
+        problems = []
+        for check in self.checks:
+            if not _CHECK_ID.match(check.id):
+                problems.append(f"check id {check.id!r} must match ^[a-z][a-z0-9_]*$")
+            if check.id in seen:
+                problems.append(f"duplicate check id {check.id!r}")
+            seen.add(check.id)
+            named = check.field_ids() + list(check.patterns) + ([check.when.field] if check.when else [])
+            missing = sorted({f for f in named if f not in known})
+            if missing:
+                problems.append(f"check {check.id!r} names fields this template does not have: {', '.join(missing)}")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
 
 
 class TemplateOut(BaseModel):
@@ -126,6 +224,8 @@ class TemplateOut(BaseModel):
     version: int
     anchors: list[TemplateAnchor]
     fields: list[TemplateField]
+    # Defaulted so template versions written before checks existed still load.
+    checks: list[TemplateCheck] = PydField(default_factory=list)
     created_at: date
     # Defaulted so template versions written before hints existed still load.
     hints: TemplateHints = PydField(default_factory=TemplateHints)

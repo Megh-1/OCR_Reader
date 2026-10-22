@@ -70,6 +70,7 @@ def create_template_version(session: Session, payload: TemplateIn) -> TemplateOu
         "version": next_version,
         "anchors": [a.model_dump(mode="json") for a in payload.anchors],
         "fields": [f.model_dump(mode="json") for f in payload.fields],
+        "checks": [c.model_dump(mode="json") for c in payload.checks],
         "hints": payload.hints.model_dump(mode="json"),
         "created_at": created_at.isoformat(),
     }

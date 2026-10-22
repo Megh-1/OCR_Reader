@@ -87,7 +87,7 @@ def test_each_way_of_being_rejected_is_review(threshold_80):
 
 def test_a_spot_check_is_still_accepted_and_does_not_flag_the_record(threshold_80):
     """The tier adds caution on top of validation; it never turns an accepted field into a rejected one."""
-    template = Mock(fields=[make_field(field_id="a", confidence_floor=0.5)])
+    template = Mock(fields=[make_field(field_id="a", confidence_floor=0.5)], checks=[])
     summary = validate_fields(template, {"a": make_extraction("a", "text", 65.0)})
 
     assert "a" in summary.accepted and not summary.flagged
@@ -95,7 +95,7 @@ def test_a_spot_check_is_still_accepted_and_does_not_flag_the_record(threshold_8
 
 
 def test_the_output_carries_each_fields_tier(threshold_80):
-    template = Mock(fields=[
+    template = Mock(checks=[], fields=[
         make_field(field_id="sure", confidence_floor=0.5, validation_regex=r"^[a-z]+$"),
         make_field(field_id="unsure", confidence_floor=0.5, validation_regex=r"^[a-z]+$"),
         make_field(field_id="unchecked", confidence_floor=0.5),

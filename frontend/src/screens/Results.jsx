@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { navigate } from '@/lib/nav';
-import { REASONS, tierCounts } from '@/lib/tiers';
+import { reasonText, tierCounts } from '@/lib/tiers';
 import { cn, fmtConf, timeAgo } from '@/lib/utils';
 
 const STATUS = {
@@ -244,7 +244,7 @@ function FieldRow({ resultId, field: f, meta, onSaved }) {
     <tr className={cn('border-b border-border last:border-b-0', f.approval_tier === 'review' && 'bg-danger-surface')}>
       <th scope="row" className="px-4 py-2 text-left align-top font-normal">
         <span className="block break-words font-medium text-foreground">{meta?.label ?? f.field_id}</span>
-        {f.reasons.length > 0 && <span className="block text-xs text-danger">{f.reasons.map((r) => REASONS[r] ?? r).join(' · ')}</span>}
+        {f.reasons.length > 0 && <span className="block text-xs text-danger">{f.reasons.map(reasonText).join(' · ')}</span>}
       </th>
       <td className="px-4 py-2 align-top">
         <FieldValueCell resultId={resultId} field={f} onSaved={onSaved} />

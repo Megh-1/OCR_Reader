@@ -48,6 +48,11 @@ export const REASONS = {
   enum_missing_regex: 'Template is missing a format rule',
 };
 
+// A failed cross-field check arrives as "cross_check_failed:<the check's label>".
+const CROSS_CHECK = 'cross_check_failed:';
+export const reasonText = (reason) =>
+  reason.startsWith(CROSS_CHECK) ? `Disagrees with other fields (${reason.slice(CROSS_CHECK.length)})` : (REASONS[reason] ?? reason);
+
 export const SPOT_WHY = {
   below_auto_threshold: 'Confidence is under 90, so it needs a quick look.',
   no_validator: 'This field has no format rule, so confidence is the only check.',

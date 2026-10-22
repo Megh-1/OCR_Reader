@@ -12,3 +12,6 @@ backups/
 
 # personal ID-card photo and a waybill PDF with real third-party contact data: never commit
 tests/fixtures/
+
+# generated synthetic documents
+data/

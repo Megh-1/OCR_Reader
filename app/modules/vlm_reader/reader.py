@@ -8,7 +8,8 @@ It returns what Module 6 returns, so Module 7 validates it like any other read a
 a value gets a fixed one by what was established about it (config.VLM_GATED_CONFIDENCE / VLM_UNGATED_CONFIDENCE), which is how it
 reaches a tier. A page it cannot read raises `ReaderUnavailable` and the caller reads the page the ordinary way.
 
-Text-native PDF pages never come here: their text layer is exact.
+A text-native PDF page comes here only when the pipeline found its text-layer read doubtful (pipeline.extract_page_fields): then the
+page's exact words stand in for the page-level OCR as the second reader, and the model still reads the rendered crops.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from app import config
 from app.modules import alignment as A
 from app.modules.field_extraction import FieldExtractionResult
 from app.modules.preprocessing import ProcessedImage, preprocess_image
+from app.models.text_layer import TextLayer
 from app.modules.vlm_reader import crops as C
 from app.modules.vlm_reader import waybill as W
 from app.modules.vlm_reader import words as K
@@ -75,8 +77,18 @@ def to_results(template: TemplateOut, decisions: dict[str, Decision]) -> dict[st
     return out
 
 
-def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[ReaderClient] = None) -> VlmPage:
-    """Reads one raster page. Raises ReaderUnavailable for anything that stops the vision reader from giving a complete answer."""
+def layer_tokens(layer: TextLayer) -> list[K.Tok]:
+    """A PDF page's own words as word-reader tokens: exact, so a confidence of 100."""
+    return [(w.text, *w.bbox, 100.0) for w in layer.words if w.text.strip()]
+
+
+def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[ReaderClient] = None,
+              text_layer: Optional[TextLayer] = None) -> VlmPage:
+    """Reads one raster page. Raises ReaderUnavailable for anything that stops the vision reader from giving a complete answer.
+
+    With a `text_layer` (the page is a PDF with real embedded text) the page is a render, upright by construction, so it is not
+    deskewed, and the layer's words are the word reader's input instead of a page OCR. The alignment and the windows still come from
+    the raster: the form's printed labels are vector art and are not in the layer."""
     name = template.hints.vlm_reader
     if not name:
         raise ReaderUnavailable("the template names no reader profile")
@@ -96,7 +108,7 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
     # The windows are cut from the page as scanned (generic pass); the alignment and the word reader use the pass with the form's
     # printed rules erased, so a rule is not read as a character - the two renderings the measurements were made with.
     page = _image(generic.field_image_bytes)
-    erased = _image(preprocess_image(page_bytes, remove_rules=True, deskew=True).field_image_bytes)
+    erased = _image(preprocess_image(page_bytes, remove_rules=True, deskew=text_layer is None).field_image_bytes)
     tokens = K.page_tokens(erased)
     al = align_from_tokens(template, tokens)
     if al is None:
@@ -109,7 +121,7 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
     for crop, reply in zip(crops, replies):
         for fid, value in answer_fields(crop.kind, crop.fields, reply).items():
             answers[fid][crop.level] = value
-    wordsel = K.read_all(fields, tokens, al, K.printed_words(profile))
+    wordsel = K.read_all(fields, layer_tokens(text_layer) if text_layer is not None else tokens, al, K.printed_words(profile))
     decisions = decide(fields, answers, wordsel)
     log.info("vision reader %s: %d fields, %d gated, %d blank; alignment %s", name, len(decisions), sum(d.gated for d in decisions.values()),
              sum(not d.value for d in decisions.values()), al.summary())

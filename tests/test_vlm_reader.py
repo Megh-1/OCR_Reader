@@ -282,13 +282,64 @@ def test_a_page_the_vision_reader_reads_runs_no_tesseract(monkeypatch):
     assert result.reader == "vlm" and not ocr and result.fields["x"].source == "vlm"
 
 
-def test_a_text_native_page_never_goes_to_the_vision_reader(monkeypatch):
+def _text_read(template, bad=()):
+    """What the text layer would have read: every field present and confident, except those named in `bad` (a blank, so rejected)."""
+    return {f.id: FieldExtractionResult(f.id, "" if f.id in bad else "x", [], 0.0 if f.id in bad else 100.0, 0, "text_layer") for f in template.fields}
+
+
+def test_a_text_native_page_whose_read_is_clean_stays_on_the_exact_text_layer(monkeypatch):
     from app.models.text_layer import TextLayer
+    template = _all_fields_template(vlm_reader="waybill_B")
     monkeypatch.setattr(config, "VLM_READER_URL", "http://reader.test")
-    monkeypatch.setattr(pipeline.vlm, "read_page", lambda *a, **k: pytest.fail("a text layer is exact; the model must not read it"))
-    monkeypatch.setattr(pipeline, "extract_fields_from_text_layer", lambda *a, **k: {})
-    result = pipeline.extract_page_fields(_all_fields_template(vlm_reader="waybill_B"), b"", _generic(), TextLayer(words=()))
+    monkeypatch.setattr(pipeline.vlm, "read_page", lambda *a, **k: pytest.fail("nothing was rejected; the exact read stands"))
+    monkeypatch.setattr(pipeline, "extract_fields_from_text_layer", lambda *a, **k: _text_read(template))
+    result = pipeline.extract_page_fields(template, b"", _generic(), TextLayer(words=()))
     assert result.reader == "text_layer" and result.text_native
+
+
+def test_a_text_native_page_whose_read_was_rejected_goes_to_the_vision_reader_with_its_words(monkeypatch):
+    from app.models.text_layer import TextLayer
+    template = _all_fields_template(vlm_reader="waybill_B")
+    layer = TextLayer(words=())
+    monkeypatch.setattr(config, "VLM_READER_URL", "http://reader.test")
+    monkeypatch.setattr(pipeline, "extract_fields_from_text_layer", lambda *a, **k: _text_read(template, bad={"awb_number"}))
+    seen = {}
+    page = R.VlmPage(fields={"x": FieldExtractionResult("x", "1", [], 70.0, 0, "vlm")}, alignment=None, gated=0)
+    monkeypatch.setattr(pipeline.vlm, "read_page", lambda *a, **k: seen.update(k) or page)
+    result = pipeline.extract_page_fields(template, b"", _generic(), layer)
+    assert result.reader == "vlm" and not result.text_native and seen["text_layer"] is layer
+
+
+def test_a_rejected_text_native_page_keeps_its_text_layer_when_the_reader_is_unavailable(monkeypatch, caplog):
+    from app.models.text_layer import TextLayer
+    template = _all_fields_template(vlm_reader="waybill_B")
+    monkeypatch.setattr(config, "VLM_READER_URL", "http://reader.test")
+    read = _text_read(template, bad={"awb_number"})
+    monkeypatch.setattr(pipeline, "extract_fields_from_text_layer", lambda *a, **k: read)
+
+    def unavailable(*a, **k):
+        raise ReaderUnavailable("the service is down")
+
+    monkeypatch.setattr(pipeline.vlm, "read_page", unavailable)
+    with caplog.at_level("WARNING"):
+        result = pipeline.extract_page_fields(template, b"", _generic(), TextLayer(words=()))
+    assert result.reader == "text_layer" and result.text_native and result.fields is read  # not Tesseract: the layer is the better fallback
+    assert "the service is down" in caplog.text
+
+
+def test_a_template_without_a_reader_keeps_every_text_native_page_on_the_text_layer(monkeypatch):
+    from app.models.text_layer import TextLayer
+    template = _all_fields_template()
+    monkeypatch.setattr(config, "VLM_READER_URL", "http://reader.test")
+    monkeypatch.setattr(pipeline.vlm, "read_page", lambda *a, **k: pytest.fail("the template names no reader"))
+    monkeypatch.setattr(pipeline, "extract_fields_from_text_layer", lambda *a, **k: _text_read(template, bad={"awb_number"}))
+    assert pipeline.extract_page_fields(template, b"", _generic(), TextLayer(words=())).reader == "text_layer"
+
+
+def test_the_layers_words_become_exact_word_reader_tokens():
+    from app.models.text_layer import TextLayer, TextWord
+    layer = TextLayer(words=(TextWord("176-06067736", (0.7, 0.02, 0.8, 0.03)), TextWord("  ", (0, 0, 0.1, 0.1))))
+    assert R.layer_tokens(layer) == [("176-06067736", 0.7, 0.02, 0.8, 0.03, 100.0)]
 
 
 def test_read_page_refuses_what_it_cannot_do_before_calling_the_service(monkeypatch):

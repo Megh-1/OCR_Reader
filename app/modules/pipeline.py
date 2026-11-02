@@ -131,8 +131,21 @@ def extract_page_fields(
     must measure this exact choice, not a copy of it.
     """
     if text_layer is not None:
+        text_fields = extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment)
+        # The text layer is exact, but a template's boxes read it at fixed positions: a page whose typed values sit off their cells
+        # (another print of the form, a form fed through the printer off-centre) reads a neighbour's words, and the alignment cannot
+        # see it because it is fitted on the printed labels. Module 7 rejecting anything - a format, a check digit, a cross-field
+        # rule, a blank - is the evidence that the boxes missed, so such a page goes to the vision reader, with the layer's words as
+        # its second reader. Measured on 24 hard digital pages of the two forms: 3-26 rejected fields each, every wrong value Module 7
+        # accepted was a spot check. A clean page stays on the exact read, and a reader that is unavailable leaves the page as it was.
+        if vlm.enabled(template) and validate_fields(template, text_fields).flagged:
+            try:
+                page = vlm.read_page(template, page_bytes, generic, text_layer=text_layer)
+                return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
+            except ReaderUnavailable as exc:
+                log.warning("template %s: the text layer read was doubtful but the vision reader could not be used (%s); keeping the text layer", template.template_id, exc)
         return PageExtraction(
-            fields=extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment),
+            fields=text_fields,
             review_image_bytes=generic.field_image_bytes,
             text_native=True,
             alignment=alignment,

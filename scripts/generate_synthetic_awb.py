@@ -141,8 +141,9 @@ def make_values(rng: random.Random, fake: Faker, varied: bool = False) -> dict:
 def inject(values: dict, rng: random.Random) -> str:
     """Corrupt one value so a cross-field check should fail. Returns the id of the check that should catch it."""
     kind = rng.choice(["total", "currency", "flight"])
-    if kind == "total" and values["rate_class"] == "Q":
-        values["total_charge"] = money(Decimal(values["total_charge"]) + Decimal(rng.choice([100, 250, 600])))
+    total = values["total_charge"].replace(",", "").strip()  # --varied writes "1,432.00", and sometimes leaves the cell blank
+    if kind == "total" and values["rate_class"] == "Q" and total:
+        values["total_charge"] = money(Decimal(total) + Decimal(rng.choice([100, 250, 600])))
         values["prepaid_weight_charge"] = values["total_charge"]
         return "total_equals_weight_times_rate"
     if kind == "currency":

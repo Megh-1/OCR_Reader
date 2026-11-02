@@ -12,6 +12,7 @@ import {
 import { EmptyState, PageHeader } from '@/components/bits';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { FieldCrop } from '@/components/FieldCrop';
+import GroupedReview from '@/components/GroupedReview';
 import { TierBadge, TierMark } from '@/components/TierBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,6 +58,7 @@ export default function ReviewQueue({ onQueueChange }) {
   const [loadState, setLoadState] = useState('loading');
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [view, setView] = useState('one'); // one | grouped
   const [resultsById, setResultsById] = useState({});
   const [tally, setTally] = useState({ accepted: 0, corrected: 0 });
   const fetched = useRef(new Set());
@@ -140,7 +142,25 @@ export default function ReviewQueue({ onQueueChange }) {
             : 'Values the system is not sure about are listed here for a person to confirm or correct.'
         }
       >
-        <div role="group" aria-label="Filter the list" className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
+        <div role="group" aria-label="How to review" className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
+          {[
+            ['one', 'One by one'],
+            ['grouped', 'Grouped'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+              className={cn(
+                'flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors',
+                view === key ? 'bg-primary-surface text-primary-text' : 'text-foreground-secondary hover:bg-surface-sunken hover:text-foreground',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div role="group" aria-label="Filter the list" hidden={view === 'grouped'} className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
           {FILTERS.map(([key, label]) => (
             <button
               key={key}
@@ -158,7 +178,17 @@ export default function ReviewQueue({ onQueueChange }) {
         </div>
       </PageHeader>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[400px_minmax(0,1fr)]">
+      {view === 'grouped' && (
+        <div className="min-h-0 flex-1">
+          <GroupedReview
+            onQueueChange={() => {
+              load();
+              onQueueChange?.();
+            }}
+          />
+        </div>
+      )}
+      <div className={cn('min-h-0 flex-1 grid-cols-[400px_minmax(0,1fr)]', view === 'grouped' ? 'hidden' : 'grid')}>
         <aside aria-label="Waiting for review" className="scroll-thin min-h-0 overflow-y-auto border-r border-border bg-surface">
           {loadState === 'loading' && <p className="p-6 text-sm text-foreground-secondary">Loading…</p>}
           {loadState === 'error' && <p role="alert" className="p-6 text-sm text-danger">Couldn't reach the server.</p>}
@@ -197,7 +227,8 @@ const GROUPS = [
   ['contradiction', 'Looked right but failed a check', (e) => tierOf(e) === 'review' && isContradiction(e)],
   ['review', 'Needs review', (e) => tierOf(e) === 'review' && !isContradiction(e)],
   ['unverified', 'Spot check · no format rule', (e) => tierOf(e) === 'spot_check' && e.payload.why === 'no_validator'],
-  ['spot', 'Spot check · confidence under 90', (e) => tierOf(e) === 'spot_check' && e.payload.why !== 'no_validator'],
+  ['spot', 'Spot check · confidence under 90', (e) => tierOf(e) === 'spot_check' && e.payload.why === 'below_auto_threshold'],
+  ['blank', 'Spot check · optional value not found', (e) => tierOf(e) === 'spot_check' && e.payload.why === 'blank_optional'],
   ['template', 'Unrecognized documents', (e) => tierOf(e) === 'template'],
 ];
 
@@ -266,7 +297,7 @@ function QueueRow({ entry, selected, onClick, context }) {
             ))
           ) : (
             <Badge tone="warning" size="sm">
-              {p.why === 'no_validator' ? 'No format rule' : 'Low confidence'}
+              {p.why === 'no_validator' ? 'No format rule' : p.why === 'blank_optional' ? 'Not found' : 'Low confidence'}
             </Badge>
           )}
         </span>

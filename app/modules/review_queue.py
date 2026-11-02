@@ -82,12 +82,15 @@ def enqueue_field_review(
     return _enqueue("field_review", payload.model_dump(mode="json"))
 
 
-def enqueue_spot_check(extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str) -> int:
+def enqueue_spot_check(
+    extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str, audit: bool = False
+) -> int:
     """A field that passed validation but did not earn `auto`. It is not flagged - the record's
-    overall_status is unaffected - it just gets a person's glance."""
+    overall_status is unaffected - it just gets a person's glance. `audit` marks one a trusted field would
+    have skipped, picked at random so the trust stays measured."""
     payload = SpotCheckPayload(
         extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value,
-        confidence=confidence, why=why,
+        confidence=confidence, why=why, audit=audit,
     )
     return _enqueue("spot_check", payload.model_dump(mode="json"))
 
@@ -111,40 +114,43 @@ def resolve_field_review(queue_id: int, confirmed_value: str) -> None:
             raise ReviewTypeMismatchError(
                 f"queue id {queue_id} is entry_type={row.entry_type!r}, not one of {VALUE_ENTRY_TYPES}"
             )
-
-        payload_model = FieldReviewPayload if row.entry_type == "field_review" else SpotCheckPayload
-        payload = payload_model.model_validate(row.payload)
-
-        result_row = session.get(ExtractionResultRecord, payload.extraction_result_id)
-        if result_row is None:
-            raise ReviewQueueError(f"extraction result {payload.extraction_result_id} not found")
-        if payload.field_id not in result_row.fields:
-            raise ReviewQueueError(
-                f"field {payload.field_id!r} not found in extraction result {payload.extraction_result_id}"
-            )
-
-        # Real write into Module 8's data - reassign the whole dict so
-        # SQLAlchemy detects the JSONB column actually changed.
-        updated_fields = dict(result_row.fields)
-        updated_field = dict(updated_fields[payload.field_id])
-        updated_field["value"] = confirmed_value
-        updated_field["needs_review"] = False
-        updated_fields[payload.field_id] = updated_field
-        result_row.fields = updated_fields
-
-        # Re-check every field in this result, not just the one just fixed -
-        # only flip the result's own status back once nothing in it is still
-        # flagged. Same transaction as the write above: both land together
-        # or neither does.
-        if not any(f["needs_review"] for f in updated_fields.values()):
-            result_row.overall_status = "complete"
-
-        row.status = "resolved"
-        row.resolved_at = datetime.now(timezone.utc)
-        resolution_model = FieldReviewResolution if row.entry_type == "field_review" else SpotCheckResolution
-        row.resolution = resolution_model(confirmed_value=confirmed_value).model_dump(mode="json")
-
+        apply_confirmed_value(session, row, confirmed_value, via="single")
         session.commit()  # one transaction: both writes land together or neither does
+
+
+def apply_confirmed_value(session, row: ReviewQueueRecord, confirmed_value: str, via: str) -> None:
+    """The write shared by a person's single resolution and a bulk accept. The caller commits."""
+    payload_model = FieldReviewPayload if row.entry_type == "field_review" else SpotCheckPayload
+    payload = payload_model.model_validate(row.payload)
+
+    result_row = session.get(ExtractionResultRecord, payload.extraction_result_id)
+    if result_row is None:
+        raise ReviewQueueError(f"extraction result {payload.extraction_result_id} not found")
+    if payload.field_id not in result_row.fields:
+        raise ReviewQueueError(
+            f"field {payload.field_id!r} not found in extraction result {payload.extraction_result_id}"
+        )
+
+    # Real write into Module 8's data - reassign the whole dict so
+    # SQLAlchemy detects the JSONB column actually changed.
+    updated_fields = dict(result_row.fields)
+    updated_field = dict(updated_fields[payload.field_id])
+    updated_field["value"] = confirmed_value
+    updated_field["needs_review"] = False
+    updated_fields[payload.field_id] = updated_field
+    result_row.fields = updated_fields
+
+    # Re-check every field in this result, not just the one just fixed -
+    # only flip the result's own status back once nothing in it is still
+    # flagged. Same transaction as the write above: both land together
+    # or neither does.
+    if not any(f["needs_review"] for f in updated_fields.values()):
+        result_row.overall_status = "complete"
+
+    row.status = "resolved"
+    row.resolved_at = datetime.now(timezone.utc)
+    resolution_model = FieldReviewResolution if row.entry_type == "field_review" else SpotCheckResolution
+    row.resolution = resolution_model(confirmed_value=confirmed_value, via=via).model_dump(mode="json")
 
 
 def resolve_new_template_needed(queue_id: int, created_template_id: str) -> None:

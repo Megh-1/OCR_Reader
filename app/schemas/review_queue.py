@@ -23,7 +23,9 @@ class SpotCheckPayload(BaseModel):
     field_id: str
     original_value: str
     confidence: float
-    why: Literal["below_auto_threshold", "no_validator"]
+    why: Literal["below_auto_threshold", "no_validator", "blank_optional"]
+    # Held back from a bulk accept as a random sample, so the group's accepted values are measured, not just trusted.
+    audit: bool = False
 
 
 class NewTemplateNeededPayload(BaseModel):
@@ -48,11 +50,13 @@ ReviewPayloadAdapter: TypeAdapter = TypeAdapter(ReviewPayload)
 class FieldReviewResolution(BaseModel):
     entry_type: Literal["field_review"] = "field_review"
     confirmed_value: str
+    via: Literal["single", "bulk"] = "single"  # a bulk accept is not an independent check of that value
 
 
 class SpotCheckResolution(BaseModel):
     entry_type: Literal["spot_check"] = "spot_check"
     confirmed_value: str
+    via: Literal["single", "bulk"] = "single"
 
 
 class NewTemplateNeededResolution(BaseModel):

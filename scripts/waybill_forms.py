@@ -119,7 +119,7 @@ def checks() -> list[TemplateCheck]:
 # Page frame: A4 text-native, 595.44 x 841.68 pt. Rows and columns are the printed rules of that page.
 AIR_WAYBILL_BKK = TemplateIn(
     template_id="air_waybill_bkk",
-    hints={"page_aspect_ratio": 595.44 / 841.68, "ruled_form": True},
+    hints={"page_aspect_ratio": 595.44 / 841.68, "ruled_form": True, "vlm_reader": "waybill_B"},  # data/reader_profiles/waybill_B.json
     landmarks=landmarks("air_waybill_bkk"),
     checks=checks(),
     anchors=[

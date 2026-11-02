@@ -10,3 +10,7 @@ frontend/dist/
 # details, and the ground truth for both. Never part of a build context, let
 # alone an image. Bind-mount it at run time if a test needs it.
 tests/fixtures/
+
+# Everything under data/ is local working material: real documents, labels, reader profiles made from them, trained adapters, GPU results.
+# None of it belongs in a build context (the reader profiles are bind-mounted at run time, see docker-compose.yml).
+data/

@@ -28,6 +28,8 @@ from app.modules.ingestion import IngestionError, IngestionMetadata, extract_tex
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.modules import trust
+from app.modules.vlm_reader import reader as vlm
+from app.modules.vlm_reader.client import ReaderUnavailable
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
@@ -49,6 +51,9 @@ class PageResult(BaseModel):
     field_review_queue_ids: list[int] = []  # one id per field Module 7 flagged, may be empty
     spot_check_queue_ids: list[int] = []  # one id per accepted field that is spot_check rather than auto
     text_native: bool = False  # True when fields were read from the PDF's embedded text, with no OCR
+    # Who read the page's fields: "text_layer", "vlm" (the vision-model reader), "ocr" (Tesseract), or "ocr_fallback" (the
+    # template asks for the vision reader and it could not be used for this page, so Tesseract read it).
+    reader: str = "ocr"
     # How the template's boxes were moved to fit this page (landmarks matched, scale, shift, rms);
     # None when they were read exactly where the template stored them.
     alignment: Optional[dict] = None
@@ -90,6 +95,7 @@ class PageExtraction:
     review_image_bytes: bytes  # the rendering a human reviewer should see for this page
     text_native: bool
     alignment: Optional[Alignment] = None  # the boxes were moved by this; None = read at the stored positions
+    reader: str = "ocr"  # "text_layer" | "vlm" | "ocr" | "ocr_fallback"
 
 
 def _image_size(image_bytes: bytes) -> tuple[int, int]:
@@ -130,7 +136,18 @@ def extract_page_fields(
             review_image_bytes=generic.field_image_bytes,
             text_native=True,
             alignment=alignment,
+            reader="text_layer",
         )
+    reader = "ocr"
+    if vlm.enabled(template):
+        # A scanned or photographed page of a template that names a reader profile goes to the vision model. Anything that stops it
+        # (service down, profile missing, page not aligned) is not an error: the page is read the ordinary way, and says so.
+        try:
+            page = vlm.read_page(template, page_bytes, generic)
+            return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
+        except ReaderUnavailable as exc:
+            log.warning("template %s: the vision reader could not be used (%s); reading the page with Tesseract", template.template_id, exc)
+            reader = "ocr_fallback"
     processed = preprocess_for_template(page_bytes, template, generic)
     if alignment is not None and _image_size(processed.image_bytes) != _image_size(generic.image_bytes):
         with Image.open(io.BytesIO(processed.image_bytes)) as pass2_page:
@@ -143,6 +160,7 @@ def extract_page_fields(
         review_image_bytes=processed.field_image_bytes,
         text_native=False,
         alignment=alignment,
+        reader=reader,
     )
 
 
@@ -221,7 +239,9 @@ def process_page(
         )
 
     spot_checks = {fid: acc for fid, acc in summary.accepted.items() if acc.approval_tier == "spot_check"}
-    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks else frozenset()
+    # Audited auto-approval counts what people found when they checked a field, whoever read it. A vision-read value is a different
+    # reader with a different error profile, so its spot checks stay spot checks until evidence has been gathered on ITS reads.
+    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader != "vlm" else frozenset()
     audited: set[str] = set()
     for field_id, accepted in spot_checks.items():
         if field_id in trusted and spot_why(field_id, accepted) in trust.TRUSTABLE_WHY and accepted.value.strip():
@@ -253,6 +273,7 @@ def process_page(
         field_review_queue_ids=field_review_ids,
         spot_check_queue_ids=spot_check_ids,
         text_native=extraction.text_native,
+        reader=extraction.reader,
         alignment=extraction.alignment.summary() if extraction.alignment is not None else None,
     )
 

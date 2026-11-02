@@ -54,6 +54,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
       REDIS_URL: redis://redis:6379/0
+      # Vision-model reader (optional): the URL of scripts/gpu/serve_reader.py on a GPU machine. Unset = Tesseract only.
+      VLM_READER_URL: ${VLM_READER_URL:-}
+      VLM_READER_TOKEN: ${VLM_READER_TOKEN:-}
+      VLM_READER_PROFILE_DIR: /app/reader_profiles
+    volumes:
+      - ./data/reader_profiles:/app/reader_profiles:ro # made from real documents, so never baked into an image (scripts/build_reader_profile.py)
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
@@ -78,6 +84,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
       REDIS_URL: redis://redis:6379/0
+      # Vision-model reader (optional): the URL of scripts/gpu/serve_reader.py on a GPU machine. Unset = Tesseract only.
+      VLM_READER_URL: ${VLM_READER_URL:-}
+      VLM_READER_TOKEN: ${VLM_READER_TOKEN:-}
+      VLM_READER_PROFILE_DIR: /app/reader_profiles
+    volumes:
+      - ./data/reader_profiles:/app/reader_profiles:ro
     depends_on:
       app:
         condition: service_healthy

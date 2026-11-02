@@ -133,7 +133,9 @@ AIR_WAYBILL = TemplateIn(
     # from having to infer it from foreshortened edges, which is what slid
     # field boxes off their cells on angled photos. ruled_form erases the
     # grid's printed borders, without which "65" reads as "Jos".
-    hints={"page_aspect_ratio": 612 / 792, "ruled_form": True},
+    # vlm_reader names the reader profile (data/reader_profiles/waybill_M.json, scripts/build_reader_profile.py); it only takes effect
+    # when VLM_READER_URL is set, and a page the service cannot read falls back to Tesseract.
+    hints={"page_aspect_ratio": 612 / 792, "ruled_form": True, "vlm_reader": "waybill_M"},
     checks=_AWB_CHECKS,
     landmarks=_landmarks("air_waybill"),
     anchors=[
@@ -288,7 +290,7 @@ _ROUTING_FIELD_IDS = (
 )
 AIR_WAYBILL_ROUTING = TemplateIn(
     template_id="air_waybill_routing",
-    hints={**AIR_WAYBILL.hints.model_dump(), "hint_only": True},
+    hints={**AIR_WAYBILL.hints.model_dump(), "hint_only": True, "vlm_reader": None},  # 8 of the waybill fields: not the full set the reader needs
     landmarks=AIR_WAYBILL.landmarks,  # same layout, same page frame
     anchors=[
         {

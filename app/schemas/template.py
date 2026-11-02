@@ -168,6 +168,13 @@ class TemplateHints(BaseModel):
     match. At least 2, and no more than the template has: one matching label alone never recognises a page.
     """
 
+    vlm_reader: Optional[str] = PydField(default=None, pattern=r"^[A-Za-z0-9_]{1,40}$")
+    """
+    Name of the reader profile (app/modules/vlm_reader/profile.py) that lets the vision-model reader read this form. Unset (the
+    default) keeps Tesseract; set, the page goes to the reader service when VLM_READER_URL is configured, and falls back to
+    Tesseract when the service or the profile is not there. The template must carry the whole waybill field set.
+    """
+
     ruled_form: bool = False
     """
     Whether this document is a ruled grid form (air waybill, invoice table,

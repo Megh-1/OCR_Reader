@@ -1,5 +1,6 @@
 import os
 import shutil
+from pathlib import Path
 
 MAX_UPLOAD_BYTES: int = 15 * 1024 * 1024
 MAX_PAGES: int = 20
@@ -402,6 +403,26 @@ TRUST_TARGET_ERROR_RATE: float = float(os.environ.get("TRUST_TARGET_ERROR_RATE",
 TRUST_CONFIDENCE: float = 0.95
 TRUST_AUDIT_FRACTION: float = float(os.environ.get("TRUST_AUDIT_FRACTION", "0.05"))
 TRUST_CACHE_SECONDS: float = 30.0
+
+# Vision-model reader (app/modules/vlm_reader). A template whose hints name a `vlm_reader` profile is read by a fine-tuned vision
+# model through a SEPARATE service (scripts/gpu/serve_reader.py, on a machine with a GPU) instead of by per-field Tesseract. It is
+# OFF unless VLM_READER_URL is set, and any failure (service down, profile missing, page not aligned) falls back to the
+# Tesseract path for that page, logged and reported in the page result. The crops of a page leave this machine for the service.
+VLM_READER_URL: str = os.environ.get("VLM_READER_URL", "").rstrip("/")
+VLM_READER_TOKEN: str = os.environ.get("VLM_READER_TOKEN", "")
+VLM_READER_TIMEOUT_S: float = float(os.environ.get("VLM_READER_TIMEOUT_S", "600"))
+VLM_READER_CROPS_PER_REQUEST: int = int(os.environ.get("VLM_READER_CROPS_PER_REQUEST", "24"))
+VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
+# The model reports no confidence, so each value gets a FIXED one (as TEXT_LAYER_CONFIDENCE does), chosen to put it in a tier:
+#   GATED    a second reader agrees, or an arithmetic check of the document holds, and the format passes. Under
+#            CONFIDENCE_AUTO_APPROVE_THRESHOLD*100 (90) on purpose: such a value is accepted but still shown to a person as a spot
+#            check. Measured gate precision: 0 wrong of 236 auto-eligible fields on real pages, but 2 wrong of 955 arithmetic-gated
+#            fields on synthetic pages (0.2%), which is NOT the 1 in 10,000 the project aims at. Raising this to 90 or more makes
+#            gated values auto; do that only with eyes open, or let audited auto-approval (trust.py) earn it field by field.
+#   UNGATED  anything else the model read (measured ~89% right on new real pages): accepted above the field's floor, a spot check.
+# A blank is 0 (rejected) unless the field is optional, where a blank is a legitimate answer and takes the ungated value.
+VLM_GATED_CONFIDENCE: float = float(os.environ.get("VLM_GATED_CONFIDENCE", "89"))
+VLM_UNGATED_CONFIDENCE: float = float(os.environ.get("VLM_UNGATED_CONFIDENCE", "70"))
 
 # Threads each Tesseract PROCESS may use (its OpenMP OMP_THREAD_LIMIT). This matters far
 # more than it looks, and only on Linux. Every field read is its own Tesseract process

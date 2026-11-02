@@ -22,6 +22,12 @@ const SEGMENT = {
 const SEGMENT_LABEL = { queued: 'Queued', processing: 'Processing', retrying: 'Retrying', completed: 'Done', failed: 'Failed' };
 const BATCH_TONE = { completed: 'success', completed_with_errors: 'warning', failed: 'danger' };
 
+const UNMATCHED_LABEL = {
+  no_match: 'No template matched',
+  ambiguous_match: 'More than one template matched',
+  unknown_type_hint: 'Chosen type not found',
+};
+
 const batchStatusLabel = (status) => {
   const text = status.replaceAll('_', ' ');
   return text.charAt(0).toUpperCase() + text.slice(1);
@@ -320,6 +326,32 @@ export default function BatchMonitor({ param, onQueueChange }) {
                     ))}
                   </ul>
                 </div>
+                {batch.summary?.pages > 0 && (
+                  <div className="border-t border-border pt-3">
+                    <h3 className="label mb-2">Where the pages went ({batch.summary.pages})</h3>
+                    <ul className="flex flex-wrap gap-2 text-xs">
+                      {Object.entries(batch.summary.by_template).map(([name, n]) => (
+                        <li key={name}>
+                          <Badge tone="primary">
+                            {name}: {n}
+                          </Badge>
+                        </li>
+                      ))}
+                      {Object.entries(batch.summary.unmatched).map(([reason, n]) => (
+                        <li key={reason}>
+                          <Badge tone={reason === 'ambiguous_match' ? 'danger' : 'warning'}>
+                            {UNMATCHED_LABEL[reason] ?? reason}: {n}
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                    {Object.keys(batch.summary.by_template).length > 1 && (
+                      <p className="mt-2 text-xs text-foreground-secondary">
+                        More than one template took pages in this upload. Each page is read as exactly one template; check the split matches what you expected.
+                      </p>
+                    )}
+                  </div>
+                )}
               </Card>
 
               <Card className="overflow-hidden">

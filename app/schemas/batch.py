@@ -44,6 +44,14 @@ class BatchSummary(BaseModel):
     counts: dict[str, int]
 
 
+class BatchTemplateSummary(BaseModel):
+    """Where the pages of a batch went: per template, and per reason for the pages no template took."""
+
+    pages: int = 0
+    by_template: dict[str, int] = {}  # template_id -> pages read with it
+    unmatched: dict[str, int] = {}  # Module 5's reason (no_match, ambiguous_match, unknown_type_hint) -> pages
+
+
 class BatchStatusResponse(BaseModel):
     batch_id: str
     status: BatchStatus
@@ -51,3 +59,4 @@ class BatchStatusResponse(BaseModel):
     type_hint: Optional[str] = None
     counts: dict[str, int]  # documents per DocumentStatus, every status present
     documents: list[BatchDocumentStatus]
+    summary: BatchTemplateSummary = BatchTemplateSummary()

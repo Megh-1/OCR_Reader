@@ -51,6 +51,7 @@ from app.schemas.batch import (
     BatchStatusResponse,
     BatchSubmitResponse,
     BatchSummary,
+    BatchTemplateSummary,
 )
 
 router = APIRouter()
@@ -208,9 +209,18 @@ def batch_status(batch_id: str) -> BatchStatusResponse:
 
         counts = {status: 0 for status in ALL_STATUSES}
         documents = []
+        summary = BatchTemplateSummary(by_template={}, unmatched={})
         for record in records:
             counts[record.status] += 1
             partial = record.result or {}
+            for page in partial.get("pages", []):
+                summary.pages += 1
+                if page.get("confirmed"):
+                    name = (page.get("result") or {}).get("template_id", "?")
+                    summary.by_template[name] = summary.by_template.get(name, 0) + 1
+                else:
+                    reason = page.get("reason") or "unknown"
+                    summary.unmatched[reason] = summary.unmatched.get(reason, 0) + 1
             documents.append(
                 BatchDocumentStatus(
                     index=record.position,
@@ -232,6 +242,7 @@ def batch_status(batch_id: str) -> BatchStatusResponse:
             type_hint=batch.type_hint,
             counts=counts,
             documents=documents,
+            summary=summary,
         )
 
 

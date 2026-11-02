@@ -348,3 +348,28 @@ def test_a_half_finished_document_reports_its_progress_but_not_a_result(client, 
     assert doc["status"] == "retrying" and doc["error"] == "RuntimeError: page 2 hit a snag"
     assert doc["pages_done"] == 1 and doc["page_count"] == 2  # how far it got, so a caller can show progress
     assert doc["result"] is None  # but a partial body is not a result
+
+
+def test_status_summarises_where_the_pages_went(client):
+    from datetime import datetime, timezone
+
+    from app.db import SessionLocal
+    from app.models.batch import BatchDocumentRecord, BatchRecord
+
+    import uuid
+
+    batch_id = uuid.uuid4().hex
+    now = datetime.now(timezone.utc)
+    pages = [
+        {"page_index": 0, "confirmed": True, "result": {"template_id": "whole_form"}},
+        {"page_index": 1, "confirmed": True, "result": {"template_id": "part_form"}},
+        {"page_index": 2, "confirmed": False, "reason": "no_match"},
+    ]
+    with SessionLocal() as session:
+        session.add(BatchRecord(id=batch_id, created_at=now, type_hint=None))
+        session.flush()
+        session.add(BatchDocumentRecord(batch_id=batch_id, position=0, filename="a.pdf", status="completed", attempts=1,
+                                        result={"page_count": 3, "pages": pages}, created_at=now))
+        session.commit()
+    body = client.get(f"/documents/batch/{batch_id}/status").json()
+    assert body["summary"] == {"pages": 3, "by_template": {"whole_form": 1, "part_form": 1}, "unmatched": {"no_match": 1}}

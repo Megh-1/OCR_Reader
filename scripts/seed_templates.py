@@ -135,7 +135,10 @@ AIR_WAYBILL = TemplateIn(
     # grid's printed borders, without which "65" reads as "Jos".
     # vlm_reader names the reader profile (data/reader_profiles/waybill_M.json, scripts/build_reader_profile.py); it only takes effect
     # when VLM_READER_URL is set, and a page the service cannot read falls back to Tesseract.
-    hints={"page_aspect_ratio": 612 / 792, "ruled_form": True, "vlm_reader": "waybill_M"},
+    # yields_to: both anchors are IATA boilerplate that the Bangkok-form waybill prints too (measured: it passed on all
+    # nine Bangkok-form scans), so without this every one of them was ambiguous_match. That form's own anchor, "BANGKOK
+    # THAILAND", scored 59-100 on them and 0-37 on the Mumbai-form pages; when it passes, the page is that form.
+    hints={"page_aspect_ratio": 612 / 792, "ruled_form": True, "vlm_reader": "waybill_M", "yields_to": ["air_waybill_bkk"]},
     checks=_AWB_CHECKS,
     landmarks=_landmarks("air_waybill"),
     anchors=[

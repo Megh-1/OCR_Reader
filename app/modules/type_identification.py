@@ -11,7 +11,8 @@ design choices the reference doc leaves implicit are made explicit here:
     guessing" principle.
   - With no type_hint, if MORE THAN ONE template's anchors all pass,
     that is an ambiguous_match rejection, never an arbitrary pick among
-    the candidates.
+    the candidates. The only two exceptions are declared in the templates and checked against the page: a template
+    that is the superset of the others' anchors (`_most_specific`) and one that names the other in `hints.yields_to`.
 """
 
 from __future__ import annotations
@@ -117,6 +118,18 @@ def _most_specific(matches: list[tuple[TemplateOut, Optional[Alignment]]]) -> Op
     return None
 
 
+def _after_yielding(matches: list[tuple[TemplateOut, Optional[Alignment]]]) -> list[tuple[TemplateOut, Optional[Alignment]]]:
+    """
+    Drops each match that declared (`hints.yields_to`) it stands down for another template that also matched. The rule needs
+    the other template to have passed its own anchors on THIS page, so it is evidence, not a preference. Decided against the
+    original set at once, so two templates yielding to each other both drop and then neither is left: that is returned as the
+    untouched set, which stays ambiguous.
+    """
+    matched_ids = {t.template_id for t, _ in matches}
+    kept = [m for m in matches if not (set(m[0].hints.yields_to) & (matched_ids - {m[0].template_id}))]
+    return kept or matches
+
+
 def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) -> IdentificationResult:
     """
     Entry point. `image_bytes` is Module 2's output shape (a preprocessed
@@ -184,7 +197,13 @@ def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) 
         if passed:
             matches.append((template, alignment))
 
-    winner = matches[0] if len(matches) == 1 else _most_specific(matches) if matches else None
+    if len(matches) == 0:
+        return IdentificationResult(
+            confirmed=False, template_id=None, version=None, reason="no_match", per_anchor_scores=per_anchor_scores
+        )
+    all_matches = matches
+    matches = _after_yielding(matches)
+    winner = matches[0] if len(matches) == 1 else _most_specific(matches)
     if winner is not None:
         template, alignment = winner
         return IdentificationResult(
@@ -194,11 +213,7 @@ def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) 
             reason=None,
             per_anchor_scores=per_anchor_scores,
             alignment=alignment,
-            also_matched=[t.template_id for t, _ in matches if t is not template],
-        )
-    if len(matches) == 0:
-        return IdentificationResult(
-            confirmed=False, template_id=None, version=None, reason="no_match", per_anchor_scores=per_anchor_scores
+            also_matched=[t.template_id for t, _ in all_matches if t is not template],
         )
     # More than one template's anchors all passed - never guess among them.
     return IdentificationResult(

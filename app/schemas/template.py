@@ -168,6 +168,15 @@ class TemplateHints(BaseModel):
     match. At least 2, and no more than the template has: one matching label alone never recognises a page.
     """
 
+    yields_to: list[str] = PydField(default_factory=list)
+    """
+    Template ids that, when one of them ALSO passes its own anchors on a page, own that page instead of this template.
+    For a template whose anchors are only the printed boilerplate every IATA waybill shares: it passes a vendor's own form
+    too, and the vendor's template, whose anchors include a mark only that print carries, is the one that fits. The
+    stand-down is declared by the author and applies only while the named template really passes (never on a hint, which
+    checks the one template named); if every match would stand down for another, the page stays ambiguous_match.
+    """
+
     vlm_reader: Optional[str] = PydField(default=None, pattern=r"^[A-Za-z0-9_]{1,40}$")
     """
     Name of the reader profile (app/modules/vlm_reader/profile.py) that lets the vision-model reader read this form. Unset (the
@@ -281,6 +290,8 @@ class TemplateIn(BaseModel):
         problems = []
         if self.hints.min_anchors_matching is not None and self.hints.min_anchors_matching > len(self.anchors):
             problems.append(f"min_anchors_matching ({self.hints.min_anchors_matching}) is more than the {len(self.anchors)} anchors this template has")
+        if self.template_id in self.hints.yields_to:
+            problems.append("a template cannot yield to itself")
         if self.hints.is_part and not self.hints.hint_only and len(self.anchors) < 2:
             problems.append("a part-template left to automatic detection needs at least 2 anchors (or tick 'only use when I choose it')")
         derived = {f.id for f in self.fields if f.from_field is not None}

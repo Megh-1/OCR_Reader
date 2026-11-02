@@ -277,6 +277,58 @@ def test_a_part_drawn_on_its_own_page_shares_no_anchor_with_the_whole():
     assert type_identification._most_specific([whole, half_page]) is None
 
 
+# --------------------------------------------------------------------------- yielding to a more specific print
+
+
+def _yielding(template_id, yields_to):
+    body = TemplateIn(template_id=template_id, anchors=[{"text": "X", "bbox": (0.1, 0.1, 0.3, 0.2), "match_threshold": 0.8}],
+                      fields=[], hints={"yields_to": yields_to})
+    return (TemplateOut(version=1, created_at=date.today(), **body.model_dump(mode="json")), None)
+
+
+def test_a_template_that_yields_stands_down_only_for_a_template_that_also_matched():
+    generic, vendor = _yielding("generic", ["vendor"]), _yielding("vendor", [])
+    assert [t.template_id for t, _ in type_identification._after_yielding([generic, vendor])] == ["vendor"]
+    # the vendor's own anchors did not pass: nothing to yield to, the generic one keeps its match
+    assert [t.template_id for t, _ in type_identification._after_yielding([generic])] == ["generic"]
+
+
+def test_yielding_never_removes_a_match_to_a_template_it_did_not_name():
+    generic, other = _yielding("generic", ["vendor"]), _yielding("other", [])
+    assert {t.template_id for t, _ in type_identification._after_yielding([generic, other])} == {"generic", "other"}
+
+
+def test_two_templates_yielding_to_each_other_stay_ambiguous_rather_than_both_vanishing():
+    a, b = _yielding("a", ["b"]), _yielding("b", ["a"])
+    assert len(type_identification._after_yielding([a, b])) == 2
+
+
+def test_a_template_cannot_yield_to_itself(client, unique_doc_type):
+    body = {"template_id": unique_doc_type, "anchors": [{"text": "Shipper", "bbox": [0.1, 0.1, 0.4, 0.2], "match_threshold": 0.8}],
+            "fields": [], "hints": {"yields_to": [unique_doc_type]}}
+    assert client.post("/templates", json=body).status_code == 422
+
+
+def test_the_scan_gives_the_page_to_the_specific_print_and_names_what_it_stood_down_from(client, monkeypatch):
+    generic, vendor = f"generic_{uuid4().hex}", f"vendor_{uuid4().hex}"
+    anchor = {"text": "SAME TEXT", "bbox": [0.05, 0.05, 0.4, 0.15], "match_threshold": 0.5}
+    resp = client.post("/templates", json={"template_id": generic, "anchors": [anchor], "fields": [], "hints": {"yields_to": [vendor]}})
+    assert resp.status_code == 201
+    save_template(client, vendor, anchors=[anchor])
+    monkeypatch.setattr(type_identification, "list_known_doc_types", lambda: [generic, vendor])
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(return_value="SAME TEXT"))
+
+    result = identify_document_type(blank_image_bytes())
+    assert result.confirmed is True and result.template_id == vendor and result.also_matched == [generic]
+
+    # the vendor's mark is not on the page: the generic template alone matches, as before
+    monkeypatch.setattr(type_identification, "list_known_doc_types", lambda: [generic])
+    assert identify_document_type(blank_image_bytes()).template_id == generic
+
+    # a hint checks the one template named and ignores the yielding rule
+    assert identify_document_type(blank_image_bytes(), type_hint=generic).template_id == generic
+
+
 def test_part_template_left_to_automatic_detection_needs_two_anchors(client, unique_doc_type):
     one = {"template_id": unique_doc_type, "anchors": [{"text": "Shipper", "bbox": [0.1, 0.1, 0.4, 0.2], "match_threshold": 0.8}],
            "fields": [], "hints": {"is_part": True}}

@@ -208,6 +208,18 @@ def test_an_unreachable_service_and_an_unset_url_are_reader_unavailable():
         ReaderClient(url="").read([(_png(), "a")])
 
 
+def test_connecting_has_its_own_short_limit_but_a_reply_may_take_the_whole_timeout():
+    """A tunnel that died hangs the connection instead of refusing it; waiting out the reply timeout for each page was measured at 130 s."""
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(request.extensions["timeout"])
+        return httpx.Response(200, json={"replies": ["x"]})
+
+    _client(handler, timeout=120).read([(_png(), "a")])
+    assert seen["connect"] == config.VLM_READER_CONNECT_TIMEOUT_S < seen["read"] == 120
+
+
 # --- the pipeline's choice of reader --------------------------------------------------------------------------------------
 
 

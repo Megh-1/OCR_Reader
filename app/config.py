@@ -410,7 +410,11 @@ TRUST_CACHE_SECONDS: float = 30.0
 # Tesseract path for that page, logged and reported in the page result. The crops of a page leave this machine for the service.
 VLM_READER_URL: str = os.environ.get("VLM_READER_URL", "").rstrip("/")
 VLM_READER_TOKEN: str = os.environ.get("VLM_READER_TOKEN", "")
-VLM_READER_TIMEOUT_S: float = float(os.environ.get("VLM_READER_TIMEOUT_S", "600"))
+# Measured on a shared RTX 5090 through an SSH tunnel: 24 crops answer in ~7 s (0.27-0.31 s a crop), so 120 s is ~17x headroom for one
+# request. A dead tunnel does not refuse the connection, it hangs: with a long timeout every page of a batch waited the whole of it
+# (130 s per page at 120 s) before the Tesseract fallback ran, so connecting gets its own short limit.
+VLM_READER_TIMEOUT_S: float = float(os.environ.get("VLM_READER_TIMEOUT_S", "120"))
+VLM_READER_CONNECT_TIMEOUT_S: float = float(os.environ.get("VLM_READER_CONNECT_TIMEOUT_S", "10"))
 VLM_READER_CROPS_PER_REQUEST: int = int(os.environ.get("VLM_READER_CROPS_PER_REQUEST", "24"))
 VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
 # The model reports no confidence, so each value gets a FIXED one (as TEXT_LAYER_CONFIDENCE does), chosen to put it in a tier:

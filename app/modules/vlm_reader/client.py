@@ -43,7 +43,7 @@ class ReaderClient:
         replies: list[str] = []
         headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
         try:
-            with httpx.Client(timeout=self.timeout, transport=self._transport, headers=headers) as http:
+            with httpx.Client(timeout=httpx.Timeout(self.timeout, connect=min(self.timeout, config.VLM_READER_CONNECT_TIMEOUT_S)), transport=self._transport, headers=headers) as http:
                 for start in range(0, len(items), self.per_request):
                     chunk = items[start:start + self.per_request]
                     body = {"max_new": max_new, "requests": [{"image_b64": base64.b64encode(png).decode("ascii"), "prompt": prompt} for png, prompt in chunk]}

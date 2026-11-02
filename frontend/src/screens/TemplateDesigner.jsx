@@ -6,6 +6,7 @@ import {
   Lock,
   MousePointer2,
   Save,
+  Scissors,
   Square,
   SquareDashed,
   Trash2,
@@ -22,6 +23,7 @@ import {
   listTemplateVersions,
   resultImageUrl,
 } from '@/api';
+import CheckEditor from '@/components/CheckEditor';
 import { EmptyState, PageHeader } from '@/components/bits';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -103,6 +105,9 @@ export default function TemplateDesigner() {
   const [versions, setVersions] = useState([]);
   const [tab, setTab] = useState('fields');
   const [save, setSave] = useState({ status: 'idle' });
+  const [part, setPart] = useState(null); // null | { ids: Set of field ids to keep, anchorIds: Set (empty = choose automatically), name }
+  const [minAnchors, setMinAnchors] = useState(''); // '' = every anchor must match
+  const [partNote, setPartNote] = useState(null);
 
   useEffect(() => {
     listTemplates().then((t) => setTemplates(t.sort())).catch(() => {});
@@ -168,6 +173,7 @@ export default function TemplateDesigner() {
     labelsRef.current = new Map();
     setBoxes([]);
     setChecks([]); // they name fields of the template that was on the old image
+    setMinAnchors('');
     landmarksRef.current = []; // and these are positions on it
     setSelectedId(null);
     setImageUrl(url);
@@ -204,6 +210,11 @@ export default function TemplateDesigner() {
           // Not editable here, but it must survive a load-and-save: every field is rebuilt from
           // this state, so anything not carried is silently dropped from the new version.
           checksum: f.checksum ?? null,
+          // Same for the read options (a derived field, a pattern, a space-squash, an optional blank).
+          fromField: f.from_field ?? null,
+          extractPattern: f.extract_pattern ?? null,
+          squashSpaces: Boolean(f.squash_spaces),
+          optional: Boolean(f.optional),
         });
       }
       canvas.requestRenderAll();
@@ -211,6 +222,7 @@ export default function TemplateDesigner() {
       setChecks(template.checks ?? []);
       landmarksRef.current = template.landmarks ?? [];
       setHintOnly(Boolean(template.hints?.hint_only));
+      setMinAnchors(template.hints?.min_anchors_matching ?? '');
       setBoxes(next);
       setSelectedId(null);
       setTemplateId(template.template_id);
@@ -397,11 +409,68 @@ export default function TemplateDesigner() {
   const latest = versions[0]?.version ?? loaded?.version ?? 0;
   const nextVersion = templateId && templateId === loaded?.template_id ? latest + 1 : versions.length ? latest + 1 : 1;
   const blankAnchors = anchors.filter((b) => !b.text.trim()).length;
-  const canSave = imageReady && anchors.length >= 1 && blankAnchors === 0 && fields.length >= 1 && templateId.trim().length > 0;
+  const isPart = Boolean(hintsRef.current?.is_part);
+  // a part-template left to automatic detection must be recognisable by more than one printed label
+  const partNeedsAnchors = isPart && !hintOnly && anchors.length < 2;
+  const canSave = imageReady && anchors.length >= 1 && blankAnchors === 0 && fields.length >= 1 && templateId.trim().length > 0 && !partNeedsAnchors;
+
+
+  // A part-template: a NEW, independent template made from some of this one's fields. It does not refer back to the
+  // template it was cut from - it is saved under its own name as version 1, with its own anchors, and is "only use when
+  // I choose it" so it never clashes with the full template during automatic detection.
+  function createPart() {
+    const image = imageRef.current;
+    if (!part || !image || part.ids.size === 0 || !part.name.trim()) return;
+    const keep = part.ids;
+    const boxOf = (b) => rectToRelativeBBox(rectsRef.current.get(b.id), image);
+    const kept = fields.filter((b) => keep.has(b.fieldId));
+    const boxes_ = kept.map(boxOf);
+    const region = [Math.min(...boxes_.map((b) => b[0])), Math.min(...boxes_.map((b) => b[1])), Math.max(...boxes_.map((b) => b[2])), Math.max(...boxes_.map((b) => b[3]))];
+    const MARGIN = 0.15;
+    const centre = (bb) => [(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2];
+    const near = (bb) => {
+      const [cx, cy] = centre(bb);
+      return cx >= region[0] - MARGIN && cx <= region[2] + MARGIN && cy >= region[1] - MARGIN && cy <= region[3] + MARGIN;
+    };
+    // anchors: those that sit around the kept fields; if none do, the single closest one (the user is told to check it)
+    const anchorBoxes = anchors.map((a) => ({ a, bb: boxOf(a) }));
+    const chosen = part.anchorIds.size > 0;
+    let keepAnchors = chosen ? anchorBoxes.filter((x) => part.anchorIds.has(x.a.id)) : anchorBoxes.filter((x) => near(x.bb));
+    let fallback = false;
+    if (!chosen && keepAnchors.length === 0 && anchorBoxes.length) {
+      const [rx, ry] = centre(region);
+      keepAnchors = [anchorBoxes.reduce((best, x) => {
+        const [cx, cy] = centre(x.bb);
+        const d = (cx - rx) ** 2 + (cy - ry) ** 2;
+        return !best || d < best.d ? { ...x, d } : best;
+      }, null)];
+      fallback = true;
+    }
+    const keepAnchorIds = new Set(keepAnchors.map((x) => x.a.id));
+    for (const b of boxes) {
+      if (b.type === 'field' ? !keep.has(b.fieldId) : !keepAnchorIds.has(b.id)) deleteBox(b.id);
+    }
+    // a check survives only if every field it names was kept
+    setChecks((prev) => prev.filter((c) => [...(c.inputs ?? []), c.target, c.when?.field].filter(Boolean).every((id) => keep.has(id))));
+    landmarksRef.current = landmarksRef.current.filter((l) => near([l.x, l.y, l.x, l.y]));
+    setHintOnly(true);
+    setMinAnchors('');
+    hintsRef.current = { ...(hintsRef.current ?? {}), is_part: true };
+    setTemplateId(part.name.trim());
+    setLoaded(null);
+    setVersions([]);
+    setSave({ status: 'idle' });
+    setPartNote(
+      `Part-template draft: ${kept.length} field${kept.length === 1 ? '' : 's'}, ${keepAnchors.length} anchor${keepAnchors.length === 1 ? '' : 's'}. ` +
+        (fallback ? 'No anchor sat near these fields, so the closest one was kept: check it, and add one around a printed label next to them. ' : 'Check the anchors still cover a printed label that appears on a page showing only this part. ') +
+        'It saves as its own template (version 1) and is only used when you choose it.',
+    );
+    setPart(null);
+  }
 
   async function handleSave() {
     const image = imageRef.current;
-    const hints = hintsRef.current || hintOnly ? { ...(hintsRef.current ?? {}), hint_only: hintOnly } : null;
+    const hints = hintsRef.current || hintOnly || minAnchors ? { ...(hintsRef.current ?? {}), hint_only: hintOnly, min_anchors_matching: minAnchors && Number(minAnchors) < anchors.length ? Number(minAnchors) : null } : null;
     const payload = {
       template_id: templateId.trim(), anchors: [], fields: [], checks, landmarks: landmarksRef.current,
       ...(hints ? { hints } : {}),
@@ -420,6 +489,10 @@ export default function TemplateDesigner() {
           validation_regex: b.validationRegex || null,
           confidence_floor: Number(b.confidenceFloor),
           checksum: b.checksum ?? null,
+          from_field: b.fromField ?? null,
+          extract_pattern: b.extractPattern ?? null,
+          squash_spaces: Boolean(b.squashSpaces),
+          optional: Boolean(b.optional),
         });
     }
     setSave({ status: 'saving' });
@@ -566,8 +639,83 @@ export default function TemplateDesigner() {
               <span>
                 <span className="font-medium text-foreground">Only use when I choose it.</span> Tick this for a template that reads part of a layout another template already covers, so the
                 two don't clash during automatic detection.
+                {isPart && ' Untick it to let uploads of just this part be recognised automatically as this template: a whole form is still read as the whole form, and a page that shows only this part is read as this one, never as the older template.'}
               </span>
             </label>
+            {fields.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {!part ? (
+                  <Button variant="outline" size="sm" onClick={() => setPart({ ids: new Set(), anchorIds: new Set(), name: `${templateId.trim() || 'template'}_part` })}>
+                    <Scissors /> New template from some of these fields…
+                  </Button>
+                ) : (
+                  <div className="flex flex-col gap-2 rounded-md border border-border-strong p-3">
+                    <p className="text-xs font-medium text-foreground">Keep these fields in the new template</p>
+                    <ul className="scroll-thin max-h-40 overflow-y-auto text-xs">
+                      {fields.map((f) => (
+                        <li key={f.id}>
+                          <label className="flex cursor-pointer items-center gap-2 py-0.5">
+                            <input
+                              type="checkbox"
+                              className="size-4 accent-primary"
+                              checked={part.ids.has(f.fieldId)}
+                              onChange={(e) => {
+                                const ids = new Set(part.ids);
+                                if (e.target.checked) {
+                                  ids.add(f.fieldId);
+                                  if (f.fromField) ids.add(f.fromField); // a derived field is read from another field's box
+                                } else ids.delete(f.fieldId);
+                                setPart({ ...part, ids });
+                              }}
+                            />
+                            <span className="font-mono">{f.fieldId}</span>
+                            {f.label && <span className="truncate text-foreground-secondary">{f.label}</span>}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    {anchors.length > 0 && (
+                      <>
+                        <p className="text-xs font-medium text-foreground">Anchors to use (none ticked: the ones around those fields)</p>
+                        <ul className="scroll-thin max-h-32 overflow-y-auto text-xs">
+                          {anchors.map((a) => (
+                            <li key={a.id}>
+                              <label className="flex cursor-pointer items-center gap-2 py-0.5">
+                                <input
+                                  type="checkbox"
+                                  className="size-4 accent-primary"
+                                  checked={part.anchorIds.has(a.id)}
+                                  onChange={(e) => {
+                                    const anchorIds = new Set(part.anchorIds);
+                                    if (e.target.checked) anchorIds.add(a.id);
+                                    else anchorIds.delete(a.id);
+                                    setPart({ ...part, anchorIds });
+                                  }}
+                                />
+                                <span className="truncate">{a.text || 'Needs its printed text'}</span>
+                              </label>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    <Label>
+                      New template name
+                      <Input mono value={part.name} onChange={(e) => setPart({ ...part, name: e.target.value })} />
+                    </Label>
+                    <div className="flex gap-2">
+                      <Button variant="primary" size="sm" disabled={part.ids.size === 0 || !part.name.trim() || part.name.trim() === loaded?.template_id} onClick={createPart}>
+                        Create draft
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setPart(null)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {partNote && <p role="status" className="rounded-md bg-surface-sunken px-3 py-2 text-xs text-foreground-secondary">{partNote}</p>}
+              </div>
+            )}
             {save.status === 'saved' && (
               <p role="status" className="flex items-center gap-2 rounded-md border border-success-border bg-success-surface px-3 py-2 text-sm text-success">
                 <GitCommitHorizontal className="size-4 shrink-0" aria-hidden />
@@ -586,7 +734,8 @@ export default function TemplateDesigner() {
                 {anchors.length < 1 ? 'Add at least one anchor. ' : ''}
                 {blankAnchors > 0 ? 'Every anchor needs its printed text (Anchors tab). ' : ''}
                 {fields.length < 1 ? 'Add at least one field. ' : ''}
-                {!templateId.trim() ? 'Give the template a name.' : ''}
+                {!templateId.trim() ? 'Give the template a name. ' : ''}
+                {partNeedsAnchors ? 'A part-template detected automatically needs at least 2 anchors: add one, or tick "Only use when I choose it". ' : ''}
               </p>
             )}
           </div>
@@ -629,29 +778,33 @@ export default function TemplateDesigner() {
                   anchor matches.
                 </PanelHint>
               ) : (
-                anchors.map((b) => (
-                  <AnchorRow key={b.id} box={b} selected={b.id === selectedId} onSelect={() => selectBox(b.id)} onChange={(p) => update(b.id, p)} onDelete={() => deleteBox(b.id)} />
-                ))
-              ))}
-            {tab === 'checks' &&
-              (checks.length === 0 ? (
-                <PanelHint>
-                  Checks compare fields with each other, for example "total = weight x rate". A value that fails one is sent to Review. They are kept when you save, and are added
-                  through the API for now.
-                </PanelHint>
-              ) : (
-                <ul>
-                  {checks.map((c) => (
-                    <li key={c.id} className="border-b border-border px-4 py-3">
-                      <p className="text-sm font-medium text-foreground">{c.label}</p>
-                      <p className="text-xs text-foreground-secondary">
-                        {c.kind.replace('_', ' ')} · {[...c.inputs, c.target].filter(Boolean).join(', ')}
-                        {c.when ? ` · only when ${c.when.field} is ${c.when.equals}` : ''}
-                      </p>
-                    </li>
+                <>
+                  {anchors.map((b) => (
+                    <AnchorRow key={b.id} box={b} selected={b.id === selectedId} onSelect={() => selectBox(b.id)} onChange={(p) => update(b.id, p)} onDelete={() => deleteBox(b.id)} />
                   ))}
-                </ul>
+                  {anchors.length >= 3 && (
+                    <div className="flex flex-col gap-2 px-4 py-3">
+                      <Label>
+                        Anchors that must match
+                        <NativeSelect value={minAnchors === '' || Number(minAnchors) >= anchors.length ? '' : String(minAnchors)} onChange={(e) => setMinAnchors(e.target.value)}>
+                          <option value="">All {anchors.length} (strictest)</option>
+                          {Array.from({ length: anchors.length - 2 }, (_, i) => anchors.length - 1 - i).map((n) => (
+                            <option key={n} value={n}>
+                              At least {n} of {anchors.length}
+                            </option>
+                          ))}
+                        </NativeSelect>
+                      </Label>
+                      <p className="text-xs text-foreground-secondary">
+                        Fewer than all lets a page with one smudged or cut-off label still be recognised. It never goes below 2, and the more anchors that are required, the less likely another form is mistaken for this one.
+                      </p>
+                    </div>
+                  )}
+                </>
               ))}
+            {tab === 'checks' && (
+              <CheckEditor templateId={loaded?.template_id ?? null} fieldIds={fields.map((f) => f.fieldId)} checks={checks} setChecks={setChecks} />
+            )}
             {tab === 'versions' &&
               (versions.length === 0 ? (
                 <PanelHint>Open or save a template to see its history.</PanelHint>

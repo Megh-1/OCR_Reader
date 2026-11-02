@@ -117,3 +117,96 @@ def _evaluate(check: TemplateCheck, values: dict[str, str]) -> CheckOutcome:
 
 def evaluate_checks(checks: list[TemplateCheck], values: dict[str, str]) -> list[CheckOutcome]:
     return [_evaluate(check, values) for check in checks]
+
+
+# --------------------------------------------------------------------------- suggestions
+
+
+def _check_id(kind: str, ids: list[str]) -> str:
+    return re.sub(r"[^a-z0-9_]", "_", f"{kind}_{'_'.join(ids)}".lower())[:60].rstrip("_")
+
+
+def suggest_checks(
+    documents: list[dict[str, str]], labels: dict[str, str] | None = None, min_documents: int = 2, max_sum_inputs: int = 3
+) -> list[dict]:
+    """
+    Rules a person might want, found by looking at what a form's fields actually hold across several
+    documents already read. Pure and deterministic; it only PROPOSES - nothing is saved until a person
+    adds it, and the person sees on how many documents each held.
+
+    A relation is proposed only if it held on EVERY document where all its fields could be read, and
+    on at least `min_documents` of them with non-degenerate values (a product with a factor of 0 or 1,
+    a sum with a zero term, or two fields that always hold the same constant say nothing). One
+    document is never enough: 3 x 4 = 12 is also 6 x 2.
+
+      product / sum   numeric fields (a thousands comma or none, then a decimal point)
+      equal           two fields that hold the same text on every document, with varying text
+      one_of          a field whose values are all ISO 4217 currency codes
+    """
+    labels = labels or {}
+    field_ids = sorted({f for d in documents for f in d})
+    numbers = {f: [(_number(d[f]) if f in d and d[f].strip() else None) for d in documents] for f in field_ids}
+    numeric = [f for f in field_ids if sum(v is not None for v in numbers[f]) >= min_documents]
+    out: list[dict] = []
+
+    def name(f: str) -> str:
+        return labels.get(f) or f
+
+    def usable(rows: list[tuple]) -> bool:
+        return len(rows) >= min_documents
+
+    # product: a * b == c
+    for c in numeric:
+        for i, a in enumerate(numeric):
+            for b in numeric[i + 1:]:
+                if c in (a, b):
+                    continue
+                rows = [(numbers[a][k], numbers[b][k], numbers[c][k]) for k in range(len(documents))
+                        if None not in (numbers[a][k], numbers[b][k], numbers[c][k])]
+                if not usable(rows) or any(abs(x * y - z) > Decimal("0.01") for x, y, z in rows):
+                    continue
+                if sum(1 for x, y, _ in rows if x not in (0, 1) and y not in (0, 1)) < min_documents:
+                    continue
+                out.append({"id": _check_id("product", [a, b, c]), "label": f"{name(a)} x {name(b)} = {name(c)}", "kind": "product",
+                            "inputs": [a, b], "target": c, "tolerance": 0.01, "documents": len(rows)})
+
+    # sum: a + b (+ d) == c
+    from itertools import combinations
+    for c in numeric:
+        others = [f for f in numeric if f != c]
+        for size in range(2, max_sum_inputs + 1):
+            for inputs in combinations(others, size):
+                rows = [([numbers[f][k] for f in inputs], numbers[c][k]) for k in range(len(documents))
+                        if numbers[c][k] is not None and all(numbers[f][k] is not None for f in inputs)]
+                if not usable(rows) or any(abs(sum(vals, Decimal(0)) - z) > Decimal("0.01") for vals, z in rows):
+                    continue
+                if sum(1 for vals, _ in rows if all(v != 0 for v in vals)) < min_documents:
+                    continue
+                # a sum that merely contains a smaller proposed sum adds nothing: keep the smallest
+                if any(set(o["inputs"]) < set(inputs) and o["kind"] == "sum" and o["target"] == c for o in out):
+                    continue
+                out.append({"id": _check_id("sum", [*inputs, c]), "label": f"{' + '.join(name(f) for f in inputs)} = {name(c)}", "kind": "sum",
+                            "inputs": list(inputs), "target": c, "tolerance": 0.01, "documents": len(rows)})
+
+    # equal: the same text in two fields, on every document, and not always the same constant
+    texts = {f: [(d.get(f) or "").strip() for d in documents] for f in field_ids}
+    for i, a in enumerate(field_ids):
+        for b in field_ids[i + 1:]:
+            rows = [(texts[a][k], texts[b][k]) for k in range(len(documents)) if texts[a][k] and texts[b][k]]
+            if usable(rows) and all(x.upper() == y.upper() for x, y in rows) and len({x.upper() for x, _ in rows}) >= min_documents:
+                out.append({"id": _check_id("equal", [a, b]), "label": f"{name(a)} agrees with {name(b)}", "kind": "equal",
+                            "inputs": [a, b], "documents": len(rows)})
+
+    # one_of: every value is a currency code
+    for f in field_ids:
+        vals = [v for v in texts[f] if v]
+        if len(vals) >= min_documents and all(v.upper() in ISO_4217 for v in vals):
+            out.append({"id": _check_id("one_of", [f, "iso4217"]), "label": f"{name(f)} is a currency code", "kind": "one_of",
+                        "inputs": [f], "lookup": "iso4217", "documents": len(vals)})
+
+    seen, unique = set(), []
+    for item in out:
+        if item["id"] not in seen:
+            seen.add(item["id"])
+            unique.append(item)
+    return unique

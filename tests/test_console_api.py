@@ -172,7 +172,7 @@ def test_correcting_a_field_writes_the_value_and_is_reflected_on_read(client, un
     assert resp.status_code == 200
     assert resp.json() == {
         "field_id": "name", "value": "A Better Name", "confidence": 97.0,
-        "needs_review": False, "reasons": [], "approval_tier": "auto",
+        "needs_review": False, "reasons": [], "approval_tier": "auto", "auto_basis": None,
     }
     assert client.get(f"/results/{result_id}").json()["fields"]["name"]["value"] == "A Better Name"
 
@@ -220,3 +220,45 @@ def test_a_correction_needs_a_value(client, unique_doc_type, ocr):
     result_id = process(client, unique_doc_type, 97)["extraction_result_id"]
 
     assert client.patch(f"/results/{result_id}/fields/name", json={}).status_code == 422
+
+
+# --------------------------------------------------------------------------- rule editor: suggestions and a dry run
+
+
+def _store_results(template_id, rows):
+    from datetime import datetime, timezone
+
+    from app.db import SessionLocal
+    from app.models.extraction_result import ExtractionResultRecord
+
+    with SessionLocal() as session:
+        for values in rows:
+            session.add(ExtractionResultRecord(
+                template_id=template_id, template_version=1, extracted_at=datetime.now(timezone.utc), overall_status="complete",
+                fields={k: {"value": v, "confidence": 99.0, "needs_review": False, "approval_tier": "auto", "reasons": []} for k, v in values.items()},
+            ))
+        session.commit()
+
+
+def test_rule_editor_suggests_then_dry_runs_a_rule(client, unique_doc_type):
+    _store_results(unique_doc_type, [
+        {"qty": "4", "price": "2.50", "total": "10.00"},
+        {"qty": "3", "price": "5.00", "total": "15.00"},
+        {"qty": "7", "price": "1.00", "total": "7.00"},
+    ])
+    found = client.post("/templates/suggest-checks", json={"template_id": unique_doc_type}).json()
+    assert found["documents"] == 3
+    product = next(s for s in found["suggestions"] if s["kind"] == "product" and s["target"] == "total")
+    assert product["documents"] == 3
+
+    # a rule that does not hold is reported with examples, so a person sees it before adding it
+    bad = {"id": "wrong", "label": "qty + price = total", "kind": "sum", "inputs": ["qty", "price"], "target": "total"}
+    tested = client.post("/templates/test-check", json={"template_id": unique_doc_type, "check": bad}).json()
+    assert tested["failed"] == 3 and tested["passed"] == 0 and len(tested["failures"]) == 3
+    good = {k: v for k, v in product.items() if k != "documents"}
+    assert client.post("/templates/test-check", json={"template_id": unique_doc_type, "check": good}).json()["passed"] == 3
+
+
+def test_suggest_needs_at_least_two_documents(client, unique_doc_type):
+    _store_results(unique_doc_type, [{"a": "1", "b": "2"}])
+    assert client.post("/templates/suggest-checks", json={"template_id": unique_doc_type}).json()["suggestions"] == []

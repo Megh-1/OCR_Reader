@@ -97,4 +97,26 @@ export function submitBatch(files, typeHint) {
   return requestJson('/documents/batch', { method: 'POST', body: formData });
 }
 export const getBatchStatus = (batchId) => requestJson(`/documents/batch/${batchId}/status`);
+
+// --- rule editor ---------------------------------------------------------------------
+export const suggestChecks = (templateId) =>
+  requestJson('/templates/suggest-checks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template_id: templateId }),
+  });
+export const testCheck = (templateId, check) =>
+  requestJson('/templates/test-check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template_id: templateId, check }),
+  });
+export const getReviewGroups = (by, limit = 50, offset = 0) => requestJson(`/review/groups?by=${by}&limit=${limit}&offset=${offset}`);
+export const bulkAccept = (entryIds, auditFraction) =>
+  requestJson('/review/bulk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entry_ids: entryIds, ...(auditFraction ? { audit_fraction: auditFraction } : {}) }),
+  });
+export const getReviewEvidence = () => requestJson('/review/evidence');
 export const listBatches = (limit = 12) => requestJson(`/documents/batch?limit=${limit}`);

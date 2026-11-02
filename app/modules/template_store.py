@@ -27,8 +27,10 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal, get_session
+from app.models.extraction_result import ExtractionResultRecord
 from app.models.template import TemplateRecord
-from app.schemas.template import TemplateIn, TemplateOut
+from app.modules.checks import evaluate_checks, suggest_checks
+from app.schemas.template import TemplateCheck, TemplateIn, TemplateOut
 
 router = APIRouter()
 
@@ -212,3 +214,61 @@ def get_template_by_version(doc_type: str, version: int) -> TemplateOut:
     if result is None:
         raise HTTPException(status_code=404, detail=f"No version {version} found for doc_type '{doc_type}'")
     return result
+
+
+class SuggestChecksRequest(BaseModel):
+    template_id: str
+    result_ids: Optional[list[int]] = None  # default: this template's most recent results
+    limit: int = 40
+
+
+@router.post("/templates/suggest-checks")
+def suggest_template_checks(body: SuggestChecksRequest) -> dict:
+    """
+    Proposes cross-field rules (product, sum, equal, currency code) that held on EVERY processed document of
+    this template where the fields could be read. Only values Module 7 did not reject are used. Nothing is
+    saved: the designer shows each proposal with the number of documents it held on, and a person adds it.
+    """
+    if body.result_ids:
+        with SessionLocal() as session:
+            rows = session.scalars(select(ExtractionResultRecord).where(ExtractionResultRecord.template_id == body.template_id)
+                                   .where(ExtractionResultRecord.id.in_(body.result_ids))).all()
+        documents = [{fid: str(f.get("value", "")) for fid, f in r.fields.items() if not f.get("needs_review") and f.get("approval_tier") != "review"} for r in rows]
+    else:
+        documents = [values for _, values in _recent_values(body.template_id, body.limit, trusted_only=True)]
+    return {"documents": len(documents), "suggestions": suggest_checks(documents) if len(documents) >= 2 else []}
+
+
+class CheckTestRequest(BaseModel):
+    template_id: str
+    check: TemplateCheck
+    limit: int = 40
+
+
+def _recent_values(template_id: str, limit: int, trusted_only: bool) -> list[tuple[int, dict[str, str]]]:
+    with SessionLocal() as session:
+        rows = session.scalars(
+            select(ExtractionResultRecord).where(ExtractionResultRecord.template_id == template_id)
+            .order_by(ExtractionResultRecord.id.desc()).limit(max(1, min(limit, 100)))
+        ).all()
+    out = []
+    for row in rows:
+        out.append((row.id, {
+            fid: str(f.get("value", "")) for fid, f in row.fields.items()
+            if not trusted_only or (not f.get("needs_review") and f.get("approval_tier") != "review")
+        }))
+    return out
+
+
+@router.post("/templates/test-check")
+def test_template_check(body: CheckTestRequest) -> dict:
+    """Runs ONE rule over this template's recent results and says how it did (passed / failed / skipped), with
+    examples of the failures, so a person can see what a rule would do before adding it. Reads every value as stored."""
+    counts = {"passed": 0, "failed": 0, "skipped": 0}
+    failures = []
+    for result_id, values in _recent_values(body.template_id, body.limit, trusted_only=False):
+        outcome = evaluate_checks([body.check], values)[0]
+        counts[outcome.status] += 1
+        if outcome.status == "failed" and len(failures) < 5:
+            failures.append({"result_id": result_id, "detail": outcome.detail})
+    return {"documents": sum(counts.values()), **counts, "failures": failures}

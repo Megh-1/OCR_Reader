@@ -243,3 +243,52 @@ def test_a_passing_or_skipped_check_changes_nothing():
 
 def test_the_routing_template_keeps_only_the_checks_it_can_evaluate():
     assert [c.id for c in AIR_WAYBILL_ROUTING.checks] == ["flight_prefix_matches_first_carrier", "currency_is_iso_4217"]
+
+
+# --------------------------------------------------------------------------- suggestions
+
+from app.modules.checks import suggest_checks  # noqa: E402
+
+DOCS = [
+    {"w": "10", "r": "2.50", "t": "25.00", "cur": "USD", "x": "AB", "y": "AB", "k": "AA"},
+    {"w": "4", "r": "3.00", "t": "12.00", "cur": "EUR", "x": "CD", "y": "CD", "k": "AA"},
+    {"w": "8", "r": "1.25", "t": "10.00", "cur": "USD", "x": "EF", "y": "EF", "k": "AA"},
+]
+
+
+def kinds(suggestions):
+    return {(s["kind"], tuple(s["inputs"]), s.get("target")) for s in suggestions}
+
+
+def test_suggests_a_product_that_held_on_every_document():
+    assert ("product", ("r", "w"), "t") in kinds(suggest_checks(DOCS))
+
+
+def test_suggests_equal_currency_and_never_a_constant():
+    found = kinds(suggest_checks(DOCS))
+    assert ("equal", ("x", "y"), None) in found
+    assert ("one_of", ("cur",), None) in found
+    # k is "AA" everywhere: agreeing with x or y says nothing, and two always-constant fields are not a rule
+    assert not any("k" in inputs for _, inputs, _ in found)
+
+
+def test_a_relation_that_fails_on_one_document_is_not_proposed():
+    docs = [dict(d) for d in DOCS]
+    docs[1]["t"] = "13.00"
+    assert ("product", ("r", "w"), "t") not in kinds(suggest_checks(docs))
+
+
+def test_one_document_is_never_enough():
+    assert suggest_checks(DOCS[:1]) == []
+
+
+def test_degenerate_relations_are_ignored():
+    docs = [{"a": "5", "b": "1", "c": "5"}, {"a": "7", "b": "1", "c": "7"}, {"a": "9", "b": "1", "c": "9"}]
+    assert not any(s["kind"] == "product" for s in suggest_checks(docs))
+
+
+def test_every_suggestion_is_a_valid_template_check():
+    from app.schemas.template import TemplateCheck
+
+    for s in suggest_checks(DOCS):
+        TemplateCheck(**{k: v for k, v in s.items() if k != "documents"})

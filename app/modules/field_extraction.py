@@ -323,6 +323,76 @@ def _fields_on_page(template: TemplateOut, alignment: Alignment | None) -> list[
     return [f.model_copy(update={"bbox": alignment.map_box(f.bbox)}) for f in template.fields]
 
 
+def _select(field: TemplateField, text: str) -> tuple[str, bool, tuple[int, int] | None]:
+    """The part of `text` this field's options select, whether a pattern (if any) matched, and the
+    character span the value came from in `text` (None when the whole text is the value)."""
+    matched, span = True, None
+    if field.extract_pattern is not None:
+        m = re.search(field.extract_pattern, text, flags=re.IGNORECASE | re.DOTALL)
+        matched = m is not None
+        if m:
+            span = m.span(1)
+            text = m.group(1).strip()
+        else:
+            text = ""
+    if field.squash_spaces:
+        text = re.sub(r"\s+", "", text)
+    return text, matched, span
+
+
+def _confidence_of_span(source: FieldExtractionResult, span: tuple[int, int] | None) -> tuple[float, list[float]]:
+    """
+    The confidence of the WORDS a value was selected from, not of the whole cell it sits in.
+
+    A cell of ordinary words read at 95 with an HS code's digits read at 30 averages 85.7: giving the code
+    the cell's average would let a misread number sit on the cell's good reading. Words are matched to
+    confidences by whitespace position; when the two lists do not line up (trimming dropped a word) the
+    LOWEST confidence in the cell is used instead - the conservative reading, never the generous one.
+    """
+    confs = source.word_confidences
+    if span is None or not confs:
+        return source.aggregate_confidence, list(confs)
+    tokens = list(re.finditer(r"\S+", source.raw_text))
+    if len(tokens) != len(confs):
+        return min(confs), list(confs)
+    chosen = [c for t, c in zip(tokens, confs) if t.start() < span[1] and t.end() > span[0]]
+    if not chosen:
+        return min(confs), list(confs)
+    return sum(chosen) / len(chosen), chosen
+
+
+def _apply_field_options(fields: list[TemplateField], read: dict[str, FieldExtractionResult]) -> dict[str, FieldExtractionResult]:
+    """
+    Turns what was READ into the field values the template asks for (from_field / extract_pattern /
+    squash_spaces / optional - see TemplateField). Fields without any of those pass through untouched.
+
+    A derived field takes the confidence of the words it was selected from (_confidence_of_span). When a
+    pattern finds nothing, or finds an empty value, the result is empty at confidence 0 - Module 7 flags it
+    - unless the field is optional and the source itself was read, in which case the blank is a result and
+    keeps the source's confidence. A source that read nothing is never evidence of absence.
+    """
+    out: dict[str, FieldExtractionResult] = {}
+    for field in fields:
+        if field.from_field is None and field.extract_pattern is None and not field.squash_spaces:
+            out[field.id] = read[field.id]
+            continue
+        source = read[field.from_field] if field.from_field is not None else read[field.id]
+        text, matched, span = _select(field, source.raw_text)
+        found = matched and bool(text.strip())
+        source_was_read = bool(source.raw_text.strip()) and source.aggregate_confidence > 0
+        if found:
+            confidence, word_confidences = _confidence_of_span(source, span)
+        elif field.optional and source_was_read:
+            confidence, word_confidences = source.aggregate_confidence, []
+        else:
+            confidence, word_confidences = 0.0, []
+        out[field.id] = FieldExtractionResult(
+            field_id=field.id, raw_text=text, word_confidences=word_confidences,
+            aggregate_confidence=confidence, psm_used=source.psm_used, source=source.source,
+        )
+    return out
+
+
 def extract_fields_from_text_layer(
     template_id: str, version: int, layer: TextLayer, alignment: Alignment | None = None
 ) -> dict[str, FieldExtractionResult]:
@@ -334,7 +404,9 @@ def extract_fields_from_text_layer(
     template: TemplateOut | None = get_template_version(template_id, version)
     if template is None:
         raise ValueError(f"No template found for {template_id!r} version {version} - was it deleted after Module 5 ran?")
-    return {field.id: extract_field_from_text_layer(layer, field) for field in _fields_on_page(template, alignment)}
+    fields = _fields_on_page(template, alignment)
+    read = {field.id: extract_field_from_text_layer(layer, field) for field in fields if field.from_field is None}
+    return _apply_field_options(fields, read)
 
 
 def extract_fields(
@@ -374,6 +446,9 @@ def extract_fields(
     # 33-field air waybill, 99 calls at ~195ms each is 19.3s serially against
     # 3.2s across 8 workers. The GIL is not a factor - the work happens in
     # subprocesses, and the calling thread is blocked on I/O throughout.
+    # A derived field (from_field) is selected out of another field's text afterwards: it is not read.
+    to_read = [field for field in fields if field.from_field is None]
     with ThreadPoolExecutor(max_workers=FIELD_OCR_WORKERS) as pool:
-        results = pool.map(lambda field: extract_field(image, field), fields)
-        return {result.field_id: result for result in results}
+        results = pool.map(lambda field: extract_field(image, field), to_read)
+        read = {result.field_id: result for result in results}
+    return _apply_field_options(fields, read)

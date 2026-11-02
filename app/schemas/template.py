@@ -76,8 +76,49 @@ class TemplateField(BaseModel):
     # template is saved instead of silently checking nothing. Only add a name
     # here for an algorithm the domain actually defines.
     checksum: Optional[Literal["iata_awb_mod7"]] = None
+    # Declared, deterministic selection from what was read - never a correction of it. The read
+    # text is cut down to what a pattern or a flag names, and what is left is still exactly the
+    # printed characters.
+    #
+    # from_field     read ANOTHER field's text (once) instead of this field's own box: one big cell
+    #                holds a description, an HS code and an invoice number on lines that move from
+    #                document to document, so a box per line cannot work. This field's bbox is not
+    #                read. Must name a field that is not itself derived (no chains).
+    # extract_pattern  a regex with exactly ONE capture group, searched case-insensitively in the
+    #                text; the group is the value, "" when nothing matches.
+    # squash_spaces  remove all whitespace from the value ("176-0669 1322" -> "176-06691322").
+    # optional       (derived fields only) the source can legitimately hold no such value. A
+    #                confidently read source with no match is then an accepted blank, not a
+    #                failure; that blank is still shown to a person as a spot check (never auto),
+    #                because a garbled marker and an unmatched format both look like an absent one.
+    from_field: Optional[str] = None
+    extract_pattern: Optional[str] = None
+    squash_spaces: bool = False
+    optional: bool = False
 
     _check_bbox = field_validator("bbox")(_validate_bbox)
+
+    @model_validator(mode="after")
+    def _options_are_coherent(self) -> "TemplateField":
+        problems = []
+        if self.extract_pattern is not None:
+            try:
+                groups = re.compile(self.extract_pattern).groups
+            except re.error as exc:
+                problems.append(f"extract_pattern is not a valid regex: {exc}")
+            else:
+                if groups != 1:
+                    problems.append(f"extract_pattern must have exactly one capture group, has {groups}")
+        if self.from_field is not None:
+            if self.from_field == self.id:
+                problems.append("from_field must name a different field")
+            if self.extract_pattern is None:
+                problems.append("from_field needs an extract_pattern (without one it would just copy the other field)")
+        if self.optional and self.from_field is None:
+            problems.append("optional is only for a derived field (from_field): a blank box read directly cannot be told from a miss")
+        if problems:
+            raise ValueError("; ".join(problems))
+        return self
 
 
 class TemplateHints(BaseModel):

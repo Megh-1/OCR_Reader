@@ -180,6 +180,20 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
     # comparison, never for what's stored/returned as `value`.
     stripped_text = extraction.raw_text.strip()
 
+    if field.optional and not stripped_text:
+        # A derived field whose source was read and held no such value (Module 6 gave it the
+        # source's confidence; a source that read nothing arrives at 0 and fails the floor). There
+        # is nothing to format-check, but a blank is NEVER auto - not even from exact PDF text. The text
+        # proves the pattern did not match, not that the value is absent ("HS CODE NO. 61099020" misses a
+        # pattern that expects digits after CODE), and a scan cannot tell an absent marker from a garbled
+        # one. A field that cannot be verified is never auto however confident (CLAUDE.md, Module 7).
+        reasons = _check_confidence(extraction.aggregate_confidence, field.confidence_floor)
+        tier = "review" if reasons else "spot_check"
+        return FieldValidationResult(
+            field_id=field.id, value=extraction.raw_text, confidence=extraction.aggregate_confidence,
+            accepted=not reasons, reasons=reasons, approval_tier=tier,
+        )
+
     reasons = (
         _check_format(field, stripped_text)
         + _check_checksum(field, stripped_text)

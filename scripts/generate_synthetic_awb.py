@@ -47,7 +47,10 @@ from faker import Faker  # noqa: E402
 from scripts.build_synthetic_corpus import (  # noqa: E402
     add_noise, contrast, corner_presets, gamma, image_only_pdf, photograph, render_page, skew, speckle,
 )
+from scripts.drift import sample_drift, zone_by_height  # noqa: E402
+from scripts.proto_select import ZONE  # noqa: E402  (which part of the page each field sits in)
 from scripts.seed_templates import AIR_WAYBILL  # noqa: E402
+from scripts.synth_formats import VARIED, rough_scan, vary, vary_line  # noqa: E402
 
 TEMPLATE = AIR_WAYBILL
 FIELD_BOX = {f.id: f.bbox for f in TEMPLATE.fields}
@@ -81,7 +84,7 @@ def clean(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^A-Z0-9 &.,'/#:@-]", "", text.upper())).strip()
 
 
-def make_values(rng: random.Random, fake: Faker) -> dict:
+def make_values(rng: random.Random, fake: Faker, varied: bool = False) -> dict:
     prefix, carrier, code = rng.choice(AIRLINES)
     (o_city, o_code), (d_city, d_code) = rng.sample(AIRPORTS, 2)
     serial = rng.randrange(0, 10_000_000)
@@ -102,9 +105,9 @@ def make_values(rng: random.Random, fake: Faker) -> dict:
         lines = [clean(fake.street_address()), clean(f"{fake.city()}, {fake.state()}"), clean(f"{fake.city()} {fake.postcode()}, {fake.current_country_code()}")]
         if n == 4:
             lines = [lines[0], lines[1], clean(f"P.O. BOX # {rng.randrange(1000, 99999)}, MOBILE: {fake.phone_number()}"), clean(f"EMAIL : {fake.email()}")]
-        return lines
+        return [vary_line(ln, rng) for ln in lines] if varied else lines
 
-    return {
+    out = {
         "awb_number": awb, "carrier": carrier,
         "shipper_name": clean(fake.company()), "shipper_address": party_lines(3),
         "consignee_name": clean(fake.company()), "consignee_address": party_lines(4),
@@ -127,6 +130,9 @@ def make_values(rng: random.Random, fake: Faker) -> dict:
         "_prefix": prefix, "_serial8": awb.split("-")[1], "_origin_code": o_code, "_origin_city": o_city,
         "_date_dots": f"{day:02d}.{month + 1:02d}.{year}",
     }
+    if varied:
+        vary(out, rng, "M")
+    return out
 
 
 # --- injected inconsistencies ---------------------------------------------------------------------
@@ -207,6 +213,25 @@ class Fonts:
             doc.update_stream(int(match.group(1)), "\n".join(lines).encode("latin1"))
 
 
+class Base14:
+    """A built-in typeface with Fonts' interface: the typed layer of a document another printer produced."""
+
+    files: dict = {}
+
+    def __init__(self, regular: str, bold: str) -> None:
+        self.names = {False: regular, True: bold}
+        self.fonts = {False: fitz.Font(regular), True: fitz.Font(bold)}
+
+    def register(self, page: "fitz.Page") -> None:
+        pass
+
+    def name(self, bold: bool) -> str:
+        return self.names[bold]
+
+    def width(self, text: str, size: float, bold: bool) -> float:
+        return self.fonts[bold].text_length(text, fontsize=size)
+
+
 def collect_spans(base: bytes, fonts: Fonts) -> tuple[list[dict], tuple[float, float]]:
     """Every text span of the source page. A span holding several column-aligned parts ('K  Q': a unit
     marker, two spaces, then the rate class) is split into one pseudo-span per part, so a value is replaced
@@ -250,9 +275,10 @@ def plan_placements(spans: list[dict], page_size: tuple, values: dict) -> tuple[
         owner = next((f.id for f in TEMPLATE.fields if _overlap(frac, f.bbox) >= 0.5), None)
         (by_field.setdefault(owner, []).append(s) if owner else free.append(s))
 
-    def place(s: dict, text: str, x_limit: float) -> dict:
-        return {"origin": s["origin"], "size": s["size"], "bold": "Bold" in s["font"], "text": text,
-                "x_limit": x_limit, "lead": len(s["text"]) - len(s["text"].lstrip())}
+    def place(s: dict, text: str, x_limit: float, zone: str | None = None, fid: str | None = None) -> dict:
+        return {"fid": fid, "origin": s["origin"], "size": s["size"], "bold": "Bold" in s["font"], "text": text,
+                "x_limit": x_limit, "lead": len(s["text"]) - len(s["text"].lstrip()),
+                "zone": zone or zone_by_height(s["origin"][1] / h)}
 
     placements, truth = [], {}
     for field in TEMPLATE.fields:
@@ -260,7 +286,8 @@ def plan_placements(spans: list[dict], page_size: tuple, values: dict) -> tuple[
         lines = values[field.id] if isinstance(values[field.id], list) else [values[field.id]]
         lines = lines[: len(slots)] if len(slots) < len(lines) else lines
         for slot, text in zip(slots, lines):
-            placements.append(place(slot, text, field.bbox[2] * w))
+            if text:
+                placements.append(place(slot, text, field.bbox[2] * w, ZONE[field.id], field.id))
         truth[field.id] = " ".join(lines)
 
     # values the real form repeats outside any template box, matched by their ORIGINAL text
@@ -277,7 +304,7 @@ def plan_placements(spans: list[dict], page_size: tuple, values: dict) -> tuple[
     return placements, truth
 
 
-def build_pdf(base: bytes, spans: list[dict], page_size: tuple, values: dict, fonts: Fonts) -> tuple[bytes, dict[str, str]]:
+def build_pdf(base: bytes, spans: list[dict], page_size: tuple, values: dict, fonts: Fonts, drift: dict | None = None, overflow: bool = False) -> tuple[bytes, dict[str, str]]:
     placements, truth = plan_placements(spans, page_size, values)
     fitted = []
     for p in placements:
@@ -286,8 +313,8 @@ def build_pdf(base: bytes, spans: list[dict], page_size: tuple, values: dict, fo
         x += fonts.width(" " * p["lead"], size, p["bold"])  # the real document positions some values with leading spaces
         while fonts.width(p["text"], size, p["bold"]) > p["x_limit"] - x and size > 5.5:
             size -= 0.25
-        if fonts.width(p["text"], size, p["bold"]) > p["x_limit"] - x:
-            raise ValueError(f"text does not fit its box even at {size}pt: {p['text']!r}")
+        if fonts.width(p["text"], size, p["bold"]) > p["x_limit"] - x and not (overflow and p.get("fid") in VARIED):
+            raise ValueError(f"text does not fit its box even at {size}pt: {p['text']!r}")  # a value printed past its cell: real forms do that (--varied)
         fitted.append((x, y, size, p))
 
     doc = fitz.open(stream=base, filetype="pdf")
@@ -299,9 +326,17 @@ def build_pdf(base: bytes, spans: list[dict], page_size: tuple, values: dict, fo
 
     fonts.register(page)
     used: dict[str, set[str]] = {"regular": set(), "bold": set()}
+    boxes: dict[str, list[float]] = {}
     for x, y, size, p in fitted:
-        page.insert_text((x, y), p["text"], fontname=fonts.name(p["bold"]), fontsize=size, color=(0, 0, 0))
+        dx, dy = (drift or {}).get(p["zone"], (0.0, 0.0))  # the typed layer sits off the printed form by this much
+        page.insert_text((x + dx * page_size[0], y + dy * page_size[1]), p["text"], fontname=fonts.name(p["bold"]), fontsize=size, color=(0, 0, 0))
+        if p.get("fid"):  # where this line ended up, as page fractions
+            W_, H_ = page_size
+            b = [(x + dx * W_) / W_, (y + dy * H_ - 0.78 * size) / H_, (x + dx * W_ + fonts.width(p["text"], size, p["bold"])) / W_, (y + dy * H_ + 0.22 * size) / H_]
+            o = boxes.get(p["fid"])
+            boxes[p["fid"]] = b if not o else [min(o[0], b[0]), min(o[1], b[1]), max(o[2], b[2]), max(o[3], b[3])]
         used["bold" if p["bold"] else "regular"].update(p["text"])
+    build_pdf.last_boxes = {k: [round(c, 4) for c in v] for k, v in boxes.items()}
     if fonts.files:
         fonts.fix_unicode(doc, page, used)
     out = doc.tobytes(garbage=3, deflate=True)
@@ -312,8 +347,18 @@ def build_pdf(base: bytes, spans: list[dict], page_size: tuple, values: dict, fo
 # --- scan and photo variants ----------------------------------------------------------------------
 
 
-def scan_variant(pdf: bytes, rng: random.Random, seed: int) -> bytes:
+def scan_variant(pdf: bytes, rng: random.Random, seed: int, hard: bool = False, varied: bool = False) -> bytes:
     page = render_page(fitz.open(stream=pdf, filetype="pdf"), 200)
+    if varied:
+        page = rough_scan(page, rng, hard)
+    if hard:  # a worse scanner: more skew, noise on every page, low contrast and speckle often, heavier compression
+        page = skew(page, rng.uniform(-3.0, 3.0))
+        page = add_noise(page, rng.uniform(8, 18), seed)
+        if rng.random() < 0.6:
+            page = contrast(page, rng.uniform(0.5, 0.85), rng.uniform(20, 90))
+        if rng.random() < 0.5:
+            page = speckle(gamma(page, rng.uniform(1.2, 1.9)), 0.004, seed)
+        return image_only_pdf(page, jpeg_quality=rng.choice([45, 55, 70]))
     page = skew(page, rng.uniform(-2.0, 2.0))
     if rng.random() < 0.6:
         page = add_noise(page, rng.uniform(4, 12), seed)
@@ -344,6 +389,9 @@ def main() -> int:
     ap.add_argument("--photos", type=int, default=20, help="how many of them also get a camera-photo copy")
     ap.add_argument("--inject-errors", type=int, default=0, help="make this many documents internally inconsistent")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--hard", action="store_true", help="worse print misregistration and a worse scanner than the default")
+    ap.add_argument("--drift", action="store_true", help="shift the typed layer against the printed form, zone by zone (scripts/drift.py)")
+    ap.add_argument("--varied", action="store_true", help="the formats, fonts and scan faults of scripts/synth_formats.py")
     args = ap.parse_args()
 
     base = args.base.read_bytes()
@@ -360,10 +408,12 @@ def main() -> int:
         name = f"awb_{i:04d}"
         for attempt in range(40):  # a drawn name can be too wide for its box: draw again, as a clerk would shorten it
             rng = random.Random(args.seed * 100_003 + i + attempt * 7_919)
-            values = make_values(rng, fake)
+            values = make_values(rng, fake, args.varied)
             injected = inject(values, rng) if i in inject_ids else None
             try:
-                pdf, fields = build_pdf(base, spans, page_size, values, fonts)
+                drift = (sample_drift(rng, bad_print=0.6, scale=1.8) if args.hard else sample_drift(rng)) if args.drift else None
+                doc_fonts = rng.choice([fonts, fonts, Base14("helv", "hebo"), Base14("cour", "cobo"), Base14("tiro", "tibo")]) if args.varied else fonts
+                pdf, fields = build_pdf(base, spans, page_size, values, doc_fonts, drift, overflow=args.varied)
                 break
             except ValueError:
                 continue
@@ -371,11 +421,11 @@ def main() -> int:
             raise SystemExit(f"could not fit values for {name} in 40 draws")
         if injected:
             injections[f"{name}.pdf"] = injected
-        entry = {"template_id": "air_waybill", "fields": fields}
+        entry = {"template_id": "air_waybill", "fields": fields, "boxes": build_pdf.last_boxes, **({"drift": {z: [round(a, 4), round(b, 4)] for z, (a, b) in drift.items()}} if drift else {})}
         (args.out / f"{name}.pdf").write_bytes(pdf)
         truth_file[f"{name}.pdf"] = entry
         if i < args.scans:
-            (args.out / f"{name}__scan.pdf").write_bytes(scan_variant(pdf, rng, args.seed + i))
+            (args.out / f"{name}__scan.pdf").write_bytes(scan_variant(pdf, rng, args.seed + i, args.hard, args.varied))
             truth_file[f"{name}__scan.pdf"] = entry
         if i < args.photos:
             (args.out / f"{name}__photo.jpg").write_bytes(photo_variant(pdf, rng, args.seed + i))

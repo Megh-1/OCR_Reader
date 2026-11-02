@@ -56,6 +56,7 @@ export const reasonText = (reason) =>
 export const SPOT_WHY = {
   below_auto_threshold: 'Confidence is under 90, so it needs a quick look.',
   no_validator: 'This field has no format rule, so confidence is the only check.',
+  blank_optional: 'Nothing was found for this optional value. Confirm it is really absent from the document.',
 };
 
 export function tierCounts(fields) {

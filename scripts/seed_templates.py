@@ -17,7 +17,6 @@ new version rather than editing one - re-running is safe but not a no-op.
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from pathlib import Path
@@ -25,14 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.schemas.template import TemplateCheck, TemplateIn  # noqa: E402
-
-
-def _landmarks(name: str) -> list[dict]:
-    """Printed-word positions for page alignment (app/modules/alignment.py), built by
-    scripts/build_landmarks.py from words that recur across real documents. Missing file = none,
-    so a checkout without it seeds a template that behaves as before alignment existed."""
-    path = Path(__file__).resolve().parent / "landmarks" / f"{name}.json"
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+from scripts.waybill_forms import AIR_WAYBILL_BKK, landmarks as _landmarks  # noqa: E402  (one loader for both files)
 
 
 # --- bits_goa_id_card -------------------------------------------------------
@@ -318,7 +310,7 @@ AIR_WAYBILL_ROUTING = TemplateIn(
     ],
 )
 
-ALL_TEMPLATES = [BITS_GOA_ID_CARD, AIR_WAYBILL, AIR_WAYBILL_ROUTING]
+ALL_TEMPLATES = [BITS_GOA_ID_CARD, AIR_WAYBILL, AIR_WAYBILL_ROUTING, AIR_WAYBILL_BKK]
 
 
 def seed(templates=ALL_TEMPLATES) -> list[tuple[str, int]]:

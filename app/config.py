@@ -247,9 +247,20 @@ ALIGN_MIN_LANDMARK_FRACTION: float = 0.15
 # The fit is refused when the page would have to be scaled outside this range on either axis
 # (A4 against Letter measured 0.91-0.94 vertically).
 ALIGN_SCALE_RANGE: tuple[float, float] = (0.75, 1.3)
-# Each box is moved by the median leftover of this many nearest landmarks, on top of the global
-# shift and stretch.
+# Each box is moved by the median leftover (against the global fit) of the landmarks within
+# ALIGN_LOCAL_RADIUS of it (page fractions), looking at no more than ALIGN_LOCAL_NEIGHBOURS of them, and
+# only when at least ALIGN_LOCAL_MIN_NEIGHBOURS are in range; otherwise the box takes the global fit alone.
+# MEASURED on the 10 labelled Bangkok-form pages (anchors refused, and value centres inside their mapped box,
+# of 54 findable values):
+#   global fit only                          2 refused   30/54
+#   8 nearest, plain median (first version)  1 refused   28/54
+#   within 0.20, distance-weighted, min 2    4 refused   33/54   <- let one mismatched pair win; reverted
+#   within 0.20, plain median, min 3         1 refused   33/54   <- this one
+#   within 0.20, plain median, min 4         1 refused   32/54
+# The one refused page in the last rows is a different print of the form (expected). PROVISIONAL: one form.
 ALIGN_LOCAL_NEIGHBOURS: int = 8
+ALIGN_LOCAL_RADIUS: float = 0.20
+ALIGN_LOCAL_MIN_NEIGHBOURS: int = 3
 
 # Module 8 — Output Compiler
 

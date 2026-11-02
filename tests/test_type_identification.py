@@ -227,3 +227,97 @@ def test_anchor_crop_near_edge_is_clamped_not_out_of_bounds(monkeypatch):
     left, top, right, bottom = called_box
     assert left >= 0 and top >= 0
     assert right <= image.width and bottom <= image.height
+
+
+# --------------------------------------------------------------------------- a whole form, a part of it, and a different part
+
+
+from datetime import date  # noqa: E402
+
+from app.schemas.template import TemplateIn, TemplateOut  # noqa: E402
+
+
+def _template(template_id, anchors, hint_only=False, is_part=False):
+    body = TemplateIn(
+        template_id=template_id,
+        anchors=[{"text": t, "bbox": b, "match_threshold": 0.8} for t, b in anchors],
+        fields=[], hints={"hint_only": hint_only, "is_part": is_part},
+    )
+    return TemplateOut(version=1, created_at=date.today(), **body.model_dump(mode="json"))
+
+
+TOP = ("Shipper's Name and Address", (0.05, 0.05, 0.40, 0.08))
+TOP2 = ("Shipper's Account Number", (0.45, 0.05, 0.80, 0.08))
+BOTTOM = ("Signature of Issuing Carrier", (0.50, 0.90, 0.95, 0.94))
+
+
+def test_a_whole_form_beats_a_part_cut_from_it():
+    whole = (_template("whole", [TOP, TOP2, BOTTOM]), None)
+    part = (_template("part", [TOP, TOP2], is_part=True), None)
+    for order in ([whole, part], [part, whole]):
+        assert type_identification._most_specific(order)[0].template_id == "whole"
+
+
+def test_two_unrelated_forms_that_both_pass_stay_ambiguous():
+    a = (_template("vendor_a", [TOP, BOTTOM]), None)
+    b = (_template("vendor_b", [TOP2, BOTTOM]), None)
+    assert type_identification._most_specific([a, b]) is None
+
+
+def test_equal_anchor_sets_stay_ambiguous():
+    a = (_template("one", [TOP, TOP2]), None)
+    b = (_template("two", [TOP, TOP2]), None)
+    assert type_identification._most_specific([a, b]) is None
+
+
+def test_a_part_drawn_on_its_own_page_shares_no_anchor_with_the_whole():
+    """The half-page template: its anchors sit in ITS page's frame, so it is nobody's subset and never outranked."""
+    whole = (_template("whole", [TOP, TOP2, BOTTOM]), None)
+    half_page = (_template("half_page", [("Shipper's Name and Address", (0.05, 0.10, 0.60, 0.16)), TOP2], is_part=True), None)
+    assert type_identification._most_specific([whole, half_page]) is None
+
+
+def test_part_template_left_to_automatic_detection_needs_two_anchors(client, unique_doc_type):
+    one = {"template_id": unique_doc_type, "anchors": [{"text": "Shipper", "bbox": [0.1, 0.1, 0.4, 0.2], "match_threshold": 0.8}],
+           "fields": [], "hints": {"is_part": True}}
+    assert client.post("/templates", json=one).status_code == 422
+    one["hints"] = {"is_part": True, "hint_only": True}  # chosen explicitly: one anchor is enough
+    assert client.post("/templates", json=one).status_code == 201
+
+
+THREE = [
+    {"text": "Alpha Label", "bbox": [0.05, 0.02, 0.45, 0.08], "match_threshold": 0.85},
+    {"text": "Bravo Label", "bbox": [0.05, 0.30, 0.45, 0.36], "match_threshold": 0.85},
+    {"text": "Charlie Label", "bbox": [0.05, 0.60, 0.45, 0.66], "match_threshold": 0.85},
+]
+
+
+def _save_with_min(client, template_id, minimum):
+    body = {"template_id": template_id, "anchors": THREE, "fields": [], "hints": {"min_anchors_matching": minimum} if minimum else {}}
+    return client.post("/templates", json=body)
+
+
+def test_min_anchors_lets_one_unreadable_label_through(client, unique_doc_type, monkeypatch):
+    assert _save_with_min(client, unique_doc_type, 2).status_code == 201
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(side_effect=["Alpha Label", "smudge ###", "Charlie Label"]))
+    result = identify_document_type(blank_image_bytes(), type_hint=unique_doc_type)
+    assert result.confirmed is True
+    assert result.per_anchor_scores[unique_doc_type]["Bravo Label"] < 85.0  # the miss is still reported
+
+
+def test_min_anchors_still_refuses_below_the_count(client, unique_doc_type, monkeypatch):
+    assert _save_with_min(client, unique_doc_type, 2).status_code == 201
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(side_effect=["Alpha Label", "smudge ###", "more noise"]))
+    result = identify_document_type(blank_image_bytes(), type_hint=unique_doc_type)
+    assert result.confirmed is False and result.reason == "no_match"
+
+
+def test_without_min_anchors_every_anchor_is_still_required(client, unique_doc_type, monkeypatch):
+    assert _save_with_min(client, unique_doc_type, None).status_code == 201
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", Mock(side_effect=["Alpha Label", "smudge ###", "Charlie Label"]))
+    assert identify_document_type(blank_image_bytes(), type_hint=unique_doc_type).confirmed is False
+
+
+@pytest.mark.parametrize("minimum", [1, 4])
+def test_min_anchors_must_be_at_least_two_and_at_most_the_anchor_count(client, unique_doc_type, minimum):
+    assert _save_with_min(client, unique_doc_type, minimum).status_code == 422

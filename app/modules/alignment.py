@@ -40,6 +40,8 @@ from rapidfuzz import fuzz
 
 from app.config import (
     ALIGN_LOCAL_NEIGHBOURS,
+    ALIGN_LOCAL_MIN_NEIGHBOURS,
+    ALIGN_LOCAL_RADIUS,
     ALIGN_MATCH_RATIO,
     ALIGN_MIN_LANDMARK_FRACTION,
     ALIGN_MIN_LANDMARKS,
@@ -57,6 +59,7 @@ log = logging.getLogger(__name__)
 # Two reference words further apart than this on an axis cannot pin that axis' scale.
 _MIN_SPREAD = 0.12
 _RANSAC_SEED = 1  # fixed: the same page must always align the same way
+_MIN_EXTENT = 0.002  # narrowest a mapped box may be, as a page fraction
 
 
 @dataclass(frozen=True)
@@ -92,7 +95,9 @@ def read_page_words(image: Image.Image) -> list[PageWord]:
     return words
 
 
-@dataclass(frozen=True)
+# eq=False: the matched-landmark rows are a numpy array, which makes a generated __eq__ return an array
+# and a generated __hash__ raise; an Alignment is compared by identity, like the page it describes.
+@dataclass(frozen=True, eq=False)
 class Alignment:
     """Template frame -> this page. page = scale * template + shift, per axis, plus a local nudge."""
 
@@ -110,18 +115,32 @@ class Alignment:
         x0, y0, x1, y1 = box
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         rows = self._rows
-        near = rows[np.argsort(np.hypot(rows[:, 0] - cx, rows[:, 1] - cy))[:ALIGN_LOCAL_NEIGHBOURS]]
-        dx = float(np.median(near[:, 2] - (self.sx * near[:, 0] + self.tx)))
-        dy = float(np.median(near[:, 3] - (self.sy * near[:, 1] + self.ty)))
+        dist = np.hypot(rows[:, 0] - cx, rows[:, 1] - cy)
+        order = np.argsort(dist)[:ALIGN_LOCAL_NEIGHBOURS]
+        near = order[dist[order] <= ALIGN_LOCAL_RADIUS]
+        dx = dy = 0.0
+        if len(near) >= ALIGN_LOCAL_MIN_NEIGHBOURS:
+            # Only landmarks close to THIS box say anything about its leftover, and a median of at least
+            # three outvotes one mismatched pair (a typed "bangkok" paired with an address word). A
+            # distance-weighted version with a two-landmark minimum let the nearest bad pair win and refused
+            # 4 of 10 labelled pages; this one refuses 1 (a different print) - see ALIGN_LOCAL_MIN_NEIGHBOURS.
+            dx = float(np.median(rows[near, 2] - (self.sx * rows[near, 0] + self.tx)))
+            dy = float(np.median(rows[near, 3] - (self.sy * rows[near, 1] + self.ty)))
 
         def clamp(v: float) -> float:
             return min(1.0, max(0.0, v))
 
-        nx0, nx1 = clamp(self.sx * x0 + self.tx + dx), clamp(self.sx * x1 + self.tx + dx)
-        ny0, ny1 = clamp(self.sy * y0 + self.ty + dy), clamp(self.sy * y1 + self.ty + dy)
-        # A box dragged against the page edge could collapse; keep it a valid (non-empty) box.
-        if nx1 - nx0 < 1e-4 or ny1 - ny0 < 1e-4:
-            return box
+        def at_least_a_sliver(lo: float, hi: float) -> tuple[float, float]:
+            # A box pushed past the page edge clamps to nothing. Keep a thin strip ON the edge rather than
+            # handing back the stored box: the strip reads blank and the field is flagged, where the stored
+            # box would read some other part of the page as if it were this field.
+            if hi - lo >= _MIN_EXTENT:
+                return lo, hi
+            lo = min(lo, 1.0 - _MIN_EXTENT)
+            return lo, lo + _MIN_EXTENT
+
+        nx0, nx1 = at_least_a_sliver(clamp(self.sx * x0 + self.tx + dx), clamp(self.sx * x1 + self.tx + dx))
+        ny0, ny1 = at_least_a_sliver(clamp(self.sy * y0 + self.ty + dy), clamp(self.sy * y1 + self.ty + dy))
         return (nx0, ny0, nx1, ny1)
 
     def summary(self) -> dict:

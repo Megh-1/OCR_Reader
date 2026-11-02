@@ -312,3 +312,57 @@ def test_real_waybills_that_were_refused_before_alignment_are_now_recognised(rel
 
     assert result.confirmed is True
     assert result.alignment is not None and result.alignment.landmarks >= 12
+
+
+# --- the local correction (config.ALIGN_LOCAL_*) -------------------------------------------------------------------------
+
+
+def alignment_with(rows):
+    """An identity fit (page = template) whose matched landmarks are `rows` = (template x, y, page x, y)."""
+    import numpy as np
+
+    from app.modules.alignment import Alignment
+
+    return Alignment(sx=1.0, tx=0.0, sy=1.0, ty=0.0, landmarks=len(rows), rms=0.0, matched=tuple(range(len(rows))), _rows=np.array(rows))
+
+
+BOX = (0.40, 0.40, 0.50, 0.42)
+
+
+def test_a_box_is_moved_by_the_median_of_three_or_more_landmarks_in_range():
+    a = alignment_with([(0.45, 0.35, 0.45, 0.36), (0.40, 0.45, 0.40, 0.46), (0.52, 0.41, 0.52, 0.42)])  # each 0.01 lower
+
+    assert a.map_box(BOX)[1] == pytest.approx(0.41, abs=1e-9)
+
+
+def test_one_mismatched_landmark_cannot_move_a_box_when_others_disagree():
+    """A typed word paired with the wrong occurrence of itself (0.019 off) is outvoted by two good pairs."""
+    a = alignment_with([(0.45, 0.35, 0.45, 0.369), (0.40, 0.45, 0.40, 0.45), (0.52, 0.41, 0.52, 0.41)])
+
+    assert a.map_box(BOX)[1] == pytest.approx(0.40, abs=1e-9)
+
+
+def test_fewer_than_three_landmarks_in_range_leave_the_box_on_the_global_fit():
+    a = alignment_with([(0.45, 0.35, 0.45, 0.37), (0.40, 0.45, 0.40, 0.47), (0.90, 0.90, 0.90, 0.95)])  # third is out of range
+
+    assert a.map_box(BOX) == pytest.approx(BOX)
+
+
+def test_a_box_pushed_past_the_page_edge_stays_a_strip_on_the_edge_not_the_stored_box():
+    from app.modules.alignment import Alignment
+    import numpy as np
+
+    a = Alignment(sx=1.0, tx=0.6, sy=1.0, ty=0.0, landmarks=3, rms=0.0, matched=(0, 1, 2), _rows=np.zeros((3, 4)))
+
+    x0, y0, x1, y1 = a.map_box((0.70, 0.10, 0.80, 0.20))
+
+    assert 0.0 <= x0 < x1 <= 1.0 and x0 > 0.99  # on the right edge, where it will read blank and be flagged
+    assert (x0, x1) != (0.70, 0.80)
+
+
+def test_an_alignment_can_be_hashed_and_compared_like_any_object():
+    a = alignment_with([(0.45, 0.35, 0.45, 0.36)])
+    b = alignment_with([(0.45, 0.35, 0.45, 0.36)])
+
+    assert {a: 1}[a] == 1
+    assert (a == a) is True and (a == b) is False

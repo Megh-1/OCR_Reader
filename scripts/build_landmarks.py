@@ -2,10 +2,16 @@
 Builds a template's page-alignment landmarks (app/modules/alignment.py) from real documents.
 
 A landmark is a printed word at a fixed place on the form. Words that are DATA on the reference
-page (names, cities, numbers) must not become landmarks, so the rule is: a reference word is kept
+page (names, cities, numbers) should not become landmarks, so the rule is: a reference word is kept
 only if it turns up at a consistent position on at least --min-docs OTHER documents of the same
-layout. Printed form text recurs across documents; one shipper's name does not. That also keeps
-the committed file free of anyone's details.
+layout. Printed form text recurs across documents; one shipper's name does not. That keeps one
+party's details out of the committed file.
+
+It does NOT keep out every typed word: text that one agent's system types at the same place on every
+document recurs too (the Bangkok-form file contains "suvarnabhum", the airport it types, and "bangkok" and
+"thailand", which also appear inside addresses). Such a word can pair with the wrong occurrence on a page, which
+is why alignment takes a local correction only from a MEDIAN of several nearby landmarks and never from one.
+Review the written word list before committing it.
 
 Each other document is first aligned to the reference using ALL the reference's words (the
 alignment's own outlier rejection ignores the data words), then every reference word it matched is

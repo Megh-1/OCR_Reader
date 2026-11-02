@@ -41,6 +41,8 @@ class IdentificationResult:
     # Set when the confirmed template's boxes were moved to fit this page (Module 6 must use the
     # same ones that verified it). None for a template without landmarks, or too few agreed.
     alignment: Optional[Alignment] = None
+    # Templates whose anchors also all passed but which lost to a more specific one (see _most_specific).
+    also_matched: list[str] = field(default_factory=list)
 
 
 def _score_anchor(image: Image.Image, anchor: TemplateAnchor) -> float:
@@ -69,16 +71,50 @@ def _check_template(
     With an `alignment`, each anchor is read where it sits on THIS page rather than where the
     template stored it."""
     scores: dict[str, float] = {}
-    all_passed = True
+    matched = 0
     for anchor in template.anchors:
         if alignment is not None:
             anchor = anchor.model_copy(update={"bbox": alignment.map_box(anchor.bbox)})
         score = _score_anchor(image, anchor)
         scores[anchor.text] = score
         # anchor.match_threshold is 0.0-1.0; fuzz.ratio is 0-100 - the *100 here is deliberate.
-        if score < anchor.match_threshold * 100:
-            all_passed = False
-    return all_passed, scores
+        if score >= anchor.match_threshold * 100:
+            matched += 1
+    # every anchor, unless the template says that fewer are enough (TemplateHints.min_anchors_matching, never below 2)
+    required = template.hints.min_anchors_matching or len(template.anchors)
+    return matched >= min(required, len(template.anchors)), scores
+
+
+ANCHOR_SAME_TEXT = 90  # fuzz.ratio: two anchors read as the same printed label
+ANCHOR_SAME_PLACE = 0.02  # page fractions: ...at the same place
+
+
+def _same_anchor(a: TemplateAnchor, b: TemplateAnchor) -> bool:
+    ax, ay = (a.bbox[0] + a.bbox[2]) / 2, (a.bbox[1] + a.bbox[3]) / 2
+    bx, by = (b.bbox[0] + b.bbox[2]) / 2, (b.bbox[1] + b.bbox[3]) / 2
+    return (
+        abs(ax - bx) <= ANCHOR_SAME_PLACE
+        and abs(ay - by) <= ANCHOR_SAME_PLACE
+        and fuzz.ratio(" ".join(a.text.split()).lower(), " ".join(b.text.split()).lower()) >= ANCHOR_SAME_TEXT
+    )
+
+
+def _contains(big: TemplateOut, small: TemplateOut) -> bool:
+    """`big` is a more specific form of `small`: every anchor `small` checks, `big` checks too (same label, same place),
+    and `big` checks more."""
+    return len(big.anchors) > len(small.anchors) and all(any(_same_anchor(b, s) for b in big.anchors) for s in small.anchors)
+
+
+def _most_specific(matches: list[tuple[TemplateOut, Optional[Alignment]]]) -> Optional[tuple[TemplateOut, Optional[Alignment]]]:
+    """
+    When several templates pass, the page is one of them only if ONE of them is the others' superset: a whole form
+    and a part cut from it both pass a whole page, and the page is the whole. Any other overlap (two vendors' forms
+    sharing boilerplate, equal anchor sets) is not a ranking question and stays ambiguous: never a pick.
+    """
+    for candidate in matches:
+        if all(candidate is other or _contains(candidate[0], other[0]) for other in matches):
+            return candidate
+    return None
 
 
 def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) -> IdentificationResult:
@@ -148,8 +184,9 @@ def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) 
         if passed:
             matches.append((template, alignment))
 
-    if len(matches) == 1:
-        template, alignment = matches[0]
+    winner = matches[0] if len(matches) == 1 else _most_specific(matches) if matches else None
+    if winner is not None:
+        template, alignment = winner
         return IdentificationResult(
             confirmed=True,
             template_id=template.template_id,
@@ -157,6 +194,7 @@ def identify_document_type(image_bytes: bytes, type_hint: Optional[str] = None) 
             reason=None,
             per_anchor_scores=per_anchor_scores,
             alignment=alignment,
+            also_matched=[t.template_id for t, _ in matches if t is not template],
         )
     if len(matches) == 0:
         return IdentificationResult(

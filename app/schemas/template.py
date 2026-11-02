@@ -113,6 +113,20 @@ class TemplateHints(BaseModel):
     full template too. A hint still has to pass this template's own anchors.
     """
 
+    is_part: bool = False
+    """
+    This template reads only PART of a layout (for example the shipper block of a waybill). It is its own
+    template and refers to no other. Left to automatic detection (hint_only False) it must carry at least two
+    anchors: one shared printed label would let it claim pages that belong to the whole form.
+    """
+
+    min_anchors_matching: Optional[int] = PydField(default=None, ge=2)
+    """
+    Recognise a page when at least this many of the template's anchors match, instead of all of them. For a form whose
+    printed labels are sometimes smudged, cut off or misread. Unset (the default) keeps the strict rule: every anchor must
+    match. At least 2, and no more than the template has: one matching label alone never recognises a page.
+    """
+
     ruled_form: bool = False
     """
     Whether this document is a ruled grid form (air waybill, invoice table,
@@ -217,6 +231,16 @@ class TemplateIn(BaseModel):
         known = {f.id for f in self.fields}
         seen: set[str] = set()
         problems = []
+        if self.hints.min_anchors_matching is not None and self.hints.min_anchors_matching > len(self.anchors):
+            problems.append(f"min_anchors_matching ({self.hints.min_anchors_matching}) is more than the {len(self.anchors)} anchors this template has")
+        if self.hints.is_part and not self.hints.hint_only and len(self.anchors) < 2:
+            problems.append("a part-template left to automatic detection needs at least 2 anchors (or tick 'only use when I choose it')")
+        derived = {f.id for f in self.fields if f.from_field is not None}
+        for f in self.fields:
+            if f.from_field is not None and f.from_field not in known:
+                problems.append(f"field {f.id!r} reads from {f.from_field!r}, which this template does not have")
+            elif f.from_field in derived:
+                problems.append(f"field {f.id!r} reads from {f.from_field!r}, which is itself derived (no chains)")
         for check in self.checks:
             if not _CHECK_ID.match(check.id):
                 problems.append(f"check id {check.id!r} must match ^[a-z][a-z0-9_]*$")

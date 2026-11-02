@@ -27,6 +27,7 @@ from app.modules.field_extraction import FieldExtractionResult, extract_fields, 
 from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
+from app.modules import trust
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
@@ -207,6 +208,29 @@ def process_page(
     summary = validate_fields(template, extraction.fields)
 
     compiled = compile_output(identification.template_id, identification.version, summary)
+
+    # Audited auto-approval: a spot check on a field whose values a person has checked enough (trust.py) is approved
+    # as auto, bar a random few that still go to a person. Decided BEFORE the result is stored so the stored tier is
+    # the final one, and recorded in auto_basis so it is never mistaken for a Module 7 auto.
+    template_fields = {f.id: f for f in template.fields}
+
+    def spot_why(field_id: str, accepted) -> str:
+        return (
+            "blank_optional" if template_fields[field_id].optional and not accepted.value.strip()
+            else "below_auto_threshold" if has_validator(template_fields[field_id]) else "no_validator"
+        )
+
+    spot_checks = {fid: acc for fid, acc in summary.accepted.items() if acc.approval_tier == "spot_check"}
+    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks else frozenset()
+    audited: set[str] = set()
+    for field_id, accepted in spot_checks.items():
+        if field_id in trusted and spot_why(field_id, accepted) in trust.TRUSTABLE_WHY and accepted.value.strip():
+            if trust.audit_this():
+                audited.add(field_id)
+            else:
+                compiled.fields[field_id].approval_tier = "auto"
+                compiled.fields[field_id].auto_basis = "trusted_field"
+
     # Store the grayscale rendering, not the binarized one - this is what a
     # human reviewer will look at.
     result_id = persist_result(compiled, page_image=make_review_render(extraction.review_image_bytes))
@@ -215,14 +239,10 @@ def process_page(
         enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons, flagged.confidence)
         for field_id, flagged in summary.flagged.items()
     ]
-    template_fields = {f.id: f for f in template.fields}
     spot_check_ids = [
-        enqueue_spot_check(
-            result_id, field_id, accepted.value, accepted.confidence,
-            "below_auto_threshold" if has_validator(template_fields[field_id]) else "no_validator",
-        )
-        for field_id, accepted in summary.accepted.items()
-        if accepted.approval_tier == "spot_check"
+        enqueue_spot_check(result_id, field_id, accepted.value, accepted.confidence, spot_why(field_id, accepted), audit=field_id in audited)
+        for field_id, accepted in spot_checks.items()
+        if compiled.fields[field_id].approval_tier == "spot_check"
     ]
 
     return PageResult(

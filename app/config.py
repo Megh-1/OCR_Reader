@@ -389,6 +389,20 @@ DIGIT_WHITELIST_PSM: int = 7
 # Real photographed waybills are unmeasured.
 CONFIDENCE_AUTO_APPROVE_THRESHOLD: float = 0.90
 
+# Audited auto-approval (app/modules/trust.py). A field whose spot checks have been looked at by a person ONE AT A
+# TIME often enough, with few enough changes, that the exact upper bound on its error rate is at or under
+# TRUST_TARGET_ERROR_RATE (at TRUST_CONFIDENCE), stops sending its spot checks to the queue: they are approved as
+# `auto` (auto_basis "trusted_field"), except a random TRUST_AUDIT_FRACTION that still goes to a person. Those audits
+# keep the evidence current, so one wrong value found raises the bound and takes the trust away on its own.
+# At 1 in 10,000 and 95% it takes 29,956 clean checks of a field, so nothing is trusted until a person has really
+# checked that many; 0.05 is the share of a trusted field kept under audit, a starting figure to re-measure.
+# TRUST_CACHE_SECONDS only spares the database one aggregate query per page.
+AUDITED_AUTO_APPROVAL: bool = os.environ.get("AUDITED_AUTO_APPROVAL", "1") != "0"
+TRUST_TARGET_ERROR_RATE: float = float(os.environ.get("TRUST_TARGET_ERROR_RATE", "0.0001"))
+TRUST_CONFIDENCE: float = 0.95
+TRUST_AUDIT_FRACTION: float = float(os.environ.get("TRUST_AUDIT_FRACTION", "0.05"))
+TRUST_CACHE_SECONDS: float = 30.0
+
 # Threads each Tesseract PROCESS may use (its OpenMP OMP_THREAD_LIMIT). This matters far
 # more than it looks, and only on Linux. Every field read is its own Tesseract process
 # and a document runs FIELD_OCR_WORKERS of them at once; left alone, each also starts

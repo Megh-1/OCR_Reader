@@ -28,6 +28,7 @@ from app.config import REVIEW_IMAGE_JPEG_QUALITY, REVIEW_IMAGE_MAX_WIDTH
 from app.db import SessionLocal
 from app.models.extraction_result import ExtractionResultRecord
 from app.models.review_queue import ReviewQueueRecord
+from app.modules.trust import clear_trust_cache
 from app.modules.validation import ValidationSummary
 from app.schemas.extraction_result import CompiledResult, FieldResult, FieldValueUpdate
 
@@ -193,6 +194,7 @@ def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) 
 
         updated_fields = dict(record.fields)
         updated_field = dict(updated_fields[field_id])
+        machine_value = updated_field["value"]
         updated_field["value"] = body.value
         updated_field["needs_review"] = False
         updated_fields[field_id] = updated_field
@@ -212,6 +214,24 @@ def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) 
                 row.status = "resolved"
                 row.resolved_at = datetime.now(timezone.utc)
                 row.resolution = {"entry_type": row.entry_type, "confirmed_value": body.value}
+
+        # A value approved as `auto` because its field was trusted, and then corrected by a person, is exactly the
+        # error the trust has to hear about. It has no queue entry to resolve, so one is written already resolved:
+        # that is what trust.py counts.
+        if (
+            updated_field.get("auto_basis") == "trusted_field"
+            and " ".join(body.value.split()) != " ".join(machine_value.split())
+        ):
+            session.add(ReviewQueueRecord(
+                entry_type="spot_check", status="resolved", created_at=datetime.now(timezone.utc),
+                resolved_at=datetime.now(timezone.utc),
+                payload={"entry_type": "spot_check", "extraction_result_id": result_id, "field_id": field_id,
+                         "original_value": machine_value, "confidence": updated_field.get("confidence") or 0.0,
+                         "why": "below_auto_threshold", "audit": False},
+                resolution={"entry_type": "spot_check", "confirmed_value": body.value, "via": "single"},
+            ))
+            updated_field["auto_basis"] = None  # a person has now set this value; it no longer rests on the trust
+            clear_trust_cache()
 
         session.commit()  # one transaction: the result write and any queue resolution land together
         return FieldResult(**updated_field)

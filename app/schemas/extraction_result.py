@@ -16,6 +16,9 @@ class FieldResult(BaseModel):
     # resolving a flagged field clears needs_review but leaves this as the machine's
     # own call. None only on results stored before tiers existed.
     approval_tier: Optional[Literal["auto", "spot_check", "review"]] = None
+    # Set when a field that would have been a spot check was approved as `auto` because a person has checked
+    # enough of this field's values to show its error rate is under the target (app/modules/trust.py).
+    auto_basis: Optional[Literal["trusted_field"]] = None
 
 
 class CompiledResult(BaseModel):

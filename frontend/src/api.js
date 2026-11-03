@@ -70,7 +70,8 @@ export function correctResultField(resultId, fieldId, value) {
 }
 
 // --- review queue (Module 9) ---------------------------------------------------------
-export const listReviewQueue = (status = 'pending') => requestJson(`/review?status=${encodeURIComponent(status)}`);
+export const listReviewQueue = (status = 'pending', batchId = null) =>
+  requestJson(`/review?status=${encodeURIComponent(status)}${batchId ? `&batch_id=${encodeURIComponent(batchId)}` : ''}`);
 
 export function resolveFieldReview(queueId, confirmedValue) {
   return requestJson(`/review/${queueId}`, {
@@ -111,7 +112,20 @@ export const testCheck = (templateId, check) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ template_id: templateId, check }),
   });
-export const getReviewGroups = (by, limit = 50, offset = 0) => requestJson(`/review/groups?by=${by}&limit=${limit}&offset=${offset}`);
+export const getReviewGroups = (by, { batchId = null, includeRejected = false, limit = 50, offset = 0 } = {}) =>
+  requestJson(
+    `/review/groups?by=${by}&limit=${limit}&offset=${offset}${batchId ? `&batch_id=${encodeURIComponent(batchId)}` : ''}${includeRejected ? '&include_rejected=true' : ''}`,
+  );
+
+const postJson = (url, body) => requestJson(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+/** One typed value for every entry of a group; the server holds a random sample back and checks the field's format rule. */
+export const bulkCorrect = (entryIds, correctedValue) => postJson('/review/bulk-correct', { entry_ids: entryIds, corrected_value: correctedValue });
+/** What the vision model read and an independent check backed: the server picks them, the client only asks how many. */
+export const getAgreed = (batchId = null) => requestJson(`/review/agreed${batchId ? `?batch_id=${encodeURIComponent(batchId)}` : ''}`);
+export const acceptAgreed = (batchId = null) => postJson('/review/accept-agreed', batchId ? { batch_id: batchId } : {});
+/** Permanent deletes; the server refuses without confirm. Resolved review entries (the trust evidence) are kept. */
+export const clearReviewQueue = (batchId = null) => postJson('/review/clear', { confirm: true, ...(batchId ? { batch_id: batchId } : {}) });
+export const clearHistory = () => postJson('/documents/history/clear', { confirm: true });
 export const bulkAccept = (entryIds, auditFraction) =>
   requestJson('/review/bulk', {
     method: 'POST',

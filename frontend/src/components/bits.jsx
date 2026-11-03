@@ -37,7 +37,7 @@ export function PageHeader({ title, children, meta }) {
         <h1 className="text-xl text-foreground">{title}</h1>
         {meta && <p className="mt-1 max-w-prose text-sm text-foreground-secondary">{meta}</p>}
       </div>
-      {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
+      {children && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div>}
     </header>
   );
 }

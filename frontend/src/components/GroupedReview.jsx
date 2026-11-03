@@ -1,6 +1,6 @@
-import { CheckCheck, Layers, ShieldCheck } from 'lucide-react';
+import { CheckCheck, Layers, Pencil, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { bulkAccept, errorLines, getReviewEvidence, getReviewGroups, getTemplateVersion, resolveFieldReview, resultImageUrl } from '@/api';
+import { bulkAccept, bulkCorrect, errorLines, getReviewEvidence, getReviewGroups, getTemplateVersion, resolveFieldReview, resultImageUrl } from '@/api';
 import { EmptyState } from '@/components/bits';
 import { FieldCrop } from '@/components/FieldCrop';
 import { Badge } from '@/components/ui/badge';
@@ -38,7 +38,7 @@ function useTemplates() {
 
 const fieldOf = (templates, g, fieldId) => templates[`${g.template_id}@${g.template_version}`]?.fields?.find((f) => f.id === fieldId);
 
-export default function GroupedReview({ onQueueChange }) {
+export default function GroupedReview({ batchId = null, onQueueChange }) {
   const [tab, setTab] = useState('value');
   const [data, setData] = useState({ state: 'loading', by: 'value', groups: [], total: 0 });
   const [evidence, setEvidence] = useState(null);
@@ -52,13 +52,14 @@ export default function GroupedReview({ onQueueChange }) {
         setEvidence(await getReviewEvidence());
         return;
       }
-      const out = await getReviewGroups(tab);
+      // The value view also lists what Module 7 rejected: a repeated wrong read is what one correction should fix.
+      const out = await getReviewGroups(tab, { batchId, includeRejected: tab === 'value' });
       setData({ state: 'ready', by: tab, groups: out.groups, total: out.total });
       needTemplates(out.groups);
     } catch {
       setData({ state: 'error', by: tab, groups: [], total: 0 });
     }
-  }, [tab, needTemplates]);
+  }, [tab, batchId, needTemplates]);
 
   useEffect(() => {
     setNote(null);
@@ -132,6 +133,7 @@ export default function GroupedReview({ onQueueChange }) {
 
 function ValueGroup({ group: g, templates, onChanged }) {
   const [showAll, setShowAll] = useState(false);
+  const [fix, setFix] = useState(g.value);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const field = fieldOf(templates, g, g.field_id);
@@ -152,6 +154,20 @@ function ValueGroup({ group: g, templates, onChanged }) {
     }
   }
 
+  async function correctAll() {
+    setBusy(true);
+    setError(null);
+    try {
+      const out = await bulkCorrect(g.entry_ids, fix.trim());
+      await onChanged(
+        `Set ${field?.label ?? g.field_id} to “${out.value}” on ${out.corrected.length} documents. ${out.held_for_audit.length} chosen at random stay in the queue unchanged: check those one by one.`,
+      );
+    } catch (err) {
+      setError(errorLines(err).join('; '));
+      setBusy(false);
+    }
+  }
+
   return (
     <Card className="overflow-hidden">
       <CardHeader>
@@ -159,8 +175,8 @@ function ValueGroup({ group: g, templates, onChanged }) {
           {field?.label ?? g.field_id}
           <span className="ml-2 font-normal text-foreground-secondary">{g.template_id}</span>
         </CardTitle>
-        <Badge tone="warning" size="sm">
-          {g.count} documents · lowest confidence {fmtConf(g.min_confidence)}
+        <Badge tone={g.accept_ok ? 'warning' : 'danger'} size="sm">
+          {g.count} documents · {g.accept_ok ? `lowest confidence ${fmtConf(g.min_confidence)}` : 'includes values that failed a check'}
         </Badge>
       </CardHeader>
       <div className="flex flex-col gap-4 p-4">
@@ -181,13 +197,35 @@ function ValueGroup({ group: g, templates, onChanged }) {
           </Button>
         )}
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="primary" disabled={busy || !field} onClick={acceptAll}>
+          <Button variant="primary" disabled={busy || !field || !g.accept_ok} onClick={acceptAll}>
             <Layers /> Accept all {g.count}
           </Button>
           <span className="text-xs text-foreground-secondary">
-            {audit} chosen at random stay in the queue as an audit sample, so what is accepted here is still measured.
+            {g.accept_ok
+              ? `${audit} chosen at random stay in the queue as an audit sample, so what is accepted here is still measured.`
+              : 'Some of these failed a check, so they cannot be accepted as they are. Correct them together below.'}
           </span>
         </div>
+        <form
+          className="flex flex-col gap-2 border-t border-border pt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            correctAll();
+          }}
+        >
+          <label className="label flex flex-col gap-1" htmlFor={`fix-${g.entry_ids[0]}`}>
+            Not what the crops show? Set the right value for all {g.count}
+          </label>
+          <div className="flex gap-2">
+            <Input id={`fix-${g.entry_ids[0]}`} mono value={fix} onChange={(e) => setFix(e.target.value)} />
+            <Button type="submit" variant="outline" disabled={busy || !field || !fix.trim() || fix.trim() === g.value}>
+              <Pencil /> Correct all {g.count}
+            </Button>
+          </div>
+          <p className="text-xs text-foreground-secondary">
+            The value must match this field’s format rule. A random {audit} stay unchanged for a proper look, and corrections made together do not count as checks of the system.
+          </p>
+        </form>
         {error && (
           <p role="alert" className="text-xs text-danger">
             {error}

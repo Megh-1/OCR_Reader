@@ -1,9 +1,13 @@
-import { ArrowDown, ArrowUp, Check, CheckCheck, FileQuestion, Info, Pencil, ShieldAlert, ShieldCheck, ShieldOff } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, CheckCheck, FileQuestion, Info, Pencil, ShieldAlert, ShieldCheck, ShieldOff, Sparkles, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  acceptAgreed,
+  clearReviewQueue,
   errorLines,
+  getAgreed,
   getExtractionResult,
   getTemplateVersion,
+  listBatches,
   listReviewQueue,
   resolveFieldReview,
   resolveNewTemplateNeeded,
@@ -11,6 +15,7 @@ import {
 } from '@/api';
 import { EmptyState, PageHeader } from '@/components/bits';
 import { ConfidenceGauge } from '@/components/ConfidenceGauge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FieldCrop } from '@/components/FieldCrop';
 import GroupedReview from '@/components/GroupedReview';
 import { TierBadge, TierMark } from '@/components/TierBadge';
@@ -18,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, Kbd } from '@/components/ui/card';
 import { Input, Label } from '@/components/ui/input';
+import { navigate } from '@/lib/nav';
 import { AUTO_THRESHOLD, reasonText, SPOT_WHY } from '@/lib/tiers';
 import { cn, fmtConf, timeAgo } from '@/lib/utils';
 
@@ -53,7 +59,30 @@ const FILTERS = [
   ['spot_check', 'Spot check'],
 ];
 
-export default function ReviewQueue({ onQueueChange }) {
+/**
+ * Which uploads the screen is about. `#/review/<batch id>` is one upload, `#/review/all` is everything still waiting, and a bare
+ * `#/review` opens the newest upload, so a person who has just processed a batch sees that batch's queue and nothing older.
+ */
+function useScope(param) {
+  const [latest, setLatest] = useState({ state: param ? 'ready' : 'loading', id: null });
+  useEffect(() => {
+    if (param) return;
+    listBatches(1)
+      .then((b) => setLatest({ state: 'ready', id: b[0]?.batch_id ?? null }))
+      .catch(() => setLatest({ state: 'ready', id: null }));
+  }, [param]);
+  if (param === 'all') return { ready: true, batchId: null, all: true };
+  if (param) return { ready: true, batchId: param, all: false };
+  return { ready: latest.state === 'ready', batchId: latest.id, all: latest.id == null };
+}
+
+export default function ReviewQueue({ param, onQueueChange }) {
+  const scope = useScope(param);
+  const batchId = scope.batchId;
+  const [confirm, setConfirm] = useState(null); // 'clear' | 'agreed' | null
+  const [working, setWorking] = useState(false);
+  const [agreed, setAgreed] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [entries, setEntries] = useState([]);
   const [loadState, setLoadState] = useState('loading');
   const [selectedId, setSelectedId] = useState(null);
@@ -64,17 +93,44 @@ export default function ReviewQueue({ onQueueChange }) {
   const fetched = useRef(new Set());
 
   const load = useCallback(async () => {
+    if (!scope.ready) return;
     try {
-      setEntries(await listReviewQueue('pending'));
+      const [list, count] = await Promise.all([listReviewQueue('pending', batchId), getAgreed(batchId).catch(() => null)]);
+      setEntries(list);
+      setAgreed(count);
       setLoadState('ready');
     } catch {
       setLoadState('error');
     }
-  }, []);
+  }, [scope.ready, batchId]);
 
   useEffect(() => {
+    setLoadState('loading');
     load();
   }, [load]);
+
+  async function runConfirmed() {
+    setWorking(true);
+    try {
+      if (confirm === 'clear') {
+        const out = await clearReviewQueue(batchId);
+        setNotice(`Removed ${out.deleted} waiting item${out.deleted === 1 ? '' : 's'}. Anything already checked was kept.`);
+      } else {
+        const out = await acceptAgreed(batchId);
+        setNotice(
+          `Accepted ${out.accepted.length} agreed value${out.accepted.length === 1 ? '' : 's'}. ${out.held_for_audit.length} chosen at random stay below for you to check one by one.`,
+        );
+      }
+      setConfirm(null);
+      await load();
+      onQueueChange?.();
+    } catch (err) {
+      setNotice(errorLines(err).join('; '));
+      setConfirm(null);
+    } finally {
+      setWorking(false);
+    }
+  }
 
   // Every row wants its document's template; fetch each result (and its exact template version) once.
   useEffect(() => {
@@ -138,10 +194,30 @@ export default function ReviewQueue({ onQueueChange }) {
         title="Review"
         meta={
           entries.length
-            ? `${counts.all} value${counts.all === 1 ? '' : 's'} waiting for a person. This session: ${tally.accepted} accepted, ${tally.corrected} corrected.`
+            ? `${counts.all} value${counts.all === 1 ? '' : 's'} waiting for a person${scope.all ? ' across every upload' : ' from this upload'}. This session: ${tally.accepted} accepted, ${tally.corrected} corrected.`
             : 'Values the system is not sure about are listed here for a person to confirm or correct.'
         }
       >
+        {batchId && (
+          <div role="group" aria-label="Which uploads" className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
+            {[
+              [false, 'This upload'],
+              [true, 'All uploads'],
+            ].map(([all, label]) => (
+              <button
+                key={label}
+                aria-pressed={scope.all === all}
+                onClick={() => navigate('review', all ? 'all' : batchId)}
+                className={cn(
+                  'flex h-8 items-center rounded-sm px-3 text-sm font-medium transition-colors',
+                  scope.all === all ? 'bg-primary-surface text-primary-text' : 'text-foreground-secondary hover:bg-surface-sunken hover:text-foreground',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <div role="group" aria-label="How to review" className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
           {[
             ['one', 'One by one'],
@@ -176,11 +252,61 @@ export default function ReviewQueue({ onQueueChange }) {
             </button>
           ))}
         </div>
+        <Button variant="ghost" disabled={entries.length === 0} onClick={() => setConfirm('clear')}>
+          <Trash2 /> Clear queue
+        </Button>
       </PageHeader>
+
+      {(agreed?.count > 0 || notice) && (
+        <div role="status" className="flex flex-wrap items-center gap-3 border-b border-border bg-surface-sunken px-6 py-3 text-sm">
+          {agreed?.count > 0 && (
+            <>
+              <Sparkles className="size-4 shrink-0 text-primary-text" aria-hidden />
+              <p className="min-w-0 flex-1 text-foreground">
+                <strong>{agreed.count} value{agreed.count === 1 ? '' : 's'}</strong> were read by the model and backed by an independent check.
+                {notice && <span className="ml-2 text-foreground-secondary">{notice}</span>}
+              </p>
+              <Button variant="primary" size="sm" onClick={() => setConfirm('agreed')}>
+                <CheckCheck /> Accept agreed values
+              </Button>
+            </>
+          )}
+          {!agreed?.count && notice && <p className="text-foreground-secondary">{notice}</p>}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirm === 'clear'}
+        title={scope.all ? 'Clear the whole review queue?' : 'Clear this upload’s review queue?'}
+        confirmLabel={`Remove ${entries.length} waiting item${entries.length === 1 ? '' : 's'}`}
+        tone="danger"
+        busy={working}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirm(null)}
+      >
+        <p>This permanently removes every item still waiting{scope.all ? '' : ' from this upload'}. It cannot be undone.</p>
+        <p>Documents and their extracted values stay on the Results screen, and values you already checked are kept, because they are the evidence the system has of its own accuracy.</p>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={confirm === 'agreed'}
+        title={`Accept ${agreed?.count ?? 0} agreed values?`}
+        confirmLabel="Accept agreed values"
+        busy={working}
+        onConfirm={runConfirmed}
+        onCancel={() => setConfirm(null)}
+      >
+        <p>
+          These were read by the trained vision model, and either a second, independent reader returned the same text or an arithmetic rule of the document held (a check digit, weight × rate, charges that add up). Each also passes its format rule.
+        </p>
+        <p>
+          That is evidence, not proof. On the 50-document test batch about 1 in 200 such values was still wrong (4 of 797), which is far from the 1-in-10,000 target, so this is a shortcut for you, not an automatic approval. A random 10% stays in the queue for you to check one by one, and every accepted value can still be corrected on Results.
+        </p>
+      </ConfirmDialog>
 
       {view === 'grouped' && (
         <div className="min-h-0 flex-1">
           <GroupedReview
+            batchId={batchId}
             onQueueChange={() => {
               load();
               onQueueChange?.();

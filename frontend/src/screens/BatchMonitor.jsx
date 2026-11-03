@@ -1,7 +1,8 @@
-import { ArrowUpRight, FileImage, FileText, Play, TriangleAlert, Upload, X } from 'lucide-react';
+import { ArrowUpRight, FileImage, FileText, Inbox, Play, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { errorLines, getBatchStatus, listBatches, listTemplates, submitBatch } from '@/api';
+import { clearHistory, errorLines, getBatchStatus, listBatches, listReviewQueue, listTemplates, submitBatch } from '@/api';
 import { EmptyState, PageHeader, Readout, TierBar } from '@/components/bits';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { StatusPill } from '@/components/StatusPill';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -71,9 +72,32 @@ export default function BatchMonitor({ param, onQueueChange }) {
   const [error, setError] = useState(null);
   const [batch, setBatch] = useState(null);
   const [recent, setRecent] = useState([]);
+  const [notice, setNotice] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [waiting, setWaiting] = useState(null); // review items this upload left
   const inputRef = useRef(null);
   const batchId = param;
+
+  async function runClear() {
+    setClearing(true);
+    try {
+      const out = await clearHistory();
+      setConfirmClear(false);
+      setBatch(null);
+      setRecent([]);
+      setError(null);
+      setNotice(`Cleared ${out.batches} upload${out.batches === 1 ? '' : 's'}, ${out.documents} documents and ${out.results} results.`);
+      if (batchId) navigate('batch');
+      onQueueChange?.();
+    } catch (err) {
+      setConfirmClear(false);
+      setError(errorLines(err).join('; '));
+    } finally {
+      setClearing(false);
+    }
+  }
 
   useEffect(() => {
     listTemplates().then((t) => setTemplates(t.sort())).catch(() => setTemplates([]));
@@ -118,6 +142,14 @@ export default function BatchMonitor({ param, onQueueChange }) {
   }, [batchId, refreshRecent, onQueueChange]);
 
   const live = batch && !TERMINAL.includes(batch.status);
+  const finished = batch && TERMINAL.includes(batch.status);
+  useEffect(() => {
+    if (!finished) {
+      setWaiting(null);
+      return;
+    }
+    listReviewQueue('pending', batch.batch_id).then((e) => setWaiting(e.length)).catch(() => setWaiting(null));
+  }, [finished, batch?.batch_id]);
   useEffect(() => {
     if (!live) return undefined;
     const t = setInterval(() => setNow(Date.now()), 250);
@@ -163,7 +195,28 @@ export default function BatchMonitor({ param, onQueueChange }) {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Upload" meta="Add your documents, choose what kind they are (or let the system detect it), then watch each one finish." />
+      <PageHeader title="Upload" meta="Add your documents, choose what kind they are (or let the system detect it), then watch each one finish.">
+        <Button variant="ghost" disabled={recent.length === 0 || live} title={live ? 'Wait for the running upload to finish' : undefined} onClick={() => setConfirmClear(true)}>
+          <Trash2 /> Clear history
+        </Button>
+      </PageHeader>
+      <ConfirmDialog
+        open={confirmClear}
+        title="Clear all upload history?"
+        confirmLabel="Clear history"
+        tone="danger"
+        busy={clearing}
+        onConfirm={runClear}
+        onCancel={() => setConfirmClear(false)}
+      >
+        <p>This permanently removes every upload, its documents, extracted results and anything still waiting in Review. It cannot be undone.</p>
+        <p>Values you already checked in Review are kept, with the results they belong to, because they are the evidence the system has of its own accuracy.</p>
+      </ConfirmDialog>
+      {notice && (
+        <p role="status" className="border-b border-border bg-surface-sunken px-6 py-2 text-sm text-foreground-secondary">
+          {notice}
+        </p>
+      )}
 
       <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[384px_minmax(0,1fr)] lg:overflow-visible">
         <section aria-label="Upload documents" className="scroll-thin flex min-h-0 flex-col gap-4 border-border bg-surface p-6 lg:overflow-y-auto lg:border-r">
@@ -302,6 +355,13 @@ export default function BatchMonitor({ param, onQueueChange }) {
                 <h2 className="text-lg text-foreground">Upload from {timeAgo(batch.created_at)}</h2>
                 <Badge tone={live ? 'primary' : (BATCH_TONE[batch.status] ?? 'neutral')}>{batchStatusLabel(batch.status)}</Badge>
                 {batch.type_hint && <span className="text-sm text-foreground-secondary">Type: {batch.type_hint}</span>}
+                {finished && waiting != null && (
+                  <Button asChild variant={waiting > 0 ? 'primary' : 'outline'} size="sm" className="ml-auto">
+                    <a href={`#/review/${batch.batch_id}`}>
+                      <Inbox /> {waiting > 0 ? `Review ${waiting} value${waiting === 1 ? '' : 's'} from this upload` : 'Nothing to review'}
+                    </a>
+                  </Button>
+                )}
               </div>
 
               <Card className="flex flex-col gap-4 p-4">

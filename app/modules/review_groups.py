@@ -283,6 +283,51 @@ def _value_groups(rows, results, include_rejected: bool = False) -> list[dict]:
     return groups
 
 
+def _entry_view(r, payload) -> dict:
+    return {
+        "id": r.id,
+        "result_id": payload.extraction_result_id,
+        "entry_type": r.entry_type,
+        "value": payload.original_value,
+        "confidence": payload.confidence,
+        "reasons": getattr(payload, "reasons", []),
+        "why": getattr(payload, "why", None),
+        "reader": getattr(payload, "reader", None),
+        "audit": getattr(payload, "audit", False),
+        "bulk_ok": bulk_refusal(r) is None,
+    }
+
+
+def _field_groups(rows, results) -> list[dict]:
+    """Every pending value of one field of one template version, across documents: the column a reviewer can scan
+    in one go (same crop, same kind of value), the cheapest way for a person to look at many values."""
+    buckets: dict[tuple, list] = defaultdict(list)
+    for r in rows:
+        if r.entry_type not in VALUE_ENTRY_TYPES:
+            continue
+        payload = (FieldReviewPayload if r.entry_type == "field_review" else SpotCheckPayload).model_validate(r.payload)
+        res = results.get(payload.extraction_result_id)
+        if res is not None:
+            buckets[(res.template_id, res.template_version, payload.field_id)].append(_entry_view(r, payload))
+    groups = []
+    for (template_id, version, field_id), entries in buckets.items():
+        # values Module 7 rejected first (they cannot be accepted as they are), then the least confident
+        entries.sort(key=lambda e: (e["entry_type"] != "field_review", e["confidence"] or 0, e["id"]))
+        groups.append(
+            {
+                "kind": "field",
+                "template_id": template_id,
+                "template_version": version,
+                "field_id": field_id,
+                "count": len(entries),
+                "needs_person": sum(1 for e in entries if not e["bulk_ok"]),
+                "entries": entries,
+            }
+        )
+    groups.sort(key=lambda g: (-g["needs_person"], -g["count"], g["template_id"], g["field_id"]))
+    return groups
+
+
 def _document_groups(rows, results) -> list[dict]:
     by_doc: dict[int, list] = defaultdict(list)
     for r in rows:
@@ -327,7 +372,7 @@ def _document_groups(rows, results) -> list[dict]:
 
 @router.get("/review/groups")
 def review_groups(
-    by: str = Query("value", pattern="^(value|document)$"),
+    by: str = Query("value", pattern="^(value|document|field)$"),
     template_id: Optional[str] = None,
     batch_id: Optional[str] = None,
     include_rejected: bool = False,
@@ -343,7 +388,9 @@ def review_groups(
                 raise HTTPException(status_code=404, detail=str(exc))
             rows = [r for r in rows if scope.holds(r.entry_type, r.id, r.payload)]
         results = _results_by_id(session, {r.payload["extraction_result_id"] for r in rows})
-    groups = _value_groups(rows, results, include_rejected) if by == "value" else _document_groups(rows, results)
+    groups = (
+        _value_groups(rows, results, include_rejected) if by == "value" else _field_groups(rows, results) if by == "field" else _document_groups(rows, results)
+    )
     if template_id is not None:
         groups = [g for g in groups if g["template_id"] == template_id]
     return {"by": by, "total": len(groups), "groups": groups[offset : offset + limit]}

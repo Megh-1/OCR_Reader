@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.modules.batch import router as batch_router
+from app.modules.export import router as export_router
 from app.modules.housekeeping import router as housekeeping_router
 from app.modules.ingestion import router as ingestion_router
 from app.modules.output_compiler import router as output_router
@@ -23,3 +24,4 @@ app.include_router(review_groups_router)  # /review/groups must be registered be
 app.include_router(review_router)
 app.include_router(pipeline_router)
 app.include_router(batch_router)
+app.include_router(export_router)

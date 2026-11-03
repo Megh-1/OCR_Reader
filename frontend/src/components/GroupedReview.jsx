@@ -2,6 +2,7 @@ import { CheckCheck, Layers, Pencil, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bulkAccept, bulkCorrect, errorLines, getReviewEvidence, getReviewGroups, getTemplateVersion, resolveFieldReview, resultImageUrl } from '@/api';
 import { EmptyState } from '@/components/bits';
+import { FieldColumn } from '@/components/FieldColumn';
 import { FieldCrop } from '@/components/FieldCrop';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ const SHEET = 12; // crops shown per group before "show all"
 const SHEET_MAX = 60;
 
 const TABS = [
+  ['field', 'By field'],
   ['value', 'Same value'],
   ['document', 'By document'],
   ['evidence', 'Evidence'],
@@ -39,7 +41,7 @@ function useTemplates() {
 const fieldOf = (templates, g, fieldId) => templates[`${g.template_id}@${g.template_version}`]?.fields?.find((f) => f.id === fieldId);
 
 export default function GroupedReview({ batchId = null, onQueueChange }) {
-  const [tab, setTab] = useState('value');
+  const [tab, setTab] = useState('field');
   const [data, setData] = useState({ state: 'loading', by: 'value', groups: [], total: 0 });
   const [evidence, setEvidence] = useState(null);
   const [templates, needTemplates] = useTemplates();
@@ -112,7 +114,7 @@ export default function GroupedReview({ batchId = null, onQueueChange }) {
             </p>
           )}
           {data.state === 'ready' && data.by === tab && groups.length === 0 && (
-            <EmptyState icon={CheckCheck} title={tab === 'value' ? 'No repeated values waiting' : 'No documents waiting'}>
+            <EmptyState icon={CheckCheck} title={tab === 'value' ? 'No repeated values waiting' : tab === 'field' ? 'No fields waiting' : 'No documents waiting'}>
               {tab === 'value'
                 ? 'Groups appear when the same value was read in the same field on two or more documents and only needs a quick look.'
                 : 'Nothing is waiting for a person.'}
@@ -123,6 +125,7 @@ export default function GroupedReview({ batchId = null, onQueueChange }) {
               Showing the first {data.groups.length} of {data.total}.
             </p>
           )}
+          {tab === 'field' && groups.map((g) => <FieldColumn key={`${g.template_id}@${g.template_version}|${g.field_id}`} group={g} field={fieldOf(templates, g, g.field_id)} batchId={batchId} onChanged={changed} />)}
           {tab === 'value' && groups.map((g) => <ValueGroup key={`${g.template_id}@${g.template_version}|${g.field_id}|${g.value}`} group={g} templates={templates} onChanged={changed} />)}
           {tab === 'document' && groups.map((g) => <DocumentGroup key={g.result_id} group={g} templates={templates} onChanged={changed} />)}
         </div>
@@ -187,7 +190,7 @@ function ValueGroup({ group: g, templates, onChanged }) {
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
           {shown.map((s) => (
             <li key={s.id} className="overflow-hidden rounded-sm border border-border bg-white">
-              {field ? <FieldCrop src={resultImageUrl(s.resultId)} bbox={field.bbox} tier="spot_check" /> : <div className="h-16 animate-pulse bg-surface-sunken" />}
+              {field ? <FieldCrop src={resultImageUrl(s.resultId)} bbox={field.bbox} tier="spot_check" /> : <div className="h-16 bg-surface-sunken" />}
             </li>
           ))}
         </ul>
@@ -291,7 +294,7 @@ function DocumentGroup({ group: g, templates, onChanged }) {
           return (
             <li key={e.id} className="grid grid-cols-1 gap-3 border-t border-border p-4 first:border-t-0 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
               <div className="overflow-hidden rounded-sm border border-border bg-white">
-                {field ? <FieldCrop src={resultImageUrl(g.result_id)} bbox={field.bbox} tier={rejected ? 'review' : 'spot_check'} /> : <div className="h-16 animate-pulse bg-surface-sunken" />}
+                {field ? <FieldCrop src={resultImageUrl(g.result_id)} bbox={field.bbox} tier={rejected ? 'review' : 'spot_check'} /> : <div className="h-16 bg-surface-sunken" />}
               </div>
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">

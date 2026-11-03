@@ -124,7 +124,8 @@ export const bulkCorrect = (entryIds, correctedValue) => postJson('/review/bulk-
 export const getAgreed = (batchId = null) => requestJson(`/review/agreed${batchId ? `?batch_id=${encodeURIComponent(batchId)}` : ''}`);
 export const acceptAgreed = (batchId = null) => postJson('/review/accept-agreed', batchId ? { batch_id: batchId } : {});
 /** Permanent deletes; the server refuses without confirm. Resolved review entries (the trust evidence) are kept. */
-export const clearReviewQueue = (batchId = null) => postJson('/review/clear', { confirm: true, ...(batchId ? { batch_id: batchId } : {}) });
+export const clearReviewQueue = (batchId = null, fieldId = null) =>
+  postJson('/review/clear', { confirm: true, ...(batchId ? { batch_id: batchId } : {}), ...(fieldId ? { field_id: fieldId } : {}) });
 export const clearHistory = () => postJson('/documents/history/clear', { confirm: true });
 export const bulkAccept = (entryIds, auditFraction) =>
   requestJson('/review/bulk', {

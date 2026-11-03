@@ -197,6 +197,7 @@ def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) 
         machine_value = updated_field["value"]
         updated_field["value"] = body.value
         updated_field["needs_review"] = False
+        updated_field["verified_by"] = "person"
         updated_fields[field_id] = updated_field
         record.fields = updated_fields
 

@@ -172,7 +172,7 @@ def test_correcting_a_field_writes_the_value_and_is_reflected_on_read(client, un
     assert resp.status_code == 200
     assert resp.json() == {
         "field_id": "name", "value": "A Better Name", "confidence": 97.0,
-        "needs_review": False, "reasons": [], "approval_tier": "auto", "auto_basis": None,
+        "needs_review": False, "reasons": [], "approval_tier": "auto", "auto_basis": None, "verified_by": "person",
     }
     assert client.get(f"/results/{result_id}").json()["fields"]["name"]["value"] == "A Better Name"
 

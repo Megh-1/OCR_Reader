@@ -92,7 +92,7 @@ export function FieldCrop({ src, bbox, tier, mode = 'crop', className, contextFr
       {failed ? (
         <div className="grid h-32 place-items-center text-xs text-foreground-subtle">No page image was saved for this document</div>
       ) : (
-        <canvas ref={canvasRef} className={cn('block w-full', !img && 'h-32 animate-pulse bg-surface-sunken')} />
+        <canvas ref={canvasRef} className={cn('block w-full', !img && 'h-32 bg-surface-sunken')} />
       )}
     </div>
   );

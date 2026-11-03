@@ -1,4 +1,4 @@
-import { ArrowUpRight, FileImage, FileText, Inbox, Play, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
+import { ArrowUpRight, Check, Download, FileImage, FileText, Inbox, Play, Trash2, TriangleAlert, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { clearHistory, errorLines, getBatchStatus, listBatches, listReviewQueue, listTemplates, submitBatch } from '@/api';
 import { EmptyState, PageHeader, Readout, TierBar } from '@/components/bits';
@@ -356,13 +356,22 @@ export default function BatchMonitor({ param, onQueueChange }) {
                 <Badge tone={live ? 'primary' : (BATCH_TONE[batch.status] ?? 'neutral')}>{batchStatusLabel(batch.status)}</Badge>
                 {batch.type_hint && <span className="text-sm text-foreground-secondary">Type: {batch.type_hint}</span>}
                 {finished && waiting != null && (
-                  <Button asChild variant={waiting > 0 ? 'primary' : 'outline'} size="sm" className="ml-auto">
-                    <a href={`#/review/${batch.batch_id}`}>
-                      <Inbox /> {waiting > 0 ? `Review ${waiting} value${waiting === 1 ? '' : 's'} from this upload` : 'Nothing to review'}
-                    </a>
-                  </Button>
+                  <div className="ml-auto flex flex-wrap items-center gap-2">
+                    <Button asChild variant={waiting > 0 ? 'primary' : 'outline'} size="sm">
+                      <a href={`#/review/${batch.batch_id}`}>
+                        <Inbox /> {waiting > 0 ? `Review ${waiting} value${waiting === 1 ? '' : 's'}` : 'Nothing to review'}
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <a href={`/documents/batch/${batch.batch_id}/export`} download={`batch-${batch.batch_id.slice(0, 8)}.json`}>
+                        <Download /> Download JSON
+                      </a>
+                    </Button>
+                  </div>
                 )}
               </div>
+
+              <Flow batch={batch} stats={stats} live={live} finished={finished} waiting={waiting} />
 
               <Card className="flex flex-col gap-4 p-4">
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -439,6 +448,47 @@ export default function BatchMonitor({ param, onQueueChange }) {
         </section>
       </div>
     </div>
+  );
+}
+
+/**
+ * Where this upload stands, as four plain steps. The current step is the only one set in ink and weight; finished steps carry a
+ * check. It says what is left, in the numbers the person will meet next (values waiting, what the JSON will and will not contain).
+ */
+function Flow({ batch, stats, live, finished, waiting }) {
+  const total = batch.documents.length;
+  const steps = [
+    { name: 'Upload', note: `${total} document${total === 1 ? '' : 's'}`, done: true },
+    { name: 'Read', note: live ? `${stats.done} of ${total} read` : 'All read', done: !live },
+    {
+      name: 'Review',
+      note: !finished || waiting == null ? 'After reading' : waiting > 0 ? `${waiting} waiting` : 'Nothing waiting',
+      done: finished && waiting === 0,
+      current: finished && waiting > 0,
+    },
+    { name: 'Export', note: finished ? 'Values nobody has settled are left blank' : 'After review', done: false },
+  ];
+  const current = steps.findIndex((s) => s.current || !s.done);
+  return (
+    <ol aria-label="Progress" className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {steps.map((s, i) => (
+        <li key={s.name} aria-current={i === current ? 'step' : undefined} className="flex items-start gap-3">
+          <span
+            aria-hidden
+            className={cn(
+              'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-xs',
+              s.done ? 'border-foreground bg-foreground text-surface' : i === current ? 'border-primary bg-primary-surface text-primary-text' : 'border-border-strong text-foreground-subtle',
+            )}
+          >
+            {s.done ? <Check className="size-3" /> : i + 1}
+          </span>
+          <span className="min-w-0">
+            <span className={cn('block text-sm', i === current ? 'font-semibold text-foreground' : 'font-medium text-foreground-secondary')}>{s.name}</span>
+            <span className="block text-xs text-foreground-secondary">{s.note}</span>
+          </span>
+        </li>
+      ))}
+    </ol>
   );
 }
 

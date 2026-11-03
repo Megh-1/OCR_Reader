@@ -19,6 +19,9 @@ class FieldResult(BaseModel):
     # Set when a field that would have been a spot check was approved as `auto` because a person has checked
     # enough of this field's values to show its error rate is under the target (app/modules/trust.py).
     auto_basis: Optional[Literal["trusted_field"]] = None
+    # Who last settled this value: "person" (confirmed or corrected it on its own) or "bulk" (accepted with a group or with the
+    # agreed values, an unseen accept). None = nobody has, it stands on the machine's read alone. The JSON export reads this.
+    verified_by: Optional[Literal["person", "bulk"]] = None
 
 
 class CompiledResult(BaseModel):

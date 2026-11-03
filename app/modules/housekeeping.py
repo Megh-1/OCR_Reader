@@ -34,6 +34,7 @@ IN_FLIGHT = ("queued", "processing", "retrying")
 class ConfirmedRequest(BaseModel):
     confirm: bool = False
     batch_id: Optional[str] = None  # review/clear only: clear just what this batch left pending
+    field_id: Optional[str] = None  # review/clear only: clear just this field's pending values ("leave this field blank")
 
 
 def _require_confirmation(body: ConfirmedRequest) -> None:
@@ -41,14 +42,17 @@ def _require_confirmation(body: ConfirmedRequest) -> None:
         raise HTTPException(status_code=422, detail="This permanently deletes data; send {\"confirm\": true} to proceed.")
 
 
-def clear_pending_review(batch_id: Optional[str] = None) -> dict:
-    """Delete every PENDING review entry (of one batch, when given). Resolved entries stay."""
+def clear_pending_review(batch_id: Optional[str] = None, field_id: Optional[str] = None) -> dict:
+    """Delete every PENDING review entry (of one batch and/or one field, when given). Resolved entries stay. A cleared
+    value is not settled: it stays in its result as the machine's read, and the strict JSON export leaves it blank."""
     with SessionLocal() as session:
         stmt = select(ReviewQueueRecord).where(ReviewQueueRecord.status == "pending")
         rows = list(session.execute(stmt).scalars())
         if batch_id is not None:
             scope = batch_scope(session, batch_id)
             rows = [r for r in rows if scope.holds(r.entry_type, r.id, r.payload)]
+        if field_id is not None:
+            rows = [r for r in rows if r.payload.get("field_id") == field_id]
         counts: dict[str, int] = {}
         for r in rows:
             counts[r.entry_type] = counts.get(r.entry_type, 0) + 1
@@ -94,7 +98,7 @@ class HistoryBusyError(Exception):
 def post_clear_review(body: ConfirmedRequest) -> dict:
     _require_confirmation(body)
     try:
-        return clear_pending_review(body.batch_id)
+        return clear_pending_review(body.batch_id, body.field_id)
     except ReviewEntryNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 

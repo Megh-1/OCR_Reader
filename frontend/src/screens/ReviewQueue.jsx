@@ -87,7 +87,7 @@ export default function ReviewQueue({ param, onQueueChange }) {
   const [loadState, setLoadState] = useState('loading');
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState('all');
-  const [view, setView] = useState('one'); // one | grouped
+  const [view, setView] = useState('grouped'); // grouped | one - one by one is the slow way, so it is not the default
   const [resultsById, setResultsById] = useState({});
   const [tally, setTally] = useState({ accepted: 0, corrected: 0 });
   const fetched = useRef(new Set());
@@ -220,8 +220,8 @@ export default function ReviewQueue({ param, onQueueChange }) {
         )}
         <div role="group" aria-label="How to review" className="flex gap-1 rounded-md border border-border-strong bg-surface p-1">
           {[
-            ['one', 'One by one'],
             ['grouped', 'Grouped'],
+            ['one', 'One by one'],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -561,7 +561,7 @@ function FieldDetail({ entry, context, position, onMove, onResolved }) {
                 {field ? (
                   <FieldCrop src={resultImageUrl(p.extraction_result_id)} bbox={field.bbox} tier={tier} />
                 ) : (
-                  <div className="h-40 animate-pulse bg-surface-sunken" />
+                  <div className="h-40 bg-surface-sunken" />
                 )}
               </div>
               {field && (

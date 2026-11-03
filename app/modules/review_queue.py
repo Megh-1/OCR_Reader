@@ -139,6 +139,7 @@ def apply_confirmed_value(session, row: ReviewQueueRecord, confirmed_value: str,
     updated_field = dict(updated_fields[payload.field_id])
     updated_field["value"] = confirmed_value
     updated_field["needs_review"] = False
+    updated_field["verified_by"] = "person" if via == "single" else "bulk"
     updated_fields[payload.field_id] = updated_field
     result_row.fields = updated_fields
 

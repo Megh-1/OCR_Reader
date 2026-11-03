@@ -264,3 +264,31 @@ def test_history_is_not_cleared_while_a_document_is_still_processing(client, tem
     assert resp.status_code == 409
     with SessionLocal() as session:
         assert session.get(ExtractionResultRecord, result) is not None
+
+
+def test_field_groups_list_one_field_across_documents_rejected_values_first(client, template_id):
+    spots = [_spot(_result(template_id, {"cur": v}), "cur", v, confidence=c) for v, c in (("USD", 89.0), ("EUR", 70.0))]
+    rej = review_queue.enqueue_field_review(_result(template_id, {"cur": "U5D"}), "cur", "U5D", ["format_invalid"], 85.0)
+    other = _spot(_result(template_id, {"date": "1"}), "date", "1")
+
+    groups = client.get("/review/groups", params={"by": "field", "template_id": template_id}).json()["groups"]
+    by_field = {g["field_id"]: g for g in groups}
+    assert set(by_field) == {"cur", "date"}
+    cur = by_field["cur"]
+    assert cur["count"] == 3 and cur["needs_person"] == 1
+    assert [e["id"] for e in cur["entries"]] == [rej, spots[1], spots[0]]  # rejected first, then least confident
+    assert cur["entries"][0]["bulk_ok"] is False and cur["entries"][1]["bulk_ok"] is True
+    assert by_field["date"]["entries"][0]["id"] == other
+
+
+def test_one_field_can_be_left_blank_without_touching_the_others(client, template_id, no_other_batches):
+    rid = _result(template_id, {"a": "1", "b": "2"})
+    a = _spot(rid, "a", "1")
+    b = _spot(rid, "b", "2")
+    batch_id = _batch([[{"extraction_result_id": rid}]])
+    out = client.post("/review/clear", json={"confirm": True, "batch_id": batch_id, "field_id": "a"}).json()
+    assert out["deleted"] == 1
+    with SessionLocal() as session:
+        assert session.get(ReviewQueueRecord, a) is None and session.get(ReviewQueueRecord, b) is not None
+        # the value itself is untouched: only the person's attention was withdrawn
+        assert session.get(ExtractionResultRecord, rid).fields["a"]["value"] == "1"

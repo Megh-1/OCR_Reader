@@ -83,7 +83,7 @@ def layer_tokens(layer: TextLayer) -> list[K.Tok]:
 
 
 def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[ReaderClient] = None,
-              text_layer: Optional[TextLayer] = None) -> VlmPage:
+              text_layer: Optional[TextLayer] = None, verified: Optional[A.Alignment] = None) -> VlmPage:
     """Reads one raster page. Raises ReaderUnavailable for anything that stops the vision reader from giving a complete answer.
 
     With a `text_layer` (the page is a PDF with real embedded text) the page is a render, upright by construction, so it is not
@@ -111,6 +111,12 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
     erased = _image(preprocess_image(page_bytes, remove_rules=True, deskew=text_layer is None).field_image_bytes)
     tokens = K.page_tokens(erased)
     al = align_from_tokens(template, tokens)
+    if al is None and verified is not None:
+        # The rules-erased pass can leave a noisy scan or a photograph with almost no readable words (0-9 on six of the eight hard
+        # pages measured), so there is nothing to refit. The alignment Module 5 confirmed the page with came from the same frame
+        # (the generic pass; same size) and agreed on >= ALIGN_MIN_LANDMARKS words, so the windows are cut with it. Fewer words then
+        # reach the word reader, which only means fewer values are gated.
+        al = verified
     if al is None:
         raise ReaderUnavailable("the page could not be aligned to the template's landmarks")
 

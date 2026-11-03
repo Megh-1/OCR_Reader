@@ -210,6 +210,22 @@ def validate_field(field: TemplateField, extraction: FieldExtractionResult) -> F
     )
 
 
+def demote_auto(summary: ValidationSummary) -> int:
+    """
+    Caps every accepted field at spot_check and returns how many were auto. For a page read by a weaker reader than its template
+    asks for (the vision reader was meant to read it and Tesseract had to): confidence and a regex from that read vouch for much
+    less. Measured on hard photographs read that way, 4 of the 13 values that reached auto were wrong (`1788.00` for `391.00`,
+    `7480` for `74803.00`, and two that lost a trailing digit), at confidence 93-96. Only ever adds caution: a rejected field stays
+    rejected and nothing is promoted.
+    """
+    demoted = 0
+    for result in summary.accepted.values():
+        if result.approval_tier == "auto":
+            result.approval_tier = "spot_check"
+            demoted += 1
+    return demoted
+
+
 def cross_check_reason(outcome: CheckOutcome) -> str:
     """The reason string a failed check adds to each field it names (the label is shown to a reviewer)."""
     return f"cross_check_failed:{outcome.label}"

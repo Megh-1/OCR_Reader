@@ -354,6 +354,29 @@ def test_read_page_refuses_what_it_cannot_do_before_calling_the_service(monkeypa
     assert not called
 
 
+def _reader_up_to_alignment(monkeypatch):
+    """read_page with everything before the alignment stubbed: the page yields no words, so the reader's own refit fails."""
+    monkeypatch.setattr(R, "preprocess_image", lambda *a, **k: _generic())
+    monkeypatch.setattr(R.K, "page_tokens", lambda image: [])
+    monkeypatch.setattr(R, "load_profile", lambda name: object())
+    monkeypatch.setattr(R, "align_from_tokens", lambda template, tokens: None)
+
+    def reached_crops(*a, **k):
+        raise RuntimeError("reached the crops")
+
+    monkeypatch.setattr(R.C, "crops_for_page", reached_crops)
+    return _all_fields_template(vlm_reader="waybill_B").model_copy(update={"landmarks": [object()]})
+
+
+def test_a_page_whose_own_refit_finds_no_words_is_cut_with_the_alignment_module_5_verified(monkeypatch):
+    template = _reader_up_to_alignment(monkeypatch)
+    client = _client(lambda request: httpx.Response(200, json={"replies": []}))
+    with pytest.raises(ReaderUnavailable, match="could not be aligned"):
+        R.read_page(template, b"", _generic(), client)
+    with pytest.raises(RuntimeError, match="reached the crops"):  # past the alignment step, using the verified one
+        R.read_page(template, b"", _generic(), client, verified=object())
+
+
 def test_the_seeded_waybill_templates_name_their_profiles_and_the_partial_one_does_not():
     from scripts import seed_templates as S
     assert wf.AIR_WAYBILL_BKK.hints.vlm_reader == "waybill_B"

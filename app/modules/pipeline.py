@@ -33,7 +33,7 @@ from app.modules.vlm_reader.client import ReaderUnavailable
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
-from app.modules.validation import has_validator, validate_fields
+from app.modules.validation import demote_auto, has_validator, validate_fields
 from app.schemas.extraction_result import CompiledResult
 from app.schemas.template import TemplateOut
 
@@ -140,7 +140,7 @@ def extract_page_fields(
         # accepted was a spot check. A clean page stays on the exact read, and a reader that is unavailable leaves the page as it was.
         if vlm.enabled(template) and validate_fields(template, text_fields).flagged:
             try:
-                page = vlm.read_page(template, page_bytes, generic, text_layer=text_layer)
+                page = vlm.read_page(template, page_bytes, generic, text_layer=text_layer, verified=alignment)
                 return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
             except ReaderUnavailable as exc:
                 log.warning("template %s: the text layer read was doubtful but the vision reader could not be used (%s); keeping the text layer", template.template_id, exc)
@@ -156,7 +156,7 @@ def extract_page_fields(
         # A scanned or photographed page of a template that names a reader profile goes to the vision model. Anything that stops it
         # (service down, profile missing, page not aligned) is not an error: the page is read the ordinary way, and says so.
         try:
-            page = vlm.read_page(template, page_bytes, generic)
+            page = vlm.read_page(template, page_bytes, generic, verified=alignment)
             return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
         except ReaderUnavailable as exc:
             log.warning("template %s: the vision reader could not be used (%s); reading the page with Tesseract", template.template_id, exc)
@@ -237,6 +237,10 @@ def process_page(
     if extraction.alignment is not None:
         log.info("page %d aligned: %s", page_index, extraction.alignment.summary())
     summary = validate_fields(template, extraction.fields)
+    if extraction.reader == "ocr_fallback":
+        # The template asks for the vision reader and could not get it: whatever Tesseract read here is at most a spot check.
+        demoted = demote_auto(summary)
+        log.info("page %d: read by Tesseract because the vision reader could not be used; %d auto value(s) capped at spot_check", page_index, demoted)
 
     compiled = compile_output(identification.template_id, identification.version, summary)
 
@@ -254,7 +258,7 @@ def process_page(
     spot_checks = {fid: acc for fid, acc in summary.accepted.items() if acc.approval_tier == "spot_check"}
     # Audited auto-approval counts what people found when they checked a field, whoever read it. A vision-read value is a different
     # reader with a different error profile, so its spot checks stay spot checks until evidence has been gathered on ITS reads.
-    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader != "vlm" else frozenset()
+    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback") else frozenset()
     audited: set[str] = set()
     for field_id, accepted in spot_checks.items():
         if field_id in trusted and spot_why(field_id, accepted) in trust.TRUSTABLE_WHY and accepted.value.strip():

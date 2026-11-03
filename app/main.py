@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.modules.batch import router as batch_router
+from app.modules.housekeeping import router as housekeeping_router
 from app.modules.ingestion import router as ingestion_router
 from app.modules.output_compiler import router as output_router
 from app.modules.pipeline import router as pipeline_router
@@ -17,6 +18,7 @@ app = FastAPI(title="IDP Pipeline")
 app.include_router(ingestion_router)
 app.include_router(template_router)
 app.include_router(output_router)
+app.include_router(housekeeping_router)
 app.include_router(review_groups_router)  # /review/groups must be registered before anything reads it as /review/{id}
 app.include_router(review_router)
 app.include_router(pipeline_router)

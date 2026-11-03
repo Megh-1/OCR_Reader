@@ -11,6 +11,8 @@ class FieldReviewPayload(BaseModel):
     original_value: str
     reasons: list[str]
     confidence: Optional[float] = None  # None on entries written before it was recorded
+    # Held back from a bulk correction as a random sample, so a person looks at it on its own.
+    audit: bool = False
 
 
 class SpotCheckPayload(BaseModel):
@@ -26,6 +28,9 @@ class SpotCheckPayload(BaseModel):
     why: Literal["below_auto_threshold", "no_validator", "blank_optional"]
     # Held back from a bulk accept as a random sample, so the group's accepted values are measured, not just trusted.
     audit: bool = False
+    # Who read the value: "vlm" | "ocr" | "ocr_fallback" | "text_layer". None on entries written before it was recorded
+    # (review_groups.reader_of recovers it from the batch the document came in, when there is one).
+    reader: Optional[str] = None
 
 
 class NewTemplateNeededPayload(BaseModel):

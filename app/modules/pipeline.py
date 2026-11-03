@@ -277,7 +277,7 @@ def process_page(
         for field_id, flagged in summary.flagged.items()
     ]
     spot_check_ids = [
-        enqueue_spot_check(result_id, field_id, accepted.value, accepted.confidence, spot_why(field_id, accepted), audit=field_id in audited)
+        enqueue_spot_check(result_id, field_id, accepted.value, accepted.confidence, spot_why(field_id, accepted), audit=field_id in audited, reader=extraction.reader)
         for field_id, accepted in spot_checks.items()
         if compiled.fields[field_id].approval_tier == "spot_check"
     ]

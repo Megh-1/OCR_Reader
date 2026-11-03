@@ -21,6 +21,7 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import select
 
 from app.db import SessionLocal
+from app.models.batch import BatchDocumentRecord, BatchRecord
 from app.models.extraction_result import ExtractionResultRecord
 from app.models.review_queue import ReviewQueueRecord
 from app.modules.template_store import get_latest_template
@@ -83,14 +84,15 @@ def enqueue_field_review(
 
 
 def enqueue_spot_check(
-    extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str, audit: bool = False
+    extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str, audit: bool = False,
+    reader: Optional[str] = None,
 ) -> int:
     """A field that passed validation but did not earn `auto`. It is not flagged - the record's
     overall_status is unaffected - it just gets a person's glance. `audit` marks one a trusted field would
     have skipped, picked at random so the trust stays measured."""
     payload = SpotCheckPayload(
         extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value,
-        confidence=confidence, why=why, audit=audit,
+        confidence=confidence, why=why, audit=audit, reader=reader,
     )
     return _enqueue("spot_check", payload.model_dump(mode="json"))
 
@@ -185,6 +187,46 @@ def _list_entries(status: Optional[str], entry_type: Optional[str]) -> list[Revi
         return [ReviewQueueEntry.model_validate(row, from_attributes=True) for row in rows]
 
 
+class BatchScope:
+    """What one batch produced: the extraction results of its pages and the queue entries of its refused pages."""
+
+    def __init__(self, result_ids: set[int], queue_ids: set[int]):
+        self.result_ids = result_ids
+        self.queue_ids = queue_ids
+
+    def holds(self, entry_type: str, entry_id: int, payload) -> bool:
+        """`payload` is the stored dict (a row) or the typed model (a listed entry)."""
+        if entry_type == "new_template_needed":
+            return entry_id in self.queue_ids
+        result_id = payload.get("extraction_result_id") if isinstance(payload, dict) else getattr(payload, "extraction_result_id", None)
+        return result_id in self.result_ids
+
+
+def batch_scope(session, batch_id: str) -> BatchScope:
+    """Raises ReviewEntryNotFoundError for a batch that does not exist (an empty batch is a real, empty scope)."""
+    if session.get(BatchRecord, batch_id) is None:
+        raise ReviewEntryNotFoundError(f"No batch found for id {batch_id}")
+    result_ids: set[int] = set()
+    queue_ids: set[int] = set()
+    for result in session.execute(select(BatchDocumentRecord.result).where(BatchDocumentRecord.batch_id == batch_id)).scalars():
+        for page in (result or {}).get("pages", []):
+            if page.get("extraction_result_id"):
+                result_ids.add(page["extraction_result_id"])
+            if page.get("review_queue_id"):
+                queue_ids.add(page["review_queue_id"])
+    return BatchScope(result_ids, queue_ids)
+
+
+def reader_by_result(session) -> dict[int, str]:
+    """extraction_result_id -> who read it, from the batches (entries queued before the payload carried `reader`)."""
+    readers: dict[int, str] = {}
+    for result in session.execute(select(BatchDocumentRecord.result).where(BatchDocumentRecord.result.is_not(None))).scalars():
+        for page in result.get("pages", []):
+            if page.get("extraction_result_id") and page.get("reader"):
+                readers[page["extraction_result_id"]] = page["reader"]
+    return readers
+
+
 def list_pending(entry_type: Optional[str] = None) -> list[ReviewQueueEntry]:
     return _list_entries(status="pending", entry_type=entry_type)
 
@@ -209,8 +251,16 @@ def post_new_template_needed(payload: NewTemplateNeededPayload) -> dict:
 
 
 @router.get("/review", response_model=list[ReviewQueueEntry])
-def list_review_queue(status: Optional[str] = "pending", entry_type: Optional[str] = None) -> list[ReviewQueueEntry]:
-    return _list_entries(status=status, entry_type=entry_type)
+def list_review_queue(status: Optional[str] = "pending", entry_type: Optional[str] = None, batch_id: Optional[str] = None) -> list[ReviewQueueEntry]:
+    entries = _list_entries(status=status, entry_type=entry_type)
+    if batch_id is None:
+        return entries
+    with SessionLocal() as session:
+        try:
+            scope = batch_scope(session, batch_id)
+        except ReviewEntryNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+    return [e for e in entries if scope.holds(e.entry_type, e.id, e.payload)]
 
 
 @router.patch("/review/{queue_id}")

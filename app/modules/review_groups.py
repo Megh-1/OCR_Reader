@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import math
 import random
+import re
 from collections import defaultdict
 from types import SimpleNamespace
 from typing import Optional
@@ -29,7 +30,8 @@ from app.db import SessionLocal
 from app.models.extraction_result import ExtractionResultRecord
 from app.models.review_queue import ReviewQueueRecord
 from app.modules import trust
-from app.modules.review_queue import VALUE_ENTRY_TYPES, apply_confirmed_value
+from app.modules.review_queue import VALUE_ENTRY_TYPES, ReviewEntryNotFoundError, apply_confirmed_value, batch_scope, reader_by_result
+from app.modules.template_store import get_template_version
 from app.schemas.review_queue import FieldReviewPayload, SpotCheckPayload
 from app.utils.stats import clean_checks_needed, clopper_pearson_upper
 
@@ -102,6 +104,127 @@ def post_bulk_accept(body: BulkAcceptRequest) -> dict:
 
 
 # ---------------------------------------------------------------------------------------------------------
+# correct a whole group at once
+
+
+def correct_refusal(row: Optional[ReviewQueueRecord]) -> Optional[str]:
+    """Why this row may not be corrected in bulk, or None. Unlike accepting, a correction is a person's own input, so a
+    value Module 7 rejected is allowed - a repeated wrong read is exactly what one correction should fix."""
+    if row is None:
+        return "not_found"
+    if row.status != "pending":
+        return "not_pending"
+    if row.entry_type not in VALUE_ENTRY_TYPES:
+        return "not_a_value_entry"
+    if row.payload.get("audit"):
+        return "audit_sample"
+    return None
+
+
+class BulkCorrectRequest(BaseModel):
+    entry_ids: list[int] = Field(min_length=2, max_length=2000)
+    corrected_value: str = Field(min_length=1)
+    audit_fraction: float = Field(default=DEFAULT_AUDIT_FRACTION, ge=MIN_AUDIT_FRACTION, le=0.5)
+
+
+def bulk_correct(entry_ids: list[int], corrected_value: str, audit_fraction: float = DEFAULT_AUDIT_FRACTION, rng: Optional[random.Random] = None) -> dict:
+    """One typed value written to every entry of a group, bar a random sample held back for a person to look at alone.
+    All or nothing. Every entry must be the same field of the same template version, and the value must satisfy that
+    field's own format rule (the rule Module 7 would apply), so a typo cannot be fanned out over a whole group."""
+    ids = list(dict.fromkeys(entry_ids))
+    rng = rng or random.Random()
+    value = corrected_value.strip()
+    if not value:
+        raise BulkRefusedError({i: "empty_value" for i in ids})
+    with SessionLocal() as session:
+        rows = {r.id: r for r in session.execute(select(ReviewQueueRecord).where(ReviewQueueRecord.id.in_(ids))).scalars()}
+        refused = {i: reason for i in ids if (reason := correct_refusal(rows.get(i))) is not None}
+        if refused:
+            raise BulkRefusedError(refused)
+        result_of = {i: rows[i].payload["extraction_result_id"] for i in ids}
+        results = _results_by_id(session, set(result_of.values()))
+        if any(rid not in results for rid in result_of.values()):
+            raise BulkRefusedError({i: "result_missing" for i in ids})
+        kinds = {(results[result_of[i]].template_id, results[result_of[i]].template_version, rows[i].payload["field_id"]) for i in ids}
+        if len(kinds) != 1:
+            raise BulkRefusedError({i: "not_one_field_of_one_template" for i in ids})
+        ((template_id, version, field_id),) = kinds
+        template = get_template_version(template_id, version)
+        field = next((f for f in template.fields if f.id == field_id), None) if template is not None else None
+        if field is not None and field.validation_regex and not re.fullmatch(field.validation_regex, value):
+            raise BulkRefusedError({i: "format_invalid" for i in ids})
+
+        held = set(rng.sample(ids, max(1, math.ceil(audit_fraction * len(ids))))) if len(ids) >= 2 else set()
+        for i in ids:
+            if i in held:
+                rows[i].payload = {**rows[i].payload, "audit": True}
+            else:
+                apply_confirmed_value(session, rows[i], value, via="bulk")
+        session.commit()
+    return {"corrected": [i for i in ids if i not in held], "held_for_audit": sorted(held), "value": value}
+
+
+@router.post("/review/bulk-correct")
+def post_bulk_correct(body: BulkCorrectRequest) -> dict:
+    try:
+        return bulk_correct(body.entry_ids, body.corrected_value, body.audit_fraction)
+    except BulkRefusedError as exc:
+        raise HTTPException(status_code=422, detail={"message": str(exc), "refused": {str(k): v for k, v in exc.refused.items()}})
+
+
+# ---------------------------------------------------------------------------------------------------------
+# accept what two independent readers agree on
+
+
+def agreed_rows(session, batch_id: Optional[str] = None) -> list[ReviewQueueRecord]:
+    """Pending spot checks the vision model read AND an independent check backed (config.VLM_GATED_CONFIDENCE is the
+    mark of that: a word reader agreed or an arithmetic fact held, and the format passed). Only what bulk accept could
+    take anyway - never a value Module 7 rejected, a blank or an audit sample."""
+    rows = [r for r in _pending_value_rows(session) if bulk_refusal(r) is None]
+    if batch_id is not None:
+        scope = batch_scope(session, batch_id)
+        rows = [r for r in rows if scope.holds(r.entry_type, r.id, r.payload)]
+    legacy = reader_by_result(session) if any(r.payload.get("reader") is None for r in rows) else {}
+    return [
+        r for r in rows
+        if (r.payload.get("reader") or legacy.get(r.payload["extraction_result_id"])) == "vlm"
+        and r.payload["confidence"] >= config.VLM_GATED_CONFIDENCE
+    ]
+
+
+@router.get("/review/agreed")
+def review_agreed(batch_id: Optional[str] = None) -> dict:
+    with SessionLocal() as session:
+        try:
+            rows = agreed_rows(session, batch_id)
+        except ReviewEntryNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+    by_field: dict[str, int] = defaultdict(int)
+    for r in rows:
+        by_field[r.payload["field_id"]] += 1
+    return {"count": len(rows), "by_field": dict(sorted(by_field.items(), key=lambda kv: -kv[1]))}
+
+
+class AcceptAgreedRequest(BaseModel):
+    batch_id: Optional[str] = None
+    audit_fraction: float = Field(default=DEFAULT_AUDIT_FRACTION, ge=MIN_AUDIT_FRACTION, le=0.5)
+
+
+@router.post("/review/accept-agreed")
+def post_accept_agreed(body: AcceptAgreedRequest) -> dict:
+    """The server picks the entries (the client cannot widen the set), then runs the ordinary bulk accept, audit sample
+    included. Resolutions are `bulk`, so none of it counts as evidence for trusting a field."""
+    with SessionLocal() as session:
+        try:
+            ids = [r.id for r in agreed_rows(session, body.batch_id)]
+        except ReviewEntryNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+    if not ids:
+        return {"accepted": [], "held_for_audit": []}
+    return bulk_accept(ids, body.audit_fraction)
+
+
+# ---------------------------------------------------------------------------------------------------------
 # groups
 
 
@@ -120,12 +243,19 @@ def _results_by_id(session, ids: set[int]) -> dict[int, SimpleNamespace]:
     return {row.id: SimpleNamespace(template_id=row.template_id, template_version=row.template_version) for row in session.execute(stmt)}
 
 
-def _value_groups(rows, results) -> list[dict]:
+def _value_groups(rows, results, include_rejected: bool = False) -> list[dict]:
+    """Same value, same field, 2+ documents. By default only what may be bulk-accepted; with `include_rejected`, values
+    Module 7 rejected too (each group says whether it can be accepted, `accept_ok`; it can always be corrected)."""
     buckets: dict[tuple, list] = defaultdict(list)
     for r in rows:
-        if bulk_refusal(r) is not None:
-            continue
-        p = SpotCheckPayload.model_validate(r.payload)
+        if include_rejected:
+            if correct_refusal(r) is not None:
+                continue
+            p = (FieldReviewPayload if r.entry_type == "field_review" else SpotCheckPayload).model_validate(r.payload)
+        else:
+            if bulk_refusal(r) is not None:
+                continue
+            p = SpotCheckPayload.model_validate(r.payload)
         res = results.get(p.extraction_result_id)
         if res is None:
             continue
@@ -143,7 +273,8 @@ def _value_groups(rows, results) -> list[dict]:
                 "field_id": field_id,
                 "value": value,
                 "count": len(members),
-                "min_confidence": min(p.confidence for _, p in members),
+                "min_confidence": min(p.confidence or 0 for _, p in members),
+                "accept_ok": all(bulk_refusal(r) is None for r, _ in members),
                 "entry_ids": [r.id for r, _ in members],
                 "result_ids": [p.extraction_result_id for _, p in members],
             }
@@ -198,13 +329,21 @@ def _document_groups(rows, results) -> list[dict]:
 def review_groups(
     by: str = Query("value", pattern="^(value|document)$"),
     template_id: Optional[str] = None,
+    batch_id: Optional[str] = None,
+    include_rejected: bool = False,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> dict:
     with SessionLocal() as session:
         rows = _pending_value_rows(session)
+        if batch_id is not None:
+            try:
+                scope = batch_scope(session, batch_id)
+            except ReviewEntryNotFoundError as exc:
+                raise HTTPException(status_code=404, detail=str(exc))
+            rows = [r for r in rows if scope.holds(r.entry_type, r.id, r.payload)]
         results = _results_by_id(session, {r.payload["extraction_result_id"] for r in rows})
-    groups = _value_groups(rows, results) if by == "value" else _document_groups(rows, results)
+    groups = _value_groups(rows, results, include_rejected) if by == "value" else _document_groups(rows, results)
     if template_id is not None:
         groups = [g for g in groups if g["template_id"] == template_id]
     return {"by": by, "total": len(groups), "groups": groups[offset : offset + limit]}

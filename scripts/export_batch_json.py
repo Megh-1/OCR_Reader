@@ -11,7 +11,9 @@ were right overall, by input kind and by tier, and above all how many WRONG valu
 the number that matters; a wrong one in `spot_check` or `review` was caught by design.
 
 The score compares a value with the generator's ground truth after collapsing whitespace and ignoring case, so it measures what was
-read, not how the value was spaced.
+read, not how the value was spaced. For the two fields `air_waybill` cuts out of one goods cell (hs_code, invoice_reference) the
+printed "HS CODE:" / "INV:" label is dropped before comparing: the template deliberately selects only the value after it, while the
+generator's truth keeps the label, so counting that as a misread overstated the errors (40 of them on the 50-document batch).
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import re
 import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -26,6 +29,18 @@ from pathlib import Path
 
 def norm(value) -> str:
     return " ".join(str(value).strip().lower().split())
+
+
+_LABEL = {
+    "hs_code": re.compile(r"^\s*HS\s*CODE\s*(NO\.?)?\s*:?\s*", re.I),
+    "invoice_reference": re.compile(r"^\s*INV(OICE)?\s*(NO\.?)?\s*:?\s*", re.I),
+}
+
+
+def same(field_id: str, got, want) -> bool:
+    label = _LABEL.get(field_id)
+    strip = (lambda v: label.sub("", str(v))) if label else str
+    return norm(strip(got)) == norm(strip(want))
 
 
 def fetch(api: str, batch_id: str) -> dict:
@@ -90,7 +105,7 @@ def main() -> int:
                 if got is None:
                     continue
                 tier = got["approval_tier"]
-                ok = norm(got["value"]) == norm(want)
+                ok = same(fid, got["value"], want)
                 total["fields"] += 1; right["fields"] += ok
                 fields_by_tier[tier] += 1
                 kind = kinds.get(name, "?")

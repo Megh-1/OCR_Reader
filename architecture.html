@@ -41,11 +41,11 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 @media print{aside{display:none}.layout{display:block}body{background:#fff}main{padding:0}}
 </style></head>
 <body><div class="layout">
-<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
+<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li><li><a href="#210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
 <main><article><h1 id="idp-pipeline-architecture">IDP Pipeline: Architecture</h1>
 <blockquote>
 <p><strong>What this document is.</strong> The architecture of the IDP Pipeline repository as it exists on disk today, written from the code, <code>docker-compose.yml</code>, <code>app/config.py</code> and the Alembic migrations. Where something is <em>not</em> built (authentication, metrics, a cache), it says so instead of describing an aspiration. Measured numbers come from the comments in <code>app/config.py</code> and the project's <code>CLAUDE.md</code>; anything that is a proposal is labelled <strong>Proposed</strong>.</p>
-<p><strong>Last updated 2026-11-04</strong>, after commit <code>6877a9a</code>. This revision replaces the earlier &quot;Tesseract and the PDF text layer only&quot; description: the vision-model reader is now part of the application and the model that reads is a configuration choice (§2.9). Work that is in the working tree and not committed is marked 🟡.</p>
+<p><strong>Last updated 2026-11-04</strong>, after commit <code>380f4ee</code>. This revision replaces the earlier &quot;Tesseract and the PDF text layer only&quot; description: the vision-model reader is now part of the application and the model that reads is a configuration choice (§2.9). Anything in the working tree and not yet committed is marked 🟡 (nothing is, at this revision).</p>
 <p><strong>Diagrams</strong> are <a href="https://mermaid.js.org/">Mermaid</a>. They render on GitHub, GitLab, VS Code (Markdown preview with the Mermaid extension), and most Markdown viewers.</p>
 </blockquote>
 <p><strong>Status legend used throughout</strong></p>
@@ -59,7 +59,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <tbody>
 <tr>
 <td>✅ <strong>Built</strong></td>
-<td>In the code and committed, covered by the test suite (596 tests collected; 595 passed at the last full run, and the one that failed, a replay test, passed when run on its own afterwards while engine files were still being edited)</td>
+<td>In the code and committed, covered by the test suite 638 tests collected and passed at the last full run, 2026-11-04</td>
 </tr>
 <tr>
 <td>🟡 <strong>Uncommitted</strong></td>
@@ -112,7 +112,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 </tr>
 <tr>
 <td><strong>Which model reads</strong></td>
-<td><strong>Configuration.</strong> A named <em>reader engine</em> in a JSON registry: our own service (<code>/read</code>) or any OpenAI-compatible server (vLLM, SGLang, Ollama, a hosted model). Changing the model is editing that file and restarting, not changing code (§2.9).</td>
+<td><strong>Configuration, then measurement.</strong> A named <em>reader engine</em> in a JSON registry: our own service (<code>/read</code>) or any OpenAI-compatible server (vLLM, SGLang, Ollama, a hosted model). Changing the model is editing that file and restarting, not changing code. With the <strong>engine selector</strong> switched on, which engines read a template, and in what order, comes from stored scorecards, not from the order of the file; an engine that has not been measured and promoted reads in a mode where nothing reaches <code>auto</code> (§2.9).</td>
 </tr>
 <tr>
 <td><strong>Failure philosophy</strong></td>
@@ -204,6 +204,7 @@ flowchart LR
         M6[&quot;&lt;b&gt;6 Field extraction&lt;/b&gt;&lt;br/&gt;field_extraction.py&lt;br/&gt;text-layer OR Tesseract&quot;]
         VR[&quot;&lt;b&gt;Vision reader&lt;/b&gt;&lt;br/&gt;vlm_reader/&lt;br/&gt;crops → engine → staged answer&lt;br/&gt;→ gate → fixed confidence&quot;]
         EN[&quot;&lt;b&gt;Reader engines&lt;/b&gt;&lt;br/&gt;engines.py&lt;br/&gt;named registry: service |&lt;br/&gt;openai_compatible&quot;]
+        ES[&quot;&lt;b&gt;Engine selection&lt;/b&gt;&lt;br/&gt;engine_selection/&lt;br/&gt;probe · measured ranking ·&lt;br/&gt;promotion · drift · agreement&quot;]
         M7[&quot;&lt;b&gt;7 Validation&lt;/b&gt;&lt;br/&gt;validation.py + checks.py&lt;br/&gt;regex · checksum · confidence&lt;br/&gt;· cross-field checks → tier&quot;]
         M8[&quot;&lt;b&gt;8 Output compiler&lt;/b&gt;&lt;br/&gt;output_compiler.py&lt;br/&gt;JSON result, persists,&lt;br/&gt;owns /results*&quot;]
         M9[&quot;&lt;b&gt;9 Review queue&lt;/b&gt;&lt;br/&gt;review_queue.py&lt;br/&gt;field_review · spot_check&lt;br/&gt;· new_template_needed&quot;]
@@ -226,6 +227,7 @@ flowchart LR
     AL --&gt; M6
     AL --&gt; VR
     VR --&gt; EN
+    ES -. &quot;which engines, in what order&lt;br/&gt;(off unless enabled)&quot; .-&gt; VR
     VR -. &quot;reader unavailable → Tesseract&quot; .-&gt; M6
     BATCH -.-&gt; EX
     M9 --- HK
@@ -303,6 +305,12 @@ flowchart LR
 <td><code>vlm_reader/engines.py</code>, <code>client.py</code>, <code>openai_client.py</code></td>
 <td>Resolve the active engine by name from <code>READER_ENGINES_FILE</code> (else <code>VLM_READER_URL</code>); two kinds, one <code>read(items) -&gt; replies</code> interface</td>
 <td>Any failure is <code>ReaderUnavailable</code>, never a crash or a half-read page; tokens come from an env var named in the file, never the file</td>
+</tr>
+<tr>
+<td>Engine selection</td>
+<td><code>engine_selection/</code> (<code>selector.py</code>, <code>probe.py</code>, <code>store.py</code>, <code>promotion.py</code>, <code>drift.py</code>, <code>agreement.py</code>)</td>
+<td>Per template, choose the reader chain <code>[text_layer] + [model engines, best first] + [tesseract]</code> from stored scorecards; promote a candidate only if it beats the incumbent on the same corpus; take an engine out when live, person-checked accuracy falls under its scorecard; combine two engines so a disagreement goes to review. <strong>Off unless <code>ENGINE_SELECTOR_ENABLED=1</code></strong></td>
+<td>Nothing is <code>auto</code> until an engine has been measured <strong>and</strong> promoted: the cold-start mode holds every would-be <code>auto</code> value at <code>spot_check</code> and skips audited auto-approval. Agreement only ever raises a value to gated (89), never to <code>auto</code></td>
 </tr>
 <tr>
 <td>Review groups</td>
@@ -428,9 +436,9 @@ flowchart LR
     V[&quot;Extracted value&lt;br/&gt;+ confidence&quot;] --&gt; R{&quot;Module 7:&lt;br/&gt;regex ✔ AND&lt;br/&gt;checksum ✔ AND&lt;br/&gt;confidence ≥ floor&lt;br/&gt;AND cross-checks ✔?&quot;}
     R -- &quot;any fail&quot; --&gt; REV[&quot;🔴 &lt;b&gt;review&lt;/b&gt;&lt;br/&gt;rejected, reasons listed,&lt;br/&gt;person must decide&quot;]
     R -- &quot;all pass&quot; --&gt; HV{&quot;Field has a regex&lt;br/&gt;or a checksum?&quot;}
-    HV -- &quot;no&quot; --&gt; SPOT1[&quot;🟡 &lt;b&gt;spot_check&lt;/b&gt;&lt;br/&gt;why = no_validator&quot;]
+    HV -- &quot;no&quot; --&gt; SPOT1[&quot;&lt;b&gt;spot_check&lt;/b&gt;&lt;br/&gt;why = no_validator&quot;]
     HV -- &quot;yes&quot; --&gt; CT{&quot;confidence ≥ 0.90?&quot;}
-    CT -- &quot;no&quot; --&gt; SPOT2[&quot;🟡 &lt;b&gt;spot_check&lt;/b&gt;&lt;br/&gt;why = below_auto_threshold&quot;]
+    CT -- &quot;no&quot; --&gt; SPOT2[&quot;&lt;b&gt;spot_check&lt;/b&gt;&lt;br/&gt;why = below_auto_threshold&quot;]
     CT -- &quot;yes&quot; --&gt; AUTO[&quot;🟢 &lt;b&gt;auto&lt;/b&gt;&lt;br/&gt;used without a human&quot;]
 </pre></figure>
 <p><strong>Audited auto-approval (§2.7)</strong> adds one more way to reach <code>auto</code>: a <code>spot_check</code> on a field a person has checked enough of is approved as <code>auto</code> with <code>auto_basis = trusted_field</code>, bar a random 5% that still go to a person. It only ever applies to <code>below_auto_threshold</code> and <code>no_validator</code> spot checks that have a value; a Module 7 rejection or a blank optional is never promoted.</p>
@@ -746,16 +754,71 @@ flowchart LR
 <p><strong>To try a newly published model:</strong> serve it behind an OpenAI-compatible endpoint, add an entry, then run <code>scripts/evaluate_reader.py --engine tesseract --engine qwen_waybill --engine candidate_vlm</code> on the same labelled documents. It prints, per engine and input kind, fields right, wrong values <strong>by approval tier</strong> (a wrong value in <code>auto</code> would ship; in <code>spot_check</code> it costs a person's attention), and documents per minute, then the <strong>second-reader table</strong>: where two engines give the same value, how often is it right. Only then point <code>READER_ENGINE</code> at it.</p>
 <p><strong>What a registry does not do</strong> (so nobody expects it to):</p>
 <ul>
-<li><strong>The wording of the questions is still the shipped adapter's.</strong> A different model may do better or worse with other wording; that is a measured change, not a config switch. 🟡 Per-engine prompt wording is being added in the working tree.</li>
+<li><strong>The wording of the questions is still the shipped adapter's.</strong> A different model may do better or worse with other wording; that is a measured change, not a config switch. An engine entry <strong>can</strong> carry its own wording (<code>prompt_file</code>: a JSON with <code>party</code>, <code>goods</code> and <code>single</code>), and a file that cannot be read makes that engine unavailable rather than silently using the shipped wording; the shipped wording is still the default.</li>
 <li><strong>Switching engines changes who reads.</strong> The human-check evidence behind audited auto-approval was gathered on another reader (vision-read pages never get audited auto-approval anyway), and every engine's values stay <code>spot_check</code> until measured.</li>
 <li><strong>A whole-page parser is a different shape.</strong> Baidu's Unlimited-OCR (2026) is built for very long documents and returns text with page markers, no word positions as far as its README says (§10.2). It cannot replace the page-alignment and crop machinery; as a <em>crop reader</em> it is zero-shot (no adapter for our forms) and is only a candidate until the scorecard says otherwise.</li>
-<li><strong>Which engine read a page is logged</strong> (<code>VlmPage.engine</code>) but <strong>not yet stored on the result</strong>; a bake-off over live traffic needs that.</li>
+<li><strong>Which engine read a page</strong> is logged (<code>VlmPage.engine</code>), returned on the page extraction and <strong>stored on every review entry it creates</strong> (<code>payload.engine</code>), which is what drift is judged on. It is not yet a column on the extraction result itself, so a field a person never looked at carries no engine.</li>
 </ul>
-<p>🟡 <strong>In the working tree, not committed: measurement-based engine selection</strong> (<code>app/modules/engine_selection/</code>, migration <code>0007</code>, <code>ENGINE_*</code> settings, off unless <code>ENGINE_SELECTOR_ENABLED</code>). Its stated design: choose which engines read a template, and in what order, from stored <strong>scorecards</strong> instead of the order of the registry file; promote an engine only if it beats the incumbent on the <em>same</em> documents; take an engine out of the chain when its live, person-checked accuracy falls under its scorecard; combine two engines' answers so disagreement goes to review; and read a template with no promoted engine in cold-start mode in which nothing reaches <code>auto</code>. Every threshold there is a provisional starting value.</p>
+<h3 id="210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</h3>
+<p>The registry says which engines <em>exist</em>. The <strong>engine selector</strong> (<code>select_chain(template_id, page features)</code>, <code>app/modules/engine_selection/selector.py</code>) decides which of them read a template and in what order. It is <strong>off unless <code>ENGINE_SELECTOR_ENABLED=1</code></strong>; off, a page is read exactly as described in §2.9. The rules are written out in <code>docs/engine-selection.md</code>; this is the shape of it.</p>
+<figure class="diagram"><pre class="mermaid">
+flowchart TB
+    PG[&quot;a page of a template that opts in&lt;br/&gt;to the vision reader&quot;] --&gt; PR[&quot;probe: text layer? sharpness,&lt;br/&gt;contrast, script&quot;]
+    PR --&gt; M{&quot;which mode?&quot;}
+    M -- &quot;1 override file lists the template&quot; --&gt; OV[&quot;manual chain&lt;br/&gt;(nothing auto unless every engine&lt;br/&gt;is promoted and scored)&quot;]
+    M -- &quot;2 at least one PROMOTED engine,&lt;br/&gt;scored on ≥ 300 fields, not drifted&quot; --&gt; ME[&quot;measured chain:&lt;br/&gt;ranked by field accuracy,&lt;br/&gt;ties within 0.005 by speed&quot;]
+    M -- &quot;3 nothing qualifies&quot; --&gt; CS[&quot;cold start: configured engines by kind prior&lt;br/&gt;(one for a text-layer page, else two)&lt;br/&gt;force_review: every value capped at spot_check,&lt;br/&gt;no audited auto-approval&quot;]
+    OV --&gt; CH[&quot;chain = text_layer? + model engines + tesseract (always last)&quot;]
+    ME --&gt; CH
+    CS --&gt; CH
+    CH --&gt; RD[&quot;read; with two engines:&lt;br/&gt;disagreement → review,&lt;br/&gt;agreement counts only if the pair was measured&quot;]
+</pre></figure>
+<table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Rule</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scorecards</strong></td>
+<td><code>evaluate_reader.py --save</code> stores one row per (template, engine, corpus): fields right, wrong values that would have been <code>auto</code>, queued fields, docs/min. Append-only; the latest row is the standing</td>
+<td>Two scores compare only on the <em>same</em> documents, so every card names its corpus</td>
+</tr>
+<tr>
+<td><strong>Promotion</strong></td>
+<td><code>--save --promote</code> admits a candidate only if, on the same corpus as the best incumbent, it is at least 0.01 better, put <strong>no wrong value into <code>auto</code></strong>, and was scored on ≥ 300 fields. An incumbent with no card on that corpus blocks promotion: run it in the same command</td>
+<td>A better number on easier documents is not a better engine</td>
+</tr>
+<tr>
+<td><strong>Drift</strong></td>
+<td>Of the last 200 values an engine produced that a person settled <strong>one at a time</strong> (a bulk accept is not an independent check), if there are ≥ 50 and the share left unchanged is more than 0.05 under the scorecard's accuracy on queued fields, the engine leaves the chain until re-measured and promoted again</td>
+<td>The scorecard was a snapshot; review is the live evidence</td>
+</tr>
+<tr>
+<td><strong>Two readers</strong></td>
+<td><code>caution</code>: a disagreement sends the field to review (primary's value kept, confidence 0). <code>trust</code>: only once the pair was measured on ≥ 200 agreed fields with ≤ 0.5% wrong, an agreed value counts as gated (89)</td>
+<td>Agreement of two weak readers is not evidence until measured (a Tesseract second reader agreed on only 55 of 624 uncertain values, §2.7)</td>
+</tr>
+<tr>
+<td><strong>Labels</strong></td>
+<td>A value a person settles one at a time is stored in <code>labelled_examples</code>; <code>scripts/export_labelled.py --template ID --out DIR</code> writes the page images and a <code>ground_truth.json</code> that <code>evaluate_reader.py</code> accepts</td>
+<td>Corrections become the next corpus. They are review-size renders of <em>queued</em> fields, so a score on them is an uncertain-field score, not comparable with another corpus</td>
+</tr>
+<tr>
+<td><strong>Audit trail</strong></td>
+<td>Every change of a template's chain is written to <code>engine_chain_log</code> and to the log, with the numbers behind it</td>
+<td>You can say why a model read a document on a given day</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What it does not do, plainly.</strong> It has not run against a real second model: today it has one engine to rank, so its value arrives with the bake-off (§8.5). The probe measures a text layer, sharpness, contrast and script; handwriting share is reported as unknown and no rule reads it, and only the text-layer flag changes the chain. The sharpness thresholds were set on synthetic pages only. Every limit is a provisional starting value (<code>ENGINE_*</code> in <code>app/config.py</code>). If the selector itself fails (the database is down) the page is still read, by the registry's own choice, and held at <code>spot_check</code> or below.</p>
 <hr />
 <h2 id="3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</h2>
 <h3 id="31-primary-store">3.1 Primary store</h3>
-<p><strong>PostgreSQL 17</strong>, accessed with SQLAlchemy 2.x (<code>psycopg</code> v3), migrated with Alembic (six committed migrations, <code>0001</code>–<code>0006</code>; 🟡 <code>0007</code>, the engine-selection tables of §2.9, is in the working tree). The strategy is <strong>relational spine + JSONB for shape-varying documents</strong>: ids, versions, statuses and timestamps are real columns; templates, field results, queue payloads and batch results are JSONB because their shape belongs to the template/entry type, not to the schema.</p>
+<p><strong>PostgreSQL 17</strong>, accessed with SQLAlchemy 2.x (<code>psycopg</code> v3), migrated with Alembic (seven migrations, <code>0001</code>–<code>0007</code>; <code>0007</code> adds the five engine-selection tables of §2.10). The strategy is <strong>relational spine + JSONB for shape-varying documents</strong>: ids, versions, statuses and timestamps are real columns; templates, field results, queue payloads and batch results are JSONB because their shape belongs to the template/entry type, not to the schema.</p>
 <h3 id="32-entity-relationship-diagram">3.2 Entity-relationship diagram</h3>
 <figure class="diagram"><pre class="mermaid">
 erDiagram
@@ -805,7 +868,56 @@ erDiagram
         timestamptz finished_at
     }
 
+    ENGINE_SCORECARDS {
+        int id PK
+        string template_id &quot;indexed&quot;
+        string engine &quot;indexed&quot;
+        string corpus_id &quot;scores compare only on the same corpus&quot;
+        int fields
+        int right
+        int wrong_auto &quot;wrong values that would have shipped unchecked&quot;
+        int queued_fields
+        int queued_right
+        float docs_per_min
+        jsonb by_kind
+    }
+    ENGINE_PAIRS {
+        int id PK
+        string template_id
+        string engine_a &quot;a &lt; b&quot;
+        string engine_b
+        string corpus_id
+        int fields
+        int agreed
+        int agreed_right
+    }
+    ENGINE_PROMOTIONS {
+        int id PK
+        string template_id &quot;UNIQUE with engine&quot;
+        string engine
+        string corpus_id
+        jsonb numbers &quot;candidate vs incumbent&quot;
+    }
+    ENGINE_CHAIN_LOG {
+        int id PK
+        string template_id
+        jsonb chain
+        string mode &quot;override | measured | cold_start&quot;
+        jsonb numbers
+    }
+    LABELLED_EXAMPLES {
+        int id PK
+        string template_id
+        int template_version
+        int extraction_result_id &quot;UNIQUE with field_id (logical, no FK)&quot;
+        string field_id
+        string value &quot;what a person settled&quot;
+        string machine_value
+        string engine
+    }
+
     BATCHES ||--o{ BATCH_DOCUMENTS : &quot;contains&quot;
+    EXTRACTION_RESULTS ||--o{ LABELLED_EXAMPLES : &quot;a person settled a field (logical, no FK)&quot;
     TEMPLATES ||--o{ EXTRACTION_RESULTS : &quot;version used (logical, no FK)&quot;
     EXTRACTION_RESULTS ||--o{ REVIEW_QUEUE : &quot;payload.extraction_result_id (logical, no FK)&quot;
 </pre></figure>
@@ -813,6 +925,7 @@ erDiagram
 <ul>
 <li><strong>Only one real foreign key exists</strong> (<code>batch_documents.batch_id → batches.id</code>). The template↔result and result↔queue links are <em>logical</em>, carried inside values (<code>template_id</code>/<code>template_version</code> columns, <code>extraction_result_id</code> inside the JSONB payload). That keeps templates, results and queue entries independently writable; it also means referential integrity there is enforced by application code, not the database.</li>
 <li>The SQLAlchemy models declare <strong>no <code>relationship()</code></strong>, so <code>submit_batch</code> must <code>flush()</code> the batch row before adding its documents.</li>
+<li>The five <code>engine_*</code> / <code>labelled_examples</code> tables are append-only evidence, keyed by the template's logical id like everything else; none has a foreign key. They are empty until <code>evaluate_reader.py --save</code> or a person's review fills them, and nothing reads them while the selector is off.</li>
 <li>A <em>document type</em> is <code>templates.doc_type</code>; it is archived when its <strong>latest</strong> version is, so saving a new version un-archives it.</li>
 </ul>
 <h3 id="33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</h3>
@@ -1472,6 +1585,42 @@ flowchart LR
 <td>The fixed confidences a vision-read value gets (§2.4); 89 is under the 90 auto threshold on purpose</td>
 </tr>
 <tr>
+<td><code>ENGINE_SELECTOR_ENABLED</code></td>
+<td><code>app/config.py</code></td>
+<td>off</td>
+<td>Turns on per-template engine selection (§2.10). Off, the registry's own choice reads, exactly as before. Needs migration <code>0007</code>; restart API and worker (no auto-reload)</td>
+</tr>
+<tr>
+<td><code>ENGINE_CHAIN_OVERRIDES_FILE</code></td>
+<td><code>app/config.py</code></td>
+<td>unset = off</td>
+<td><code>{&quot;template_id&quot;: [&quot;engine&quot;, ...]}</code>: a hand-written chain for a template; unknown names are ignored with a warning</td>
+</tr>
+<tr>
+<td><code>ENGINE_MIN_FIELDS</code>, <code>ENGINE_ACCURACY_TIE</code>, <code>ENGINE_PROMOTE_MARGIN</code></td>
+<td><code>app/config.py</code></td>
+<td>300, 0.005, 0.01</td>
+<td>Fields a scorecard needs to rank anything; accuracies this close are a tie broken by speed; how much a candidate must win by on the same corpus</td>
+</tr>
+<tr>
+<td><code>ENGINE_DRIFT_WINDOW</code>, <code>ENGINE_DRIFT_MIN_CHECKS</code>, <code>ENGINE_DRIFT_MARGIN</code></td>
+<td><code>app/config.py</code></td>
+<td>200, 50, 0.05</td>
+<td>Drift is judged on the latest 200 one-at-a-time checks, needs at least 50, and removes an engine 0.05 under its scorecard</td>
+</tr>
+<tr>
+<td><code>ENGINE_AGREEMENT_MIN_AGREED</code>, <code>ENGINE_AGREEMENT_MAX_WRONG_RATE</code></td>
+<td><code>app/config.py</code></td>
+<td>200, 0.005</td>
+<td>A pair must have agreed on this many fields, at most this share wrong, before its agreement counts as gated</td>
+</tr>
+<tr>
+<td><code>ENGINE_SHARP_MIN</code>, <code>ENGINE_SHARP_POOR</code></td>
+<td><code>app/config.py</code></td>
+<td>60, 20</td>
+<td>Page sharpness (Laplacian variance at 1200 px wide) under which a page is <code>soft</code> / <code>poor</code>; provisional, set on synthetic pages only</td>
+</tr>
+<tr>
 <td><code>IDP_FORM</code>, <code>IDP_LANDMARKS</code></td>
 <td>experiment scripts only</td>
 <td><code>B</code>, none</td>
@@ -1698,7 +1847,7 @@ flowchart LR
 </tr>
 <tr>
 <td><strong>Which reader read a page</strong></td>
-<td>✅ <code>PageResult.reader</code> (<code>text_layer</code>, <code>vlm</code>, <code>ocr</code>, <code>ocr_fallback</code>) is returned and stored in the batch result; the engine name and gate counts are logged (<code>vision reader waybill_B via engine qwen_waybill: 33 fields, 21 gated, 0 blank</code>). The engine is <strong>not yet stored on the extraction result</strong></td>
+<td>✅ <code>PageResult.reader</code> (<code>text_layer</code>, <code>vlm</code>, <code>ocr</code>, <code>ocr_fallback</code>) is returned and stored in the batch result; the engine name and gate counts are logged (<code>vision reader waybill_B via engine qwen_waybill: 33 fields, 21 gated, 0 blank</code>). The engine is stored on review entries (<code>payload.engine</code>) but <strong>not yet on the extraction result</strong>; with the selector on, every change of a template's engine chain is also written to <code>engine_chain_log</code></td>
 </tr>
 <tr>
 <td><strong>Per-document audit</strong></td>
@@ -1915,7 +2064,7 @@ flowchart LR
 <td><strong>A named engine in a registry file</strong>, two kinds (our <code>/read</code> service, any OpenAI-compatible server) behind one all-or-nothing call</td>
 <td>A client hard-wired to one model; one model per template in code</td>
 <td>A newly published model should be a config entry plus a scorecard, not a release; both kinds look identical to the pipeline</td>
-<td>The question wording is still the shipped adapter's, each engine's trust must be measured, and the engine is not yet stored per result</td>
+<td>The default question wording is the shipped adapter's (an engine may bring its own), each engine's trust must be measured, and the engine is stored on review entries, not on the extraction result</td>
 </tr>
 <tr>
 <td>23</td>
@@ -1957,6 +2106,22 @@ flowchart LR
 <td>One field across documents is the cheapest thing for a person to scan; the safety stays on the server</td>
 <td>Does <strong>not</strong> reach 20–30 items per 50 documents (§2.7); that needs a stronger second reader, not a nicer screen</td>
 </tr>
+<tr>
+<td>28</td>
+<td>Choosing the engine</td>
+<td><strong>Per template, from stored scorecards on a shared corpus; promote only a candidate that beats the incumbent; drop an engine on live evidence; off by default</strong></td>
+<td>A hand-ordered list in a file; one global model for every template; promoting on any better number</td>
+<td>Models differ by layout and input kind, and a new model should earn its place on the same documents, then keep earning it. Off by default so nothing changes until someone has measured</td>
+<td>Only as good as the corpus and the labels behind the scorecard; thresholds are provisional; it has nothing to rank until a second engine has been scored</td>
+</tr>
+<tr>
+<td>29</td>
+<td>No measurement, no auto</td>
+<td><strong>A template with no promoted engine reads in cold-start mode: every would-be <code>auto</code> value held at <code>spot_check</code>, audited auto-approval skipped</strong></td>
+<td>Treat the first configured engine as trusted</td>
+<td>Auto-approval is a claim about an engine on this form. Without a scorecard there is no basis for it, and the trust evidence was gathered on another reader</td>
+<td>A new template or engine is reviewed by people until it has been measured</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -1976,7 +2141,7 @@ flowchart TB
 </pre></figure>
 <p>The previous version of this document called the vision reader experimental and not wired in. That changed: it is committed, wired into Module 6, opt-in per template and off until an engine is configured. What remains research is the <em>training</em> side.</p>
 <h3 id="82-committed-versus-uncommitted">8.2 Committed versus uncommitted</h3>
-<p>Latest commit: <code>6877a9a</code> <em>Reader engines are configuration: a registry, an OpenAI-compatible crop reader and a scorecard script</em>. Since the previous revision of this document the following landed, each as its own commit:</p>
+<p>Latest feature commit: <code>380f4ee</code> <em>Per-template engine selector: probe, measured ranking, cold start, promotion, drift, agreement and labels</em>. Since the previous revision of this document the following landed, each as its own commit:</p>
 <table>
 <thead>
 <tr>
@@ -2021,9 +2186,17 @@ flowchart TB
 <td><code>6877a9a</code></td>
 <td>The reader-engine registry, the OpenAI-compatible adapter, <code>evaluate_reader.py</code></td>
 </tr>
+<tr>
+<td><code>17c69f2</code></td>
+<td>This document brought up to date, and <code>scripts/build_architecture_html.py</code></td>
+</tr>
+<tr>
+<td><code>380f4ee</code></td>
+<td><strong>Per-template engine selection</strong> (§2.10): probe, measured ranking, cold start, promotion, drift, two-reader agreement, labelled examples, migration <code>0007</code>, per-engine prompts, <code>evaluate_reader.py --save --promote</code>, <code>export_labelled.py</code>; off unless <code>ENGINE_SELECTOR_ENABLED=1</code></td>
+</tr>
 </tbody>
 </table>
-<p>🟡 <strong>In the working tree, not committed, and belonging to a separate piece of work:</strong> measurement-based engine selection (<code>app/modules/engine_selection/</code>, <code>app/models/engine_selection.py</code>, migration <code>0007</code>, <code>ENGINE_*</code> settings, per-engine prompts, <code>scripts/export_labelled.py</code>, <code>tests/test_engine_selection.py</code>) and the small edits to <code>engines.py</code>, <code>client.py</code>, <code>openai_client.py</code>, <code>reader.py</code>, <code>waybill.py</code>, <code>pipeline.py</code>, <code>review_queue.py</code>, <code>output_compiler.py</code> and <code>config.py</code> that go with it. This document describes it only as in progress.</p>
+<p>Nothing in the working tree is uncommitted except local tooling folders (<code>.agents/</code>, <code>.taste-skill/</code>, <code>skills-lock.json</code>). The engine selector has been written and unit-tested, but <strong>has not run against a real second model</strong>; it is off by default, so everything above behaves as before until <code>ENGINE_SELECTOR_ENABLED=1</code>.</p>
 <h3 id="83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</h3>
 <p>This table is the <strong>template + Tesseract/text-layer pipeline</strong> alone (fields right of 33 per document, landmark lists built from training pages only so no held-out page aligns itself). It is kept because it explains <em>why</em> the vision reader exists; the reader's own numbers are in §6.2.</p>
 <table>
@@ -2094,19 +2267,19 @@ flowchart TB
 <li><strong>Wired in:</strong> <code>app/modules/vlm_reader/</code> is part of Module 6. It runs for a scanned or photographed page of a template that opts in, for a text-layer page Module 7 rejects something on, and falls back to Tesseract (capped at <code>spot_check</code>) whenever the engine cannot be used.</li>
 <li><strong>Model:</strong> Qwen2.5-VL-7B-Instruct with a LoRA adapter, chosen on synthetic validation only. The adapter in use is <code>data/models/wb_v4_epoch3</code> (309 MB, local); the earlier <code>wb_v3_epoch2</code> is kept. Synthetic validation 94.6% (previous adapter 92.9%); real held-out pages 89.1% (previous 89.7%), i.e. no measured gain on real new pages. The old Tesseract pipeline gets 11% on the same pages.</li>
 <li><strong>Found and fixed on the way:</strong> a prompt that contained a valid mod-7 example number was <strong>copied</strong> by the model on clipped crops (examples removed, training sets rebuilt); a crop that cuts a value off is answered EMPTY in training, never with the visible part (this fixed the model writing <code>123,456.00</code> into caption-only crops); a boilerplate-anchored template made every Bangkok scan <code>ambiguous_match</code> before the model could run (<code>yields_to</code>); a dead tunnel blocked a worker for the whole read timeout (separate connect timeout); the Tesseract fallback let wrong values reach <code>auto</code> (cap).</li>
-<li><strong>Engines:</strong> the model that reads is a registry entry (§2.9). Both shipped kinds answer identically to the pipeline. <strong>No second model has been scored yet.</strong> <code>scripts/evaluate_reader.py</code> is the instrument that will do it.</li>
+<li><strong>Engines:</strong> the model that reads is a registry entry (§2.9). Both shipped kinds answer identically to the pipeline. <strong>No second model has been scored yet.</strong> <code>scripts/evaluate_reader.py</code> is the instrument that will do it, and with <code>--save --promote</code> it is also what feeds the engine selector (§2.10), which stays off until there is more than one engine to rank.</li>
 <li><strong>What the GPU is for:</strong> <em>running</em> the reader on scanned pages. Training is finished and nothing about a text-layer PDF that validates needs it. The development GPU machine is a shared lab box that is not part of this project's footprint; the application is only its client.</li>
-<li><strong>Not done:</strong> a reader that works on a <strong>layout it has never seen</strong> (the central open problem, §10); layouts with no template or synthetic generator (SalamAir, Pioneer); storing the engine name on each result; per-engine prompts (in progress, §8.2); fine-tuning Tesseract itself.</li>
+<li><strong>Not done:</strong> a reader that works on a <strong>layout it has never seen</strong> (the central open problem, §10); layouts with no template or synthetic generator (SalamAir, Pioneer); storing the engine name on the extraction result itself (it is on review entries); a measured prompt per engine (the mechanism exists, nobody has measured a second wording); fine-tuning Tesseract itself.</li>
 <li><strong>Throughput caveat:</strong> ≈ 0.27–0.4 s per crop and ≈ 87 crops per scanned page is ≈ 40 s of GPU time a page, ≈ 29 documents an hour on one shared card (§6.1).</li>
 <li><strong>Security caveat:</strong> the crops leave the host. A bearer token, a private port and TLS in front are required before real documents are sent; the service token created for the trial has not been rotated.</li>
 </ul>
 <h3 id="85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</h3>
 <ol>
 <li><strong>Authentication/authorization and TLS</strong> (§5.1): required before any shared deployment.</li>
-<li><strong>Get a GPU the project controls</strong> and run the <strong>engine bake-off</strong>: the current adapter, Baidu Unlimited-OCR, PaddleOCR-VL and any other candidate, scored by <code>evaluate_reader.py</code> on the 50-document hard batch and the real pages. Decide the default engine and whether a second engine can serve as an independent reader (§10.3).</li>
+<li><strong>Get a GPU the project controls</strong> and run the <strong>engine bake-off</strong>: the current adapter, Baidu Unlimited-OCR, PaddleOCR-VL and any other candidate, scored by <code>evaluate_reader.py --save</code> on the 50-document hard batch and the real pages, then <code>--promote</code> the winner so the selector (§2.10) can use it. Decide the default engine and whether a second engine can serve as an independent reader (§10.3). Until this is done the selector has one engine to rank.</li>
 <li><strong>Verify the draft labels</strong> in <code>data/real_awb/labels/</code> (they are unverified; every accuracy figure on real documents depends on them).</li>
 <li><strong>Shrink the queue honestly.</strong> ≈ 670 of 1,518 fields on a 50-document batch stay queued at the target error rate (§2.7). The levers that are left are a validated second reader, master-data validators (§10.3) and a grounding check, not another screen.</li>
-<li><strong>Store the engine on each result</strong> and make trust evidence engine-aware, so switching the model cannot silently inherit another model's evidence.</li>
+<li><strong>Store the engine on each extraction result</strong> (it is on review entries today) and make the audited-trust evidence engine-aware, so switching the model cannot silently inherit another model's evidence. Then switch the selector on for one template and watch <code>engine_chain_log</code>.</li>
 <li><strong>Observability</strong>: <code>/healthz</code>, metrics, error tracking, structured logs (§6.4).</li>
 <li><strong>Move blobs out of Postgres</strong> and <strong>split migrations from API start-up</strong> before scaling out.</li>
 <li><strong>More real data per layout</strong>: a handful of test documents cannot certify 1-in-10,000; the project needs hundreds of labelled real pages per layout and a gate evaluated per auto-approved value.</li>
@@ -2119,14 +2292,15 @@ flowchart TB
 flowchart LR
     root[&quot;idp-pipeline/&quot;] --&gt; app[&quot;app/&lt;br/&gt;FastAPI + pipeline&quot;]
     root --&gt; fe[&quot;frontend/&lt;br/&gt;React console&quot;]
-    root --&gt; alembic[&quot;alembic/versions/&lt;br/&gt;0001–0006 (🟡 0007 in the tree)&quot;]
+    root --&gt; alembic[&quot;alembic/versions/&lt;br/&gt;0001–0007&quot;]
     root --&gt; scripts[&quot;scripts/&lt;br/&gt;seed, evaluate (incl. evaluate_reader),&lt;br/&gt;build corpora and the demo batch,&lt;br/&gt;export_batch_json, waybill_forms, 🧪 gpu/&quot;]
     root --&gt; config[&quot;config/&lt;br/&gt;reader_engines.example.json&quot;]
+    root --&gt; docs2[&quot;docs/&lt;br/&gt;engine-selection.md&quot;]
     root --&gt; data[&quot;data/ (git-ignored)&lt;br/&gt;reader_profiles, models, corpora&quot;]
-    root --&gt; tests[&quot;tests/&lt;br/&gt;596 tests, real-OCR tests,&lt;br/&gt;fixtures/ git-ignored&quot;]
+    root --&gt; tests[&quot;tests/&lt;br/&gt;638 tests, real-OCR tests,&lt;br/&gt;fixtures/ git-ignored&quot;]
     root --&gt; docker[&quot;Dockerfile · docker-compose*.yml&lt;br/&gt;docker/postgres-init/&quot;]
     root --&gt; docs[&quot;CLAUDE.md · ACCURACY_REPORT.md&lt;br/&gt;idp-phase1-master-reference.pdf&lt;br/&gt;architecture.md&quot;]
-    app --&gt; modules[&quot;modules/ (the 9 modules + batch + alignment + checks + pipeline&lt;br/&gt;+ vlm_reader/ + review_groups + trust + export + housekeeping)&quot;]
+    app --&gt; modules[&quot;modules/ (the 9 modules + batch + alignment + checks + pipeline&lt;br/&gt;+ vlm_reader/ + engine_selection/ + review_groups + trust + export + housekeeping)&quot;]
     app --&gt; models[&quot;models/ (SQLAlchemy)&quot;]
     app --&gt; schemas[&quot;schemas/ (Pydantic)&quot;]
     app --&gt; cfg[&quot;config.py (every tunable, with its measurement)&lt;br/&gt;db.py · job_queue.py · runtime.py · worker.py&quot;]
@@ -2181,6 +2355,10 @@ flowchart LR
 <td>Qwen2.5-VL-7B-Instruct + LoRA served by <code>scripts/gpu/serve_reader.py</code> (FastAPI, on a GPU machine), or any OpenAI-compatible server (vLLM, SGLang, Ollama, hosted); <code>httpx</code> client; engines named in <code>READER_ENGINES_FILE</code></td>
 </tr>
 <tr>
+<td>Engine selection</td>
+<td>Pure Python over five PostgreSQL tables (<code>engine_*</code>, <code>labelled_examples</code>); no extra service</td>
+</tr>
+<tr>
 <td>🧪 Research</td>
 <td>PEFT LoRA training scripts, shared GPU box over SSH</td>
 </tr>
@@ -2199,7 +2377,10 @@ npm --prefix frontend run dev -- --port 5173
 
 # the model that reads: pick an engine (config/reader_engines.example.json), then score it
 $env:READER_ENGINES_FILE = &quot;config\reader_engines.json&quot;; $env:READER_ENGINE = &quot;qwen_waybill&quot;
-.\.venv\Scripts\python.exe scripts\evaluate_reader.py --images-dir data\demo_50 --ground-truth data\demo_50\ground_truth.json --engine tesseract --engine qwen_waybill
+.\.venv\Scripts\python.exe -m alembic upgrade head                       # includes 0007, the engine-selection tables
+.\.venv\Scripts\python.exe scripts\evaluate_reader.py --images-dir data\demo_50 --ground-truth data\demo_50\ground_truth.json --engine tesseract --engine qwen_waybill [--save [--promote]]   # --save stores scorecards; --promote admits a winner to the chain
+.\.venv\Scripts\python.exe scripts\export_labelled.py --template air_waybill --out data\labelled_air_waybill   # people's settled values as the next corpus
+$env:ENGINE_SELECTOR_ENABLED = &quot;1&quot;                                          # then restart the API and worker: selection is off by default
 .\.venv\Scripts\python.exe scripts\export_batch_json.py --api http://localhost:8000 --batch-id ID --out data\demo_50_results --wait
 
 # quality
@@ -2275,6 +2456,30 @@ node frontend/scripts/check_contrast.mjs
 <tr>
 <td><strong><code>ocr_fallback</code></strong></td>
 <td>The page wanted the vision reader, Tesseract read it instead; capped at <code>spot_check</code></td>
+</tr>
+<tr>
+<td><strong>Engine chain</strong></td>
+<td>The ordered readers for one template: <code>[text_layer] + model engines + tesseract</code>, chosen by the selector</td>
+</tr>
+<tr>
+<td><strong>Scorecard</strong></td>
+<td>One stored measurement of one engine on one corpus for one template</td>
+</tr>
+<tr>
+<td><strong>Promotion</strong></td>
+<td>Admitting an engine to a template's chain after it beat the incumbent on the same corpus</td>
+</tr>
+<tr>
+<td><strong>Cold start</strong></td>
+<td>Selector mode for a template with no promoted engine: every value capped at <code>spot_check</code>, no audited auto-approval</td>
+</tr>
+<tr>
+<td><strong>Drift</strong></td>
+<td>A promoted engine's live, person-checked accuracy falling under its scorecard, which removes it from the chain</td>
+</tr>
+<tr>
+<td><strong>Labelled example</strong></td>
+<td>A value a person settled one at a time, kept as ground truth for the next scorecard</td>
 </tr>
 <tr>
 <td><strong>Verified by</strong></td>
@@ -2402,7 +2607,7 @@ quadrantChart
 <li><strong>Master-data validators (highest payoff, lowest cost).</strong> A field with no validator is never <code>auto</code>, and most waybill fields have no regex. Many of them <em>can</em> be validated against known lists: airline prefix to carrier (176 = Emirates; the full IATA prefix table), airport and IATA city codes, ISO currency, units of measure, incoterms, rate-class letters, HS code structure, AWB check digit (done), dates in range, weight × rate = total (done). Each validator turns a never-auto field into a field that can be <code>auto</code> with a <em>checked</em> shape. Done = the share of fields that have a validator is measured before and after, and no accepted wrong value appears in the corpus.</li>
 <li><strong>Grounding check.</strong> After any read (VLM or otherwise), require that the value's characters actually occur in the page OCR within the field's box (± a margin), using a fuzzy match. A value the reader <em>invented</em> has no ink to match. This directly closes the failure you found with the copied AWB. Done = on the clipped-crop test set the invented values are rejected and no correct value is.</li>
 <li><strong>A gold set of real pages.</strong> Everything else is limited by this. 16 documents cannot certify anything; the project needs hundreds of <strong>verified</strong> labels per layout, with a document-level split and the draft labels checked by a second person. Use the active-selection idea to label the fields where readers disagree first. Done = 200+ real pages per top layout, labels double-checked, frozen split.</li>
-<li><strong>Benchmark other readers</strong> (PaddleOCR-VL-1.6, GLM-OCR, Baidu Unlimited-OCR as a crop reader) through the engine registry on the same labelled documents as the current adapter: <code>evaluate_reader.py</code> prints fields right by input kind, wrong values by approval tier and docs/minute for each, and a second-reader table (where two engines agree, how often is it right). The instrument exists (§2.9); what is missing is a GPU to run candidates on. If a ≈ 1B model matches the 7B on crops you get a reader that runs without a GPU server, and if two strong engines agree you may finally get the independent second reader the queue floor (§2.7) needs. Done = that table for each engine.</li>
+<li><strong>Benchmark other readers</strong> (PaddleOCR-VL-1.6, GLM-OCR, Baidu Unlimited-OCR as a crop reader) through the engine registry on the same labelled documents as the current adapter: <code>evaluate_reader.py</code> prints fields right by input kind, wrong values by approval tier and docs/minute for each, and a second-reader table (where two engines agree, how often is it right). The instrument exists (§2.9, and §2.10 turns its scorecards into a per-template choice); what is missing is a GPU to run candidates on. If a ≈ 1B model matches the 7B on crops you get a reader that runs without a GPU server, and if two strong engines agree you may finally get the independent second reader the queue floor (§2.7) needs. Done = that table for each engine.</li>
 <li><strong>Drift monitor with automatic trust withdrawal.</strong> Per template, track anchor scores, alignment inlier count, agreement rate and the confidence distribution with a simple sequential test; on a sustained shift, suspend <code>trusted_field</code> for that template and send its next N pages to review. Done = a simulated new-printer batch trips the alarm within a few documents.</li>
 <li><strong>Fused, calibrated score per field type.</strong> Train a small model (gradient-boosted trees or logistic regression) on per-field signals (OCR confidence, reader agreement, grounding, format pass, alignment quality, anchor scores) with the document-level split, calibrate it, and choose the auto threshold per field type with a Learn-then-Test style procedure. Done = a higher auto share than the rules at the same measured wrong-auto count on the gold set.</li>
 <li><strong>Template induction from one example.</strong> For a new layout, a document model proposes each field's box from the <em>caption text</em> (the printed label), a person confirms the boxes once in the designer, and the system derives anchors and landmarks automatically (the landmark builder exists as a script). This is the practical route to &quot;any waybill&quot;: a new layout costs five minutes, not a new training run. Done = a new real layout reaches usable extraction after one confirmed sample.</li>

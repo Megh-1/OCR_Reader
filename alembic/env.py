@@ -8,6 +8,7 @@ from alembic import context
 from app.config import DATABASE_URL
 from app.db import Base
 from app.models.batch import BatchDocumentRecord, BatchRecord  # noqa: F401 (registers the tables on Base.metadata)
+from app.models.engine_selection import EngineChainLogRecord, EnginePairRecord, EnginePromotionRecord, EngineScorecardRecord, LabelledExampleRecord  # noqa: F401 (registers the tables on Base.metadata)
 from app.models.extraction_result import ExtractionResultRecord  # noqa: F401 (registers the table on Base.metadata)
 from app.models.review_queue import ReviewQueueRecord  # noqa: F401 (registers the table on Base.metadata)
 from app.models.template import TemplateRecord  # noqa: F401 (registers the table on Base.metadata)

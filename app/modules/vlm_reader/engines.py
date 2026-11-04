@@ -43,7 +43,7 @@ class EngineSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(pattern=r"^[A-Za-z0-9_.-]{1,40}$")
-    kind: Literal["service", "openai_compatible"]
+    kind: Literal["tesseract", "text_layer", "openai_compatible", "service", "existing_service"]
     url: str = ""
     model: str = ""  # openai_compatible: the model name the server serves
     token_env: str = ""  # name of the environment variable holding the bearer token
@@ -53,16 +53,45 @@ class EngineSpec(BaseModel):
     concurrency: int = Field(default=8, ge=1, le=64)  # openai_compatible: requests in flight at once
     max_tokens: Optional[int] = Field(default=None, ge=1)  # openai_compatible: cap on a reply
     extra_body: dict = Field(default_factory=dict)  # openai_compatible: server-specific request fields
+    prompt_file: str = ""  # JSON {"party": ..., "goods": ..., "single": ...}: this engine's own wording of the questions (waybill.py has the shipped ones)
+
+    @property
+    def is_reader(self) -> bool:
+        """A crop reader, i.e. a model behind a URL. `tesseract` and `text_layer` are the pipeline's own paths, not something to call."""
+        return self.kind in ("service", "existing_service", "openai_compatible")
+
+    @property
+    def prior(self) -> int:
+        """A fixed ordering for a template nobody has measured yet (lower = earlier): the engine fine-tuned on our forms first, a
+        general model after it. A starting guess, replaced by the measurements as soon as there are any."""
+        return {"service": 0, "existing_service": 0, "openai_compatible": 1}.get(self.kind, 9)
+
+    def prompts(self) -> Optional[dict]:
+        """This engine's own question wording, or None for the shipped one. A file that cannot be read is an unusable engine."""
+        if not self.prompt_file:
+            return None
+        try:
+            data = json.loads(Path(self.prompt_file).read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ReaderUnavailable(f"engine {self.name!r}: prompt file {self.prompt_file} cannot be used: {exc}") from exc
+        if not isinstance(data, dict) or not data or not set(data) <= {"party", "goods", "single"} or not all(isinstance(v, str) for v in data.values()):
+            raise ReaderUnavailable(f"engine {self.name!r}: prompt file {self.prompt_file} must map party/goods/single to text")
+        return data
 
     def build(self, transport=None) -> CropReader:
+        if not self.is_reader:
+            raise ReaderUnavailable(f"engine {self.name!r} is the pipeline's own {self.kind} path, not a crop reader")
         token = os.environ.get(self.token_env, "") if self.token_env else ""
-        if self.kind == "service":
+        if self.kind in ("service", "existing_service"):
             client = ReaderClient(url=self.url, token=token, timeout=self.timeout_s, per_request=self.crops_per_request, transport=transport)
             client.name = self.name
+            client.prompts = self.prompts()
             return client
-        return OpenAICompatibleClient(url=self.url, model=self.model, token=token, name=self.name, timeout=self.timeout_s,
+        client = OpenAICompatibleClient(url=self.url, model=self.model, token=token, name=self.name, timeout=self.timeout_s,
                                       connect_timeout=self.connect_timeout_s, concurrency=self.concurrency,
                                       max_tokens=self.max_tokens, extra_body=self.extra_body, transport=transport)
+        client.prompts = self.prompts()
+        return client
 
 
 class Registry(BaseModel):
@@ -94,6 +123,11 @@ def load_registry() -> Registry:
     return registry
 
 
+def reader_specs(registry: Optional[Registry] = None) -> list[EngineSpec]:
+    """The engines that are crop readers, in the registry's order (which the selector uses only as the last tiebreak)."""
+    return [e for e in (registry or load_registry()).engines if e.is_reader]
+
+
 def active_name(registry: Registry, name: Optional[str] = None) -> Optional[str]:
     chosen = name or config.READER_ENGINE or registry.default or (registry.engines[0].name if registry.engines else None)
     return chosen
@@ -109,7 +143,7 @@ def get_client(name: Optional[str] = None, transport=None) -> CropReader:
         if spec.name == chosen:
             client = spec.build(transport=transport)
             if not client.configured:
-                raise ReaderUnavailable(f"reader engine {chosen!r} has no url" + ("" if spec.kind == "service" else " or model"))
+                raise ReaderUnavailable(f"reader engine {chosen!r} has no url" + ("" if spec.kind != "openai_compatible" else " or model"))
             return client
     raise ReaderUnavailable(f"reader engine {chosen!r} is not in the registry ({[e.name for e in registry.engines]})")
 

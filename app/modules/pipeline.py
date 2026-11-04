@@ -21,6 +21,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from PIL import Image
 from pydantic import BaseModel
 
+from app import config
 from app.models.text_layer import TextLayer
 from app.modules.alignment import Alignment, align_page
 from app.modules.field_extraction import FieldExtractionResult, extract_fields, extract_fields_from_text_layer
@@ -28,6 +29,8 @@ from app.modules.ingestion import IngestionError, IngestionMetadata, extract_tex
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.modules import trust
+from app.modules.engine_selection.probe import probe_page
+from app.modules.engine_selection.selector import ChainDecision, select_chain_for
 from app.modules.vlm_reader import reader as vlm
 from app.modules.vlm_reader.client import ReaderUnavailable
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
@@ -96,11 +99,26 @@ class PageExtraction:
     text_native: bool
     alignment: Optional[Alignment] = None  # the boxes were moved by this; None = read at the stored positions
     reader: str = "ocr"  # "text_layer" | "vlm" | "ocr" | "ocr_fallback"
+    engine: Optional[str] = None  # the registry engine whose model read the page (reader == "vlm")
+    force_review: bool = False  # engine selection is in cold-start mode for this template: nothing on the page may reach auto
 
 
 def _image_size(image_bytes: bytes) -> tuple[int, int]:
     with Image.open(io.BytesIO(image_bytes)) as im:
         return im.size
+
+
+def _plan(template: TemplateOut, page_bytes: bytes, text_layer: Optional[TextLayer]) -> Optional[ChainDecision]:
+    """Which engines read this page, when engine selection is on and the template asks for a reader at all. A selector that fails
+    (the database is down) must not stop the page being read, but nothing it would have chosen is known, so the page is held at
+    spot_check or below (cold start) and read by the one engine the registry names."""
+    if not (config.ENGINE_SELECTOR_ENABLED and vlm.enabled(template)):
+        return None
+    try:
+        return select_chain_for(template.template_id, probe_page(page_bytes, text_layer))
+    except Exception:
+        log.exception("template %s: engine selection failed; reading with the default engine, nothing may reach auto", template.template_id)
+        return ChainDecision(template.template_id, [], [], "cold_start", force_review=True, agreement="off", notes=["the selector failed"])
 
 
 def extract_page_fields(
@@ -130,6 +148,11 @@ def extract_page_fields(
     Public for the same reason as preprocess_for_template: the accuracy harness
     must measure this exact choice, not a copy of it.
     """
+    plan = _plan(template, page_bytes, text_layer)
+    forced = bool(plan and plan.force_review)
+    names = (plan.readers or None) if plan is not None and plan.chain else None  # None: the registry's own choice
+    skip_reader = plan is not None and bool(plan.chain) and not plan.readers  # the chain has no model engine in it
+    agreement = plan.agreement if plan is not None else "off"
     if text_layer is not None:
         text_fields = extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment)
         # The text layer is exact, but a template's boxes read it at fixed positions: a page whose typed values sit off their cells
@@ -138,10 +161,11 @@ def extract_page_fields(
         # rule, a blank - is the evidence that the boxes missed, so such a page goes to the vision reader, with the layer's words as
         # its second reader. Measured on 24 hard digital pages of the two forms: 3-26 rejected fields each, every wrong value Module 7
         # accepted was a spot check. A clean page stays on the exact read, and a reader that is unavailable leaves the page as it was.
-        if vlm.enabled(template) and validate_fields(template, text_fields).flagged:
+        if vlm.enabled(template) and not skip_reader and validate_fields(template, text_fields).flagged:
             try:
-                page = vlm.read_page(template, page_bytes, generic, text_layer=text_layer, verified=alignment)
-                return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
+                page = vlm.read_page(template, page_bytes, generic, text_layer=text_layer, verified=alignment, engine_names=names, agreement=agreement)
+                return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm",
+                                      engine=page.engine, force_review=forced)
             except ReaderUnavailable as exc:
                 log.warning("template %s: the text layer read was doubtful but the vision reader could not be used (%s); keeping the text layer", template.template_id, exc)
         return PageExtraction(
@@ -150,14 +174,18 @@ def extract_page_fields(
             text_native=True,
             alignment=alignment,
             reader="text_layer",
+            force_review=forced,
         )
     reader = "ocr"
     if vlm.enabled(template):
         # A scanned or photographed page of a template that names a reader profile goes to the vision model. Anything that stops it
         # (service down, profile missing, page not aligned) is not an error: the page is read the ordinary way, and says so.
         try:
-            page = vlm.read_page(template, page_bytes, generic, verified=alignment)
-            return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm")
+            if skip_reader:
+                raise ReaderUnavailable("engine selection put no model engine in this template's chain")
+            page = vlm.read_page(template, page_bytes, generic, verified=alignment, engine_names=names, agreement=agreement)
+            return PageExtraction(fields=page.fields, review_image_bytes=generic.field_image_bytes, text_native=False, alignment=page.alignment, reader="vlm",
+                                  engine=page.engine, force_review=forced)
         except ReaderUnavailable as exc:
             log.warning("template %s: the vision reader could not be used (%s); reading the page with Tesseract", template.template_id, exc)
             reader = "ocr_fallback"
@@ -174,6 +202,7 @@ def extract_page_fields(
         text_native=False,
         alignment=alignment,
         reader=reader,
+        force_review=forced,
     )
 
 
@@ -242,6 +271,11 @@ def process_page(
         demoted = demote_auto(summary)
         log.info("page %d: read by Tesseract because the vision reader could not be used; %d auto value(s) capped at spot_check", page_index, demoted)
 
+    if extraction.force_review:
+        # Engine selection has no measurement behind this template yet (cold start): whatever read the page, nothing is auto.
+        forced_down = demote_auto(summary)
+        log.info("page %d: cold-start engine chain; %d auto value(s) capped at spot_check", page_index, forced_down)
+
     compiled = compile_output(identification.template_id, identification.version, summary)
 
     # Audited auto-approval: a spot check on a field whose values a person has checked enough (trust.py) is approved
@@ -258,7 +292,7 @@ def process_page(
     spot_checks = {fid: acc for fid, acc in summary.accepted.items() if acc.approval_tier == "spot_check"}
     # Audited auto-approval counts what people found when they checked a field, whoever read it. A vision-read value is a different
     # reader with a different error profile, so its spot checks stay spot checks until evidence has been gathered on ITS reads.
-    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback") else frozenset()
+    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback") and not extraction.force_review else frozenset()
     audited: set[str] = set()
     for field_id, accepted in spot_checks.items():
         if field_id in trusted and spot_why(field_id, accepted) in trust.TRUSTABLE_WHY and accepted.value.strip():
@@ -273,11 +307,11 @@ def process_page(
     result_id = persist_result(compiled, page_image=make_review_render(extraction.review_image_bytes))
 
     field_review_ids = [
-        enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons, flagged.confidence)
+        enqueue_field_review(result_id, field_id, flagged.value, flagged.reasons, flagged.confidence, engine=extraction.engine)
         for field_id, flagged in summary.flagged.items()
     ]
     spot_check_ids = [
-        enqueue_spot_check(result_id, field_id, accepted.value, accepted.confidence, spot_why(field_id, accepted), audit=field_id in audited, reader=extraction.reader)
+        enqueue_spot_check(result_id, field_id, accepted.value, accepted.confidence, spot_why(field_id, accepted), audit=field_id in audited, reader=extraction.reader, engine=extraction.engine)
         for field_id, accepted in spot_checks.items()
         if compiled.fields[field_id].approval_tier == "spot_check"
     ]

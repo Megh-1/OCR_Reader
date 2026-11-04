@@ -200,6 +200,8 @@ def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) 
         updated_field["verified_by"] = "person"
         updated_fields[field_id] = updated_field
         record.fields = updated_fields
+        from app.modules.engine_selection.store import record_label  # a person's correction is a label too
+        record_label(session, record.template_id, record.template_version, record.id, field_id, body.value, machine_value, None)
 
         if not any(f["needs_review"] for f in updated_fields.values()):
             record.overall_status = "complete"

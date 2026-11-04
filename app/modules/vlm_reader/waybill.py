@@ -94,9 +94,12 @@ GOODS_PROMPT = (
 )
 
 
-def prompt_for(kind: str, label: str, captions: str, hint: str = "") -> str:
+def prompt_for(kind: str, label: str, captions: str, hint: str = "", prompts: "dict | None" = None) -> str:
+    """The question for one crop. `prompts` is an engine's own wording ({"party", "goods", "single"} templates with the same
+    {label} {captions} {hint} placeholders); a kind it does not give keeps the shipped one."""
+    prompts = prompts or {}
     if kind == "party":
-        return PARTY_PROMPT.format(label=label, captions=captions)
+        return prompts.get("party", PARTY_PROMPT).format(label=label, captions=captions)
     if kind == "goods":
-        return GOODS_PROMPT.format(captions=captions)
-    return SINGLE_PROMPT.format(label=label, captions=captions, hint=hint)
+        return prompts.get("goods", GOODS_PROMPT).format(captions=captions)
+    return prompts.get("single", SINGLE_PROMPT).format(label=label, captions=captions, hint=hint)

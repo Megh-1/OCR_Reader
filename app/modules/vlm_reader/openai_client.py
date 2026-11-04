@@ -27,6 +27,7 @@ _THINK = re.compile(r"<think>.*?</think>", re.S)
 
 class OpenAICompatibleClient:
     kind = "openai_compatible"
+    prompts = None  # this engine's own question wording (engines.py); None = the shipped one
 
     def __init__(self, url: str, model: str, token: str = "", name: str = "", timeout: Optional[float] = None,
                  connect_timeout: Optional[float] = None, concurrency: int = 8, max_tokens: Optional[int] = None,

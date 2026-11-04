@@ -25,6 +25,7 @@ from PIL import Image
 
 from app import config
 from app.modules import alignment as A
+from app.modules.engine_selection import agreement as AG
 from app.modules.field_extraction import FieldExtractionResult
 from app.modules.preprocessing import ProcessedImage, preprocess_image
 from app.models.text_layer import TextLayer
@@ -47,7 +48,9 @@ class VlmPage:
     fields: dict[str, FieldExtractionResult]
     alignment: A.Alignment
     gated: int  # how many fields passed the gate (two readers agree, or an arithmetic check holds, and the format passes)
-    engine: str = "default"  # the registry engine whose model read the crops
+    engine: str = "default"  # the registry engine whose model read the crops (the primary, when two did)
+    disagreed: frozenset = frozenset()  # fields two engines read differently: sent to review
+    engines: tuple = ()  # every engine that read the page
 
 
 def enabled(template: TemplateOut) -> bool:
@@ -66,12 +69,15 @@ def align_from_tokens(template: TemplateOut, tokens: list[K.Tok]) -> Optional[A.
     return A.fit_alignment(template.landmarks, words)
 
 
-def to_results(template: TemplateOut, decisions: dict[str, Decision]) -> dict[str, FieldExtractionResult]:
-    """The decisions as Module 6 results. A blank is rejected (confidence 0) unless the field is optional."""
+def to_results(template: TemplateOut, decisions: dict[str, Decision], disagreed: frozenset = frozenset()) -> dict[str, FieldExtractionResult]:
+    """The decisions as Module 6 results. A blank is rejected (confidence 0) unless the field is optional, and so is a value two
+    engines read differently: it keeps the primary engine's reading for the reviewer to see, at confidence 0."""
     out: dict[str, FieldExtractionResult] = {}
     for field in template.fields:
         d = decisions[field.id]
-        if not d.value.strip():
+        if field.id in disagreed:
+            confidence = 0.0
+        elif not d.value.strip():
             confidence = config.VLM_UNGATED_CONFIDENCE if field.optional else 0.0
         else:
             confidence = config.VLM_GATED_CONFIDENCE if d.gated else config.VLM_UNGATED_CONFIDENCE
@@ -84,8 +90,19 @@ def layer_tokens(layer: TextLayer) -> list[K.Tok]:
     return [(w.text, *w.bbox, 100.0) for w in layer.words if w.text.strip()]
 
 
+def _decisions(client: engines.CropReader, crops: list, fields: dict, wordsel: dict) -> dict[str, Decision]:
+    """One engine's answers to a page's crops, as decisions. Raises ReaderUnavailable if it cannot give a complete set."""
+    replies = client.read([(c.png(), W.prompt_for(c.kind, c.label, c.captions, c.hint, client.prompts)) for c in crops], max_new=MAX_NEW_TOKENS)
+    answers: dict[str, dict[int, str]] = defaultdict(dict)  # field -> window level -> the model's raw answer
+    for crop, reply in zip(crops, replies):
+        for fid, value in answer_fields(crop.kind, crop.fields, reply).items():
+            answers[fid][crop.level] = value
+    return decide(fields, answers, wordsel)
+
+
 def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[engines.CropReader] = None,
-              text_layer: Optional[TextLayer] = None, verified: Optional[A.Alignment] = None) -> VlmPage:
+              text_layer: Optional[TextLayer] = None, verified: Optional[A.Alignment] = None,
+              engine_names: Optional[list[str]] = None, agreement: str = "off") -> VlmPage:
     """Reads one raster page. Raises ReaderUnavailable for anything that stops the vision reader from giving a complete answer.
 
     With a `text_layer` (the page is a PDF with real embedded text) the page is a render, upright by construction, so it is not
@@ -94,9 +111,6 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
     name = template.hints.vlm_reader
     if not name:
         raise ReaderUnavailable("the template names no reader profile")
-    client = client or engines.get_client()  # raises ReaderUnavailable when no engine is set up
-    if not client.configured:
-        raise ReaderUnavailable(f"reader engine {engines.engine_name(client)!r} is not set up")
     fields = {f.id: f for f in template.fields}
     if not W.FIELD_IDS <= set(fields):
         raise ReaderUnavailable(f"template {template.template_id} lacks waybill fields: {sorted(W.FIELD_IDS - set(fields))}")
@@ -123,15 +137,36 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
         raise ReaderUnavailable("the page could not be aligned to the template's landmarks")
 
     crops = C.crops_for_page(page, al, profile, fields)
-    replies = client.read([(c.png(), W.prompt_for(c.kind, c.label, c.captions, c.hint)) for c in crops], max_new=MAX_NEW_TOKENS)
-
-    answers: dict[str, dict[int, str]] = defaultdict(dict)  # field -> window level -> the model's raw answer
-    for crop, reply in zip(crops, replies):
-        for fid, value in answer_fields(crop.kind, crop.fields, reply).items():
-            answers[fid][crop.level] = value
     wordsel = K.read_all(fields, layer_tokens(text_layer) if text_layer is not None else tokens, al, K.printed_words(profile))
-    decisions = decide(fields, answers, wordsel)
-    engine = engines.engine_name(client)
-    log.info("vision reader %s via engine %s: %d fields, %d gated, %d blank; alignment %s", name, engine, len(decisions),
-             sum(d.gated for d in decisions.values()), sum(not d.value for d in decisions.values()), al.summary())
-    return VlmPage(to_results(template, decisions), al, sum(d.gated for d in decisions.values()), engine)
+
+    # The engines in the order chosen: the first that gives a complete set is the primary; with agreement on, the next that does is a
+    # second opinion. An engine that cannot answer is skipped (logged), so a chain is a fallback order as well as a pair.
+    wanted = 2 if agreement != "off" else 1
+    sources = [client] if client is not None else (engine_names or [None])
+    done: list[tuple[str, dict[str, Decision]]] = []
+    last: Optional[ReaderUnavailable] = None
+    for source in sources:
+        try:
+            candidate = source if client is not None else engines.get_client(source)
+            if not candidate.configured:
+                raise ReaderUnavailable(f"reader engine {engines.engine_name(candidate)!r} is not set up")
+            done.append((engines.engine_name(candidate), _decisions(candidate, crops, fields, wordsel)))
+        except ReaderUnavailable as exc:
+            last = exc
+            log.warning("reader engine %s could not read the page (%s)", source if isinstance(source, str) else engines.engine_name(source) if source else "default", exc)
+            continue
+        if len(done) == wanted:
+            break
+    if not done:
+        raise last or ReaderUnavailable("no reader engine is available")
+    decisions = done[0][1]
+    disagreed: frozenset = frozenset()
+    if len(done) == 2:
+        decisions, disagreed = AG.combine(done[0][1], done[1][1], trust=agreement == "trust")
+    elif wanted == 2:
+        log.warning("a second opinion was wanted for template %s but only %s could read the page", template.template_id, done[0][0])
+    engine = done[0][0]
+    log.info("vision reader %s via engine %s: %d fields, %d gated, %d blank, %d disagreed; alignment %s", name, "+".join(n for n, _ in done),
+             len(decisions), sum(d.gated for d in decisions.values()), sum(not d.value for d in decisions.values()), len(disagreed), al.summary())
+    return VlmPage(to_results(template, decisions, disagreed), al, sum(d.gated for d in decisions.values()), engine, disagreed,
+                   tuple(n for n, _ in done))

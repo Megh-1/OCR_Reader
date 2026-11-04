@@ -72,27 +72,28 @@ def _enqueue(entry_type: str, payload: dict) -> int:
 
 
 def enqueue_field_review(
-    extraction_result_id: int, field_id: str, original_value: str, reasons: list[str], confidence: Optional[float] = None
+    extraction_result_id: int, field_id: str, original_value: str, reasons: list[str], confidence: Optional[float] = None,
+    engine: Optional[str] = None,
 ) -> int:
     # Constructing this model is the fail-fast validation: a malformed call
     # (wrong types, missing pieces) errors here, not as a mystery later.
     payload = FieldReviewPayload(
         extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value, reasons=reasons,
-        confidence=confidence,
+        confidence=confidence, engine=engine,
     )
     return _enqueue("field_review", payload.model_dump(mode="json"))
 
 
 def enqueue_spot_check(
     extraction_result_id: int, field_id: str, original_value: str, confidence: float, why: str, audit: bool = False,
-    reader: Optional[str] = None,
+    reader: Optional[str] = None, engine: Optional[str] = None,
 ) -> int:
     """A field that passed validation but did not earn `auto`. It is not flagged - the record's
     overall_status is unaffected - it just gets a person's glance. `audit` marks one a trusted field would
     have skipped, picked at random so the trust stays measured."""
     payload = SpotCheckPayload(
         extraction_result_id=extraction_result_id, field_id=field_id, original_value=original_value,
-        confidence=confidence, why=why, audit=audit, reader=reader,
+        confidence=confidence, why=why, audit=audit, reader=reader, engine=engine,
     )
     return _enqueue("spot_check", payload.model_dump(mode="json"))
 
@@ -149,6 +150,12 @@ def apply_confirmed_value(session, row: ReviewQueueRecord, confirmed_value: str,
     # or neither does.
     if not any(f["needs_review"] for f in updated_fields.values()):
         result_row.overall_status = "complete"
+
+    if via == "single":
+        # A value a person settled one at a time is a label: the document it came from is the next measurement's evidence.
+        from app.modules.engine_selection.store import record_label
+        record_label(session, result_row.template_id, result_row.template_version, result_row.id, payload.field_id, confirmed_value,
+                     payload.original_value, payload.engine)
 
     row.status = "resolved"
     row.resolved_at = datetime.now(timezone.utc)

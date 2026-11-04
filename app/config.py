@@ -421,7 +421,23 @@ VLM_READER_CROPS_PER_REQUEST: int = int(os.environ.get("VLM_READER_CROPS_PER_REQ
 # VLM_READER_URL / VLM_READER_TOKEN above make a single engine called "default", so existing deployments are unchanged.
 READER_ENGINES_FILE: str = os.environ.get("READER_ENGINES_FILE", "")
 READER_ENGINE: str = os.environ.get("READER_ENGINE", "")
-VLM_READER_PROFILE_DIR: str =os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
+# Engine selection (app/modules/engine_selection, docs/engine-selection.md): which engines read a template, and in what order, is
+# decided from MEASUREMENTS (scorecards from scripts/evaluate_reader.py --save), not from the order of the registry file. OFF by default:
+# off, a page is read by the one engine READER_ENGINE names, exactly as before. On, a template with no promoted engine is read in
+# cold-start mode (a default chain, nothing reaches `auto`). Every figure below is a PROVISIONAL starting value, not a measurement.
+ENGINE_SELECTOR_ENABLED: bool = os.environ.get("ENGINE_SELECTOR_ENABLED", "").lower() in ("1", "true", "yes")
+ENGINE_CHAIN_OVERRIDES_FILE: str = os.environ.get("ENGINE_CHAIN_OVERRIDES_FILE", "")  # {"template_id": ["engine", ...]}; unset = off
+ENGINE_MIN_FIELDS: int = int(os.environ.get("ENGINE_MIN_FIELDS", "300"))  # a scorecard on fewer fields ranks nothing
+ENGINE_ACCURACY_TIE: float = 0.005  # accuracies this close are a tie, broken by speed (half a point is inside one corpus's noise)
+ENGINE_PROMOTE_MARGIN: float = 0.01  # a candidate must beat the incumbent by this much on the SAME corpus
+ENGINE_DRIFT_WINDOW: int = 200  # the most recent people-checked values of a (template, engine) that drift is judged on
+ENGINE_DRIFT_MIN_CHECKS: int = 50  # fewer checks than this say nothing
+ENGINE_DRIFT_MARGIN: float = 0.05  # live accuracy this far under the scorecard's takes the engine out of the chain
+ENGINE_AGREEMENT_MIN_AGREED: int = 200  # agreed fields a pair must have been measured on before agreement may raise trust
+ENGINE_AGREEMENT_MAX_WRONG_RATE: float = 0.005  # ...and at most this share of what they agreed on may be wrong
+ENGINE_SHARP_MIN: float = 60.0  # Laplacian variance of the page at 1200 px wide: under this a page is `soft`
+ENGINE_SHARP_POOR: float = 20.0  # ...and under this `poor`. Both provisional: set on synthetic pages only
+VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
 # The model reports no confidence, so each value gets a FIXED one (as TEXT_LAYER_CONFIDENCE does), chosen to put it in a tier:
 #   GATED    a second reader agrees, or an arithmetic check of the document holds, and the format passes. Under
 #            CONFIDENCE_AUTO_APPROVE_THRESHOLD*100 (90) on purpose: such a value is accepted but still shown to a person as a spot

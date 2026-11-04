@@ -24,6 +24,9 @@ class ReaderUnavailable(Exception):
 
 
 class ReaderClient:
+    kind = "service"
+    name = "default"  # set by the engine registry (engines.py) to the engine's name
+
     def __init__(self, url: Optional[str] = None, token: Optional[str] = None, timeout: Optional[float] = None,
                  per_request: Optional[int] = None, transport: Optional[httpx.BaseTransport] = None):
         self.url = (url if url is not None else config.VLM_READER_URL).rstrip("/")

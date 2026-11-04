@@ -1,0 +1,21 @@
+{
+  "default": "qwen_waybill",
+  "engines": [
+    {
+      "name": "qwen_waybill",
+      "kind": "service",
+      "url": "http://127.0.0.1:8700",
+      "token_env": "VLM_READER_TOKEN"
+    },
+    {
+      "name": "candidate_vlm",
+      "kind": "openai_compatible",
+      "url": "http://127.0.0.1:8000/v1",
+      "model": "NAME-THE-SERVER-SERVES",
+      "token_env": "CANDIDATE_VLM_TOKEN",
+      "concurrency": 8,
+      "max_tokens": 512,
+      "extra_body": {}
+    }
+  ]
+}

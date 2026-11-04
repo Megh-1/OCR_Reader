@@ -31,7 +31,8 @@ from app.models.text_layer import TextLayer
 from app.modules.vlm_reader import crops as C
 from app.modules.vlm_reader import waybill as W
 from app.modules.vlm_reader import words as K
-from app.modules.vlm_reader.client import ReaderClient, ReaderUnavailable
+from app.modules.vlm_reader import engines
+from app.modules.vlm_reader.client import ReaderUnavailable
 from app.modules.vlm_reader.decide import Decision, answer_fields, decide
 from app.modules.vlm_reader.profile import ProfileMissing, load_profile
 from app.schemas.template import TemplateOut
@@ -46,10 +47,11 @@ class VlmPage:
     fields: dict[str, FieldExtractionResult]
     alignment: A.Alignment
     gated: int  # how many fields passed the gate (two readers agree, or an arithmetic check holds, and the format passes)
+    engine: str = "default"  # the registry engine whose model read the crops
 
 
 def enabled(template: TemplateOut) -> bool:
-    return bool(config.VLM_READER_URL and template.hints.vlm_reader)
+    return bool(template.hints.vlm_reader and engines.available())
 
 
 def _image(data: bytes) -> Image.Image:
@@ -82,7 +84,7 @@ def layer_tokens(layer: TextLayer) -> list[K.Tok]:
     return [(w.text, *w.bbox, 100.0) for w in layer.words if w.text.strip()]
 
 
-def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[ReaderClient] = None,
+def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage, client: Optional[engines.CropReader] = None,
               text_layer: Optional[TextLayer] = None, verified: Optional[A.Alignment] = None) -> VlmPage:
     """Reads one raster page. Raises ReaderUnavailable for anything that stops the vision reader from giving a complete answer.
 
@@ -92,9 +94,9 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
     name = template.hints.vlm_reader
     if not name:
         raise ReaderUnavailable("the template names no reader profile")
-    client = client or ReaderClient()
+    client = client or engines.get_client()  # raises ReaderUnavailable when no engine is set up
     if not client.configured:
-        raise ReaderUnavailable("VLM_READER_URL is not set")
+        raise ReaderUnavailable(f"reader engine {engines.engine_name(client)!r} is not set up")
     fields = {f.id: f for f in template.fields}
     if not W.FIELD_IDS <= set(fields):
         raise ReaderUnavailable(f"template {template.template_id} lacks waybill fields: {sorted(W.FIELD_IDS - set(fields))}")
@@ -129,6 +131,7 @@ def read_page(template: TemplateOut, page_bytes: bytes, generic: ProcessedImage,
             answers[fid][crop.level] = value
     wordsel = K.read_all(fields, layer_tokens(text_layer) if text_layer is not None else tokens, al, K.printed_words(profile))
     decisions = decide(fields, answers, wordsel)
-    log.info("vision reader %s: %d fields, %d gated, %d blank; alignment %s", name, len(decisions), sum(d.gated for d in decisions.values()),
-             sum(not d.value for d in decisions.values()), al.summary())
-    return VlmPage(to_results(template, decisions), al, sum(d.gated for d in decisions.values()))
+    engine = engines.engine_name(client)
+    log.info("vision reader %s via engine %s: %d fields, %d gated, %d blank; alignment %s", name, engine, len(decisions),
+             sum(d.gated for d in decisions.values()), sum(not d.value for d in decisions.values()), al.summary())
+    return VlmPage(to_results(template, decisions), al, sum(d.gated for d in decisions.values()), engine)

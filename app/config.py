@@ -416,7 +416,12 @@ VLM_READER_TOKEN: str = os.environ.get("VLM_READER_TOKEN", "")
 VLM_READER_TIMEOUT_S: float = float(os.environ.get("VLM_READER_TIMEOUT_S", "120"))
 VLM_READER_CONNECT_TIMEOUT_S: float = float(os.environ.get("VLM_READER_CONNECT_TIMEOUT_S", "10"))
 VLM_READER_CROPS_PER_REQUEST: int = int(os.environ.get("VLM_READER_CROPS_PER_REQUEST", "24"))
-VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
+# Which model reads the crops is a registry choice (app/modules/vlm_reader/engines.py): READER_ENGINES_FILE is a JSON file of named
+# engines (config/reader_engines.example.json), READER_ENGINE picks one by name (else the file's `default`, else its first). Unset, the
+# VLM_READER_URL / VLM_READER_TOKEN above make a single engine called "default", so existing deployments are unchanged.
+READER_ENGINES_FILE: str = os.environ.get("READER_ENGINES_FILE", "")
+READER_ENGINE: str = os.environ.get("READER_ENGINE", "")
+VLM_READER_PROFILE_DIR: str =os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
 # The model reports no confidence, so each value gets a FIXED one (as TEXT_LAYER_CONFIDENCE does), chosen to put it in a tier:
 #   GATED    a second reader agrees, or an arithmetic check of the document holds, and the format passes. Under
 #            CONFIDENCE_AUTO_APPROVE_THRESHOLD*100 (90) on purpose: such a value is accepted but still shown to a person as a spot

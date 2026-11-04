@@ -122,7 +122,7 @@ def test_a_document_posted_to_the_api_goes_through_the_vision_reader_into_tiers_
 
     monkeypatch.setattr(config, "VLM_READER_URL", "http://saved.replies")
     saved = SavedReplies("B", "evalset_v4_test_B", "v4e3_B_test.jsonl")
-    monkeypatch.setattr(R, "ReaderClient", lambda: saved)
+    monkeypatch.setattr(R.engines, "get_client", lambda name=None, transport=None: saved)
 
     label = json.loads(next((REAL / "labels").glob(f"{num}*.json")).read_text(encoding="utf-8"))
     pdf = next(REAL.glob(f"*/{label['file']}"))

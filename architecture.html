@@ -41,10 +41,11 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 @media print{aside{display:none}.layout{display:block}body{background:#fff}main{padding:0}}
 </style></head>
 <body><div class="layout">
-<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy 🟡</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets 🟡</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (TemplateIn, stored in templates.config)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: ⛔ none today</a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what is built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in app/config.py / CLAUDE.md)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-versus-experimental">8.1 What is shipped versus experimental</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-experimental-reader">8.4 State of the experimental reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what "done" means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
+<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
 <main><article><h1 id="idp-pipeline-architecture">IDP Pipeline: Architecture</h1>
 <blockquote>
 <p><strong>What this document is.</strong> The architecture of the IDP Pipeline repository as it exists on disk today, written from the code, <code>docker-compose.yml</code>, <code>app/config.py</code> and the Alembic migrations. Where something is <em>not</em> built (authentication, metrics, a cache), it says so instead of describing an aspiration. Measured numbers come from the comments in <code>app/config.py</code> and the project's <code>CLAUDE.md</code>; anything that is a proposal is labelled <strong>Proposed</strong>.</p>
+<p><strong>Last updated 2026-11-04</strong>, after commit <code>6877a9a</code>. This revision replaces the earlier &quot;Tesseract and the PDF text layer only&quot; description: the vision-model reader is now part of the application and the model that reads is a configuration choice (§2.9). Work that is in the working tree and not committed is marked 🟡.</p>
 <p><strong>Diagrams</strong> are <a href="https://mermaid.js.org/">Mermaid</a>. They render on GitHub, GitLab, VS Code (Markdown preview with the Mermaid extension), and most Markdown viewers.</p>
 </blockquote>
 <p><strong>Status legend used throughout</strong></p>
@@ -58,15 +59,15 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <tbody>
 <tr>
 <td>✅ <strong>Built</strong></td>
-<td>In the code, covered by the test suite (512 tests at the last full run)</td>
+<td>In the code and committed, covered by the test suite (596 tests collected; 595 passed at the last full run, and the one that failed, a replay test, passed when run on its own afterwards while engine files were still being edited)</td>
 </tr>
 <tr>
 <td>🟡 <strong>Uncommitted</strong></td>
 <td>Built and tested, but sitting in the working tree, not yet in a commit</td>
 </tr>
 <tr>
-<td>🧪 <strong>Experimental</strong></td>
-<td>Exists as scripts or on the GPU box; <strong>not wired into the application</strong></td>
+<td>🧪 <strong>Research tooling</strong></td>
+<td>Training and measurement scripts (<code>scripts/gpu/*</code>, <code>make_train_set.py</code>, <code>score_*.py</code>); <strong>not part of the running application</strong></td>
 </tr>
 <tr>
 <td>⛔ <strong>Not built</strong></td>
@@ -74,7 +75,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 </tr>
 </tbody>
 </table>
-<hr>
+<hr />
 <h2 id="table-of-contents">Table of contents</h2>
 <ol>
 <li><a href="#1-system-overview--high-level-design">System overview &amp; high-level design</a></li>
@@ -84,14 +85,14 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <li><a href="#5-security-auth--environment">Security, auth &amp; environment</a></li>
 <li><a href="#6-non-functional-requirements--scale">Non-functional requirements &amp; scale</a></li>
 <li><a href="#7-architecture-decision-records-adrs--trade-offs">Architecture decision records</a></li>
-<li><a href="#8-how-the-technology-works-right-now">How the technology works right now: status and the experimental reader</a></li>
+<li><a href="#8-how-the-technology-works-right-now">How the technology works right now: status and the vision reader</a></li>
 <li><a href="#9-appendix">Appendix: repository map, run commands, glossary</a></li>
 <li><a href="#10-research-survey-and-recommended-direction">Research survey and recommended direction</a></li>
 </ol>
-<hr>
+<hr />
 <h2 id="1-system-overview--high-level-design">1. System overview &amp; high-level design</h2>
 <h3 id="11-what-the-system-does">1.1 What the system does</h3>
-<p>The IDP Pipeline turns piles of scanned or digital documents into structured JSON. A person uploads a sample page of a document type once and <strong>marks it up in the browser</strong>: they draw <em>anchor</em> boxes around printed labels that identify the form, and <em>field</em> boxes around the values to extract. That markup is saved as a versioned <strong>template</strong>. After that, a user uploads a batch of documents (PDF, JPEG or PNG). Each page is cleaned up, matched to a template by its anchors, and read field by field, either straight from the PDF's embedded text or with Tesseract OCR. Every value is then checked against rules the template author wrote (a regex, a check digit, arithmetic between fields) and given an <strong>approval tier</strong>: <code>auto</code> (safe to use without a human), <code>spot_check</code> (probably right, show it to a person), or <code>review</code> (rejected, a person must decide). Anything that is not <code>auto</code> lands in a <strong>review queue</strong> where a person confirms or corrects it next to a crop of the source page. The design principle that governs every choice is taken from the project's spec: <strong>refuse and flag rather than emit a wrong value.</strong></p>
+<p>The IDP Pipeline turns piles of scanned or digital documents into structured JSON. A person uploads a sample page of a document type once and <strong>marks it up in the browser</strong>: they draw <em>anchor</em> boxes around printed labels that identify the form, and <em>field</em> boxes around the values to extract. That markup is saved as a versioned <strong>template</strong>. After that, a user uploads a batch of documents (PDF, JPEG or PNG). Each page is cleaned up, matched to a template by its anchors, and read field by field: straight from the PDF's embedded text when it has one, by a <strong>vision model</strong> that reads template-guided crops of scanned and photographed pages (served by a separate GPU machine, and swappable by configuration), and by Tesseract OCR when the model is not available. Every value is then checked against rules the template author wrote (a regex, a check digit, arithmetic between fields) and given an <strong>approval tier</strong>: <code>auto</code> (safe to use without a human), <code>spot_check</code> (probably right, show it to a person), or <code>review</code> (rejected, a person must decide). Anything that is not <code>auto</code> lands in a <strong>review queue</strong> where a person confirms or corrects it next to a crop of the source page. The design principle that governs every choice is taken from the project's spec: <strong>refuse and flag rather than emit a wrong value.</strong></p>
 <h3 id="12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</h3>
 <table>
 <thead>
@@ -107,7 +108,11 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 </tr>
 <tr>
 <td><strong>Extraction approach</strong></td>
-<td><strong>Template-driven, deterministic, no learned model in the shipped path.</strong> A person declares where the values are; nothing is inferred. Tesseract and the PDF text layer are the only readers.</td>
+<td><strong>Template-driven; the model reads, it does not decide where.</strong> A person declares where the values are; nothing is inferred. Three readers share one validation path: the PDF text layer (exact), a vision model reading crops that the template and page alignment cut (opt-in per template, off unless a reader engine is configured), and Tesseract (the fallback, and the whole path when no engine is set). Whatever reads, Module 7 validates and the tiers follow.</td>
+</tr>
+<tr>
+<td><strong>Which model reads</strong></td>
+<td><strong>Configuration.</strong> A named <em>reader engine</em> in a JSON registry: our own service (<code>/read</code>) or any OpenAI-compatible server (vLLM, SGLang, Ollama, a hosted model). Changing the model is editing that file and restarting, not changing code (§2.9).</td>
 </tr>
 <tr>
 <td><strong>Failure philosophy</strong></td>
@@ -132,18 +137,21 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 flowchart LR
     user([&quot;👤 Operator&lt;br/&gt;uploads, reviews,&lt;br/&gt;marks up templates&quot;])
     sys{{&quot;&lt;b&gt;IDP Pipeline&lt;/b&gt;&lt;br/&gt;template-driven&lt;br/&gt;document extraction&quot;}}
-    consumer([&quot;⚙️ Downstream system&lt;br/&gt;consumes JSON via&lt;br/&gt;GET /results&quot;])
+    consumer([&quot;⚙️ Downstream system&lt;br/&gt;consumes JSON via&lt;br/&gt;GET /results or the batch export&quot;])
     docs[(&quot;📄 Documents&lt;br/&gt;PDF / JPEG / PNG&lt;br/&gt;≤ 15 MB, ≤ 20 pages&quot;)]
+    gpu[[&quot;🖥 Reader engine (optional)&lt;br/&gt;vision model on a GPU machine,&lt;br/&gt;crops in, text out&quot;]]
 
     user -- &quot;marks templates,&lt;br/&gt;uploads batches,&lt;br/&gt;resolves flagged fields&quot; --&gt; sys
     docs -- &quot;uploaded&quot; --&gt; sys
-    sys -- &quot;extracted fields&lt;br/&gt;+ approval tier&lt;br/&gt;+ confidence&quot; --&gt; consumer
+    sys -- &quot;extracted fields, tier, confidence,&lt;br/&gt;who verified it · or the strict&lt;br/&gt;batch export&quot; --&gt; consumer
     sys -- &quot;review &amp; spot-check&lt;br/&gt;queue&quot; --&gt; user
+    sys -. &quot;field crops&lt;br/&gt;(scans and photos)&quot; .-&gt; gpu
+    gpu -. &quot;one reply per crop&quot; .-&gt; sys
 
     classDef sysbox fill:#1f4fd8,stroke:#0b2a80,color:#fff
     class sys sysbox
 </pre></figure>
-<hr>
+<hr />
 <h2 id="2-core-components--responsibilities">2. Core components &amp; responsibilities</h2>
 <h3 id="21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</h3>
 <p><code>docker compose up -d --build</code> brings up five long-running containers (plus a <code>tests</code> container behind a profile). Verified on Docker Engine 29 + Compose 2.40 inside WSL2.</p>
@@ -160,6 +168,7 @@ flowchart TB
         rd[(&quot;&lt;b&gt;redis:7-alpine&lt;/b&gt;&lt;br/&gt;host :6380&lt;br/&gt;RQ queue &#x27;idp-batch&#x27;&quot;)]
         tess[[&quot;Tesseract 5.5 binary&lt;br/&gt;(inside app &amp; worker image)&quot;]]
     end
+    gpu[[&quot;&lt;b&gt;Reader engine&lt;/b&gt; (not in compose)&lt;br/&gt;serve_reader.py on a GPU machine,&lt;br/&gt;or any OpenAI-compatible server&quot;]]
 
     browser --&gt;|&quot;HTTP :8080&quot;| fe
     fe --&gt;|&quot;/templates /review /results /documents&lt;br/&gt;proxy_pass → app:8000&quot;| app
@@ -169,6 +178,8 @@ flowchart TB
     wk --&gt;|&quot;SQLAlchemy + psycopg&quot;| pg
     app -.-&gt;|&quot;subprocess (sync endpoint)&quot;| tess
     wk -.-&gt;|&quot;subprocess × 8 threads&quot;| tess
+    wk -.-&gt;|&quot;HTTPS: ~87 crops per scanned page&lt;br/&gt;bearer token&quot;| gpu
+    app -.-&gt;|&quot;same, for the sync endpoint&quot;| gpu
 
     classDef store fill:#eef3ff,stroke:#1f4fd8
     class pg,rd store
@@ -176,25 +187,30 @@ flowchart TB
 <p>Key facts that shape this topology:</p>
 <ul>
 <li><strong>The API and the worker share nothing but Postgres and Redis.</strong> Uploaded bytes are stored <em>on the database row</em>, not on a shared disk, so any worker on any machine can process any document.</li>
-<li><strong>The app container migrates the database on start</strong> (<code>CMD ["sh","-c","python -m alembic upgrade head &amp;&amp; uvicorn ..."]</code>); the worker waits for the app's health check for that reason.</li>
+<li><strong>The app container migrates the database on start</strong> (<code>CMD [&quot;sh&quot;,&quot;-c&quot;,&quot;python -m alembic upgrade head &amp;&amp; uvicorn ...&quot;]</code>); the worker waits for the app's health check for that reason.</li>
 <li><strong>Every field read is its own Tesseract process</strong>, so the number of OS processes per document is large; see §6 for the OpenMP cap that keeps that from thrashing.</li>
+<li><strong>The reader engine is not part of the compose stack.</strong> A 7B vision model needs a GPU the laptop does not have, so it runs elsewhere (a rented or shared GPU machine) and the app is its client. It is <strong>off</strong> until <code>VLM_READER_URL</code> (or a registry file) is set; when it is down or unreachable the page is read with Tesseract and says so (<code>reader: &quot;ocr_fallback&quot;</code>). The crops are pieces of business documents and leave the host: use a token, a private port and TLS.</li>
 <li><strong>Two reverse-proxy copies must stay in sync.</strong> <code>frontend/vite.config.js</code> (dev) and <code>frontend/nginx.conf</code> (container) both list the route prefixes the UI calls. A new backend prefix needs an entry in <em>both</em>.</li>
 </ul>
 <h3 id="22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</h3>
 <p>The nine modules from the reference PDF are plain Python functions that call each other's <em>public</em> functions; none re-implements another.</p>
 <figure class="diagram"><pre class="mermaid">
 flowchart LR
-    subgraph API[&quot;FastAPI app  (app/main.py: 7 routers)&quot;]
+    subgraph API[&quot;FastAPI app  (app/main.py: 9 routers)&quot;]
         M1[&quot;&lt;b&gt;1 Ingestion&lt;/b&gt;&lt;br/&gt;ingestion.py&lt;br/&gt;MIME sniff, size &amp; page caps,&lt;br/&gt;PDF → 200 DPI pages,&lt;br/&gt;text-layer extraction&quot;]
         M2[&quot;&lt;b&gt;2 Preprocessing&lt;/b&gt;&lt;br/&gt;preprocessing.py&lt;br/&gt;page detect, deskew,&lt;br/&gt;CLAHE, binarize, rule removal&quot;]
         M5[&quot;&lt;b&gt;5 Type identification&lt;/b&gt;&lt;br/&gt;type_identification.py&lt;br/&gt;anchor OCR vs every template&quot;]
-        AL[&quot;&lt;b&gt;Alignment&lt;/b&gt; 🟡&lt;br/&gt;alignment.py&lt;br/&gt;landmark words → shift+stretch&quot;]
+        AL[&quot;&lt;b&gt;Alignment&lt;/b&gt;&lt;br/&gt;alignment.py&lt;br/&gt;landmark words → shift+stretch&quot;]
         M6[&quot;&lt;b&gt;6 Field extraction&lt;/b&gt;&lt;br/&gt;field_extraction.py&lt;br/&gt;text-layer OR Tesseract&quot;]
+        VR[&quot;&lt;b&gt;Vision reader&lt;/b&gt;&lt;br/&gt;vlm_reader/&lt;br/&gt;crops → engine → staged answer&lt;br/&gt;→ gate → fixed confidence&quot;]
+        EN[&quot;&lt;b&gt;Reader engines&lt;/b&gt;&lt;br/&gt;engines.py&lt;br/&gt;named registry: service |&lt;br/&gt;openai_compatible&quot;]
         M7[&quot;&lt;b&gt;7 Validation&lt;/b&gt;&lt;br/&gt;validation.py + checks.py&lt;br/&gt;regex · checksum · confidence&lt;br/&gt;· cross-field checks → tier&quot;]
         M8[&quot;&lt;b&gt;8 Output compiler&lt;/b&gt;&lt;br/&gt;output_compiler.py&lt;br/&gt;JSON result, persists,&lt;br/&gt;owns /results*&quot;]
         M9[&quot;&lt;b&gt;9 Review queue&lt;/b&gt;&lt;br/&gt;review_queue.py&lt;br/&gt;field_review · spot_check&lt;br/&gt;· new_template_needed&quot;]
-        RG[&quot;&lt;b&gt;Review groups&lt;/b&gt; 🟡&lt;br/&gt;review_groups.py&lt;br/&gt;groups · bulk accept&lt;br/&gt;· audit sample · evidence&quot;]
-        TR[&quot;&lt;b&gt;Trust&lt;/b&gt; 🟡&lt;br/&gt;trust.py&lt;br/&gt;audited auto-approval&quot;]
+        RG[&quot;&lt;b&gt;Review groups&lt;/b&gt;&lt;br/&gt;review_groups.py&lt;br/&gt;by field · by value · by document&lt;br/&gt;bulk accept · correct a group&lt;br/&gt;accept agreed · audit sample · evidence&quot;]
+        TR[&quot;&lt;b&gt;Trust&lt;/b&gt;&lt;br/&gt;trust.py&lt;br/&gt;audited auto-approval&quot;]
+        EX[&quot;&lt;b&gt;Export&lt;/b&gt;&lt;br/&gt;export.py&lt;br/&gt;strict batch JSON,&lt;br/&gt;who verified each value&quot;]
+        HK[&quot;&lt;b&gt;Housekeeping&lt;/b&gt;&lt;br/&gt;housekeeping.py&lt;br/&gt;clear queue · clear history&quot;]
         M34[&quot;&lt;b&gt;3+4 Template store&lt;/b&gt;&lt;br/&gt;template_store.py&lt;br/&gt;append-only versions, reads&quot;]
         PIPE[&quot;&lt;b&gt;pipeline.py&lt;/b&gt;&lt;br/&gt;the wiring + POST /documents/process&quot;]
         BATCH[&quot;&lt;b&gt;batch.py&lt;/b&gt;&lt;br/&gt;queue wrapper around the same pipeline&quot;]
@@ -208,6 +224,11 @@ flowchart LR
     TR -. &quot;trusted fields skip the queue&quot; .-&gt; PIPE
     M5 --&gt; AL
     AL --&gt; M6
+    AL --&gt; VR
+    VR --&gt; EN
+    VR -. &quot;reader unavailable → Tesseract&quot; .-&gt; M6
+    BATCH -.-&gt; EX
+    M9 --- HK
     M5 --- M34
     M6 --- M34
     M7 --- M34
@@ -251,7 +272,7 @@ flowchart LR
 <td>6 Extraction</td>
 <td><code>field_extraction.py</code></td>
 <td>Per field: read PDF words inside the box, or Tesseract at PSM 4/6/7 keeping the most confident non-empty read</td>
-<td>Only edge-trimming of rule fragments is allowed; content is never "corrected"</td>
+<td>Only edge-trimming of rule fragments is allowed; content is never &quot;corrected&quot;</td>
 </tr>
 <tr>
 <td>7 Validation</td>
@@ -272,13 +293,37 @@ flowchart LR
 <td>Tiers only ever <em>add</em> caution</td>
 </tr>
 <tr>
-<td>Review groups 🟡</td>
-<td><code>review_groups.py</code></td>
-<td>Group pending entries (same value across documents, or per document); <strong>bulk accept</strong>; the evidence report</td>
-<td>The <strong>server</strong> decides what may be bulk-accepted: only a spot check with a value, never a Module 7 rejection; every bulk accept holds back a random audit sample</td>
+<td>Vision reader</td>
+<td><code>vlm_reader/</code> (<code>reader.py</code>, <code>crops.py</code>, <code>decide.py</code>, <code>words.py</code>, <code>waybill.py</code>, <code>profile.py</code>)</td>
+<td>For a scanned or photographed page of a template that opts in (<code>hints.vlm_reader</code>): whole-page OCR, landmark alignment, a window per field at three widenings, one question per crop to the engine, staged answers, compared with a word reader on the page OCR</td>
+<td>The model reports no confidence, so values get <strong>fixed</strong> ones (gated 89, ungated 70), which is under the auto threshold on purpose: <strong>nothing the model reads reaches <code>auto</code></strong></td>
 </tr>
 <tr>
-<td>Trust 🟡</td>
+<td>Reader engines</td>
+<td><code>vlm_reader/engines.py</code>, <code>client.py</code>, <code>openai_client.py</code></td>
+<td>Resolve the active engine by name from <code>READER_ENGINES_FILE</code> (else <code>VLM_READER_URL</code>); two kinds, one <code>read(items) -&gt; replies</code> interface</td>
+<td>Any failure is <code>ReaderUnavailable</code>, never a crash or a half-read page; tokens come from an env var named in the file, never the file</td>
+</tr>
+<tr>
+<td>Review groups</td>
+<td><code>review_groups.py</code></td>
+<td>Group pending entries <strong>by field</strong> (one field across the upload's documents), by value, or by document; bulk accept; <strong>correct a whole group</strong> with one typed value; <strong>accept agreed</strong> model reads; the evidence report</td>
+<td>The <strong>server</strong> decides what may be bulk-accepted: only a spot check with a value, never a Module 7 rejection; every bulk accept or group correction holds back a random audit sample; review is scoped to one batch</td>
+</tr>
+<tr>
+<td>Export</td>
+<td><code>export.py</code></td>
+<td><code>GET /documents/batch/{id}/export</code>: per field value, status (<code>confirmed</code> / <code>accepted</code> / <code>auto</code> / <code>unverified</code>), confidence</td>
+<td><strong>Strict by default</strong>: an unverified value is <code>null</code> with the machine's reading under <code>suggested</code>; nothing is emitted that nobody checked and no rule vouched for</td>
+</tr>
+<tr>
+<td>Housekeeping</td>
+<td><code>housekeeping.py</code></td>
+<td>Clear the pending queue (all, one batch, or one field) and the processed history</td>
+<td>Confirmed deletes only; resolved entries and the results they point at are <strong>kept</strong> (they are the trust evidence); history is refused while a document is in flight</td>
+</tr>
+<tr>
+<td>Trust</td>
 <td><code>trust.py</code>, <code>utils/stats.py</code></td>
 <td>Per (template, <strong>version</strong>, field): spot checks a person resolved one at a time, how many they changed, the exact Clopper-Pearson upper bound; a field under the target skips the spot-check queue</td>
 <td>Bulk accepts are not evidence; one wrong value found raises the bound and withdraws the trust</td>
@@ -312,9 +357,16 @@ flowchart TD
     E -- yes --&gt; F[&quot;get_template_version(&lt;b&gt;exact&lt;/b&gt; id, version)&lt;br/&gt;never &#x27;latest&#x27;&quot;]
     F --&gt; G{&quot;text layer?&quot;}
     G -- yes --&gt; H1[&quot;Module 6a: words whose box is ≥50%&lt;br/&gt;inside the field box, reading order,&lt;br/&gt;confidence fixed at 100&quot;]
-    G -- no --&gt; H2[&quot;Pass 2 preprocess with the template&#x27;s hints&lt;br/&gt;(page_aspect_ratio, ruled_form)&lt;br/&gt;re-fit alignment if the frame changed&quot;]
+    H1 --&gt; H1V{&quot;Module 7 rejects anything&lt;br/&gt;AND template opts in&lt;br/&gt;AND an engine is set up?&quot;}
+    H1V -- &quot;no: clean page&quot; --&gt; I
+    H1V -- &quot;yes: the boxes probably missed&quot; --&gt; VR1
+    G -- no --&gt; VQ{&quot;template has hints.vlm_reader&lt;br/&gt;AND an engine is set up?&quot;}
+    VQ -- yes --&gt; VR1[&quot;&lt;b&gt;Vision reader&lt;/b&gt;&lt;br/&gt;page OCR → align → crops (3 widenings)&lt;br/&gt;→ engine → staged answer → gate&lt;br/&gt;fixed confidence 89 / 70 / 0&quot;]
+    VR1 -- &quot;reader unavailable&lt;br/&gt;(down, no profile, not aligned)&quot; --&gt; FB[&quot;Tesseract path, reader = ocr_fallback&lt;br/&gt;tier capped at spot_check&quot;]
+    VQ -- no --&gt; H2
+    FB --&gt; H2[&quot;Pass 2 preprocess with the template&#x27;s hints&lt;br/&gt;(page_aspect_ratio, ruled_form)&lt;br/&gt;re-fit alignment if the frame changed&quot;]
     H2 --&gt; H3[&quot;Module 6b: Tesseract per field,&lt;br/&gt;PSM 4/6/7 (+ digit whitelist),&lt;br/&gt;8 fields in parallel,&lt;br/&gt;on the &lt;i&gt;grayscale&lt;/i&gt; rendering&quot;]
-    H1 --&gt; I
+    VR1 -- ok --&gt; I
     H3 --&gt; I[&quot;Field options:&lt;br/&gt;from_field · extract_pattern ·&lt;br/&gt;squash_spaces · optional&quot;]
     I --&gt; J[&quot;&lt;b&gt;Module 7&lt;/b&gt; validate&lt;br/&gt;regex · checksum · confidence ·&lt;br/&gt;cross-field checks&quot;]
     J --&gt; K[&quot;&lt;b&gt;Module 8&lt;/b&gt; compile + persist&lt;br/&gt;extraction_results (+ page JPEG)&quot;]
@@ -331,6 +383,44 @@ flowchart TD
     OK --&gt; Z2
     OK2 --&gt; Z2
 </pre></figure>
+<p><strong>Which reader a page gets</strong> (<code>pipeline.extract_page_fields</code>, shared with the accuracy harness so the two cannot drift):</p>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Reader</th>
+<th><code>PageResult.reader</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PDF with a real text layer, Module 7 accepts it</td>
+<td>the layer's words</td>
+<td><code>text_layer</code></td>
+</tr>
+<tr>
+<td>PDF with a text layer that Module 7 <strong>rejects anything on</strong> (the layer sat off its cells: another print, a form fed through the printer off-centre)</td>
+<td>the vision reader, with the layer's exact words as the second reader; if the engine is down, keep the layer</td>
+<td><code>vlm</code> / <code>text_layer</code></td>
+</tr>
+<tr>
+<td>Scan or photo, template opts in, engine up</td>
+<td>the vision reader</td>
+<td><code>vlm</code></td>
+</tr>
+<tr>
+<td>Scan or photo, template opts in, engine <strong>down</strong> or page not alignable</td>
+<td>Tesseract, <strong>capped at <code>spot_check</code></strong></td>
+<td><code>ocr_fallback</code></td>
+</tr>
+<tr>
+<td>Template does not opt in, or no engine configured</td>
+<td>Tesseract</td>
+<td><code>ocr</code></td>
+</tr>
+</tbody>
+</table>
+<p>The cap on <code>ocr_fallback</code> is a measured rule: on 50 hard waybills, 4 of the 13 values that reached <code>auto</code> were wrong at confidence 93–96, all on camera photos read by the fallback (<code>1788.00</code> for <code>391.00</code>).</p>
 <p><strong>Two-pass preprocessing is the central design.</strong> Module 2 runs <em>before</em> the document type is known, so it preprocesses once generically (enough to find and read anchors), then again with the confirmed template's <code>hints</code> (the page's true aspect ratio, whether it is a ruled form). A template with no hints costs no second pass.</p>
 <h3 id="24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</h3>
 <figure class="diagram"><pre class="mermaid">
@@ -343,8 +433,10 @@ flowchart LR
     CT -- &quot;no&quot; --&gt; SPOT2[&quot;🟡 &lt;b&gt;spot_check&lt;/b&gt;&lt;br/&gt;why = below_auto_threshold&quot;]
     CT -- &quot;yes&quot; --&gt; AUTO[&quot;🟢 &lt;b&gt;auto&lt;/b&gt;&lt;br/&gt;used without a human&quot;]
 </pre></figure>
-<p><strong>Audited auto-approval (🟡, §2.7)</strong> adds one more way to reach <code>auto</code>: a <code>spot_check</code> on a field a person has checked enough of is approved as <code>auto</code> with <code>auto_basis = trusted_field</code>, bar a random 5% that still go to a person. It only ever applies to <code>below_auto_threshold</code> and <code>no_validator</code> spot checks that have a value; a Module 7 rejection or a blank optional is never promoted.</p>
-<p>Why the "no validator ⇒ never auto" rule exists: on the synthetic corpus <strong>every</strong> wrong value Module 7 ever accepted sat in a field with no regex or checksum, at confidence 64–87, only 3–5 points below the 0.90 threshold. The rule closes that gap at a measured cost of 186 correct reads held back as spot-checks.</p>
+<p><strong>Audited auto-approval (§2.7)</strong> adds one more way to reach <code>auto</code>: a <code>spot_check</code> on a field a person has checked enough of is approved as <code>auto</code> with <code>auto_basis = trusted_field</code>, bar a random 5% that still go to a person. It only ever applies to <code>below_auto_threshold</code> and <code>no_validator</code> spot checks that have a value; a Module 7 rejection or a blank optional is never promoted.</p>
+<p><strong>Values the vision model read never reach <code>auto</code>.</strong> The model reports no confidence, so each value is given a fixed one by what was established about it: <strong>gated</strong> (a second reader agrees, or an arithmetic fact of the document holds, <strong>and</strong> the format passes) 89, anything else 70, a blank 0 (70 when the field is optional). 89 is under the 90 auto threshold on purpose: the gate measured 0 wrong of 236 auto-eligible fields on real pages but 2 wrong of 955 arithmetic-gated synthetic fields (0.2%), which is not 1 in 10,000. Raising it to 90 is a decision someone makes with eyes open, not a default. Audited auto-approval is also never applied to a vision-read page: the evidence it counts was gathered on another reader.</p>
+<p><strong>Who verified a value</strong> is recorded: <code>FieldResult.verified_by</code> is <code>person</code> (resolved one at a time, or corrected on Results) or <code>bulk</code> (accepted from a group). The strict export (§4.3) uses it, and the trust evidence counts only the <code>person</code> ones.</p>
+<p>Why the &quot;no validator ⇒ never auto&quot; rule exists: on the synthetic corpus <strong>every</strong> wrong value Module 7 ever accepted sat in a field with no regex or checksum, at confidence 64–87, only 3–5 points below the 0.90 threshold. The rule closes that gap at a measured cost of 186 correct reads held back as spot-checks.</p>
 <h3 id="25-frontend-architecture">2.5 Frontend architecture</h3>
 <p>React 19 + Vite 8 + Tailwind v4, shadcn-style components, Fabric.js for the template canvas. There is <strong>no frontend test runner</strong>; the build is checked by <code>oxlint</code> and by looking at it in a browser.</p>
 <figure class="diagram"><pre class="mermaid">
@@ -352,14 +444,14 @@ flowchart TB
     subgraph SPA[&quot;frontend/src  (hash-routed single-page app)&quot;]
         APP[&quot;&lt;b&gt;App.jsx&lt;/b&gt;&lt;br/&gt;nav · review-queue badge ·&lt;br/&gt;tier legend · hash router&quot;]
         subgraph screens[&quot;screens/&quot;]
-            S1[&quot;&lt;b&gt;BatchMonitor&lt;/b&gt;&lt;br/&gt;#/batch (default)&lt;br/&gt;upload + 1 s status polling&quot;]
+            S1[&quot;&lt;b&gt;BatchMonitor&lt;/b&gt;&lt;br/&gt;#/batch (default)&lt;br/&gt;upload + 1 s status polling,&lt;br/&gt;flow stepper, Download JSON,&lt;br/&gt;clear history&quot;]
             S2[&quot;&lt;b&gt;Results&lt;/b&gt;&lt;br/&gt;#/results&lt;br/&gt;table, in-place correction,&lt;br/&gt;JSON download&quot;]
-            S3[&quot;&lt;b&gt;ReviewQueue&lt;/b&gt;&lt;br/&gt;#/review&lt;br/&gt;crop + Accept/Correct bar&lt;br/&gt;keys A C J K&quot;]
+            S3[&quot;&lt;b&gt;ReviewQueue&lt;/b&gt;&lt;br/&gt;#/review (this upload)&lt;br/&gt;By field · Same value ·&lt;br/&gt;By document · Evidence&lt;br/&gt;Accept agreed · clear queue&quot;]
             S4[&quot;&lt;b&gt;TemplateDesigner&lt;/b&gt;&lt;br/&gt;#/templates&lt;br/&gt;Fabric.js canvas:&lt;br/&gt;anchors, fields, checks&quot;]
         end
         subgraph shared[&quot;shared&quot;]
             API[&quot;&lt;b&gt;api.js&lt;/b&gt;&lt;br/&gt;fetch wrapper,&lt;br/&gt;ApiValidationError,&lt;br/&gt;error-line formatter&quot;]
-            COMP[&quot;components/&lt;br/&gt;FieldCrop · ConfidenceGauge ·&lt;br/&gt;TierBadge · StatusPill · ui/*&quot;]
+            COMP[&quot;components/&lt;br/&gt;FieldColumn · GroupedReview · FieldCrop ·&lt;br/&gt;ConfirmDialog · ConfidenceGauge ·&lt;br/&gt;TierBadge · StatusPill · ui/*&quot;]
             LIB[&quot;lib/tiers.js · nav.js&lt;br/&gt;geometry.js · useDocumentCanvas.js&quot;]
             CSS[&quot;index.css&lt;br/&gt;one design-token source&lt;br/&gt;(contrast-checked)&quot;]
         end
@@ -381,7 +473,7 @@ flowchart TB
 <tbody>
 <tr>
 <td>Upload (<code>BatchMonitor</code>)</td>
-<td><code>submitBatch</code>, <code>getBatchStatus</code>, <code>listBatches</code>, <code>listTemplates</code></td>
+<td><code>submitBatch</code>, <code>getBatchStatus</code>, <code>listBatches</code>, <code>listTemplates</code>, <code>clearHistory</code>; the <strong>Download JSON</strong> link is <code>GET /documents/batch/{id}/export</code></td>
 </tr>
 <tr>
 <td>Results</td>
@@ -389,7 +481,7 @@ flowchart TB
 </tr>
 <tr>
 <td>Review</td>
-<td><code>listReviewQueue</code>, <code>resolveFieldReview</code>, <code>resolveNewTemplateNeeded</code>, <code>getExtractionResult</code>, <code>getTemplateVersion</code>, <code>resultImageUrl</code></td>
+<td><code>getReviewGroups</code> (by field / value / document), <code>bulkAccept</code>, <code>bulkCorrect</code>, <code>getAgreed</code>, <code>acceptAgreed</code>, <code>clearReviewQueue</code>, <code>getReviewEvidence</code>, <code>listReviewQueue</code>, <code>resolveFieldReview</code>, <code>resolveNewTemplateNeeded</code>, <code>getExtractionResult</code>, <code>getTemplateVersion</code>, <code>resultImageUrl</code></td>
 </tr>
 <tr>
 <td>Templates</td>
@@ -397,6 +489,7 @@ flowchart TB
 </tr>
 </tbody>
 </table>
+<p><strong>The Review screen is scoped to one upload</strong> (the newest by default; <code>#/review/&lt;id&gt;</code> for another, <code>#/review/all</code> for everything) and opens on <strong>By field</strong>: one field across all the upload's documents, the same crop repeated down a column, so a person scans one kind of text in one place, fixes the wrong values in place, and accepts the rest in one click (a random 10% stays for a proper look). Per column there is also <strong>Leave blank</strong> for a field nobody needs (its pending entries are removed; the JSON leaves it empty). <strong>Same value</strong> and <strong>By document</strong> are the other views. A bar at the top offers <strong>Accept agreed values</strong> (§2.7).</p>
 <p>Design rules enforced in <code>index.css</code>: 4-pt spacing steps, IBM Plex Sans, <strong>one</strong> brand color for everything interactive, and green/amber/red used <em>only</em> as data states (auto / spot check / review), always paired with an icon and a label so color is never the only signal. <code>node frontend/scripts/check_contrast.mjs</code> verifies every color pair.</p>
 <h3 id="26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</h3>
 <figure class="diagram"><pre class="mermaid">
@@ -409,6 +502,7 @@ sequenceDiagram
     participant R as Redis (RQ)
     participant W as Worker
     participant T as Tesseract
+    participant G as Reader engine (GPU)
 
     U-&gt;&gt;N: POST /documents/batch (multipart files, type_hint?)
     N-&gt;&gt;A: proxy (client_max_body_size 800m)
@@ -426,16 +520,24 @@ sequenceDiagram
     R--&gt;&gt;W: next job
     W-&gt;&gt;P: status=processing, attempts+=1
     loop for each unfinished page
-        W-&gt;&gt;T: read fields (subprocess × 8)
+        alt scan or photo, template opts in, engine up
+            W-&gt;&gt;T: whole-page OCR (alignment, word reader)
+            W-&gt;&gt;G: ~87 crops (HTTPS, bearer token)
+            G--&gt;&gt;W: one reply per crop
+        else text layer, or engine down or page not alignable
+            W-&gt;&gt;T: read fields (subprocess × 8)
+        end
         W-&gt;&gt;P: INSERT extraction_results, review_queue rows
         W-&gt;&gt;P: save progress to batch_documents.result
     end
     W-&gt;&gt;P: status=completed, payload=NULL (upload dropped)
 
-    U-&gt;&gt;A: GET /review, PATCH /review/{id}
-    A-&gt;&gt;P: resolve entry, clear needs_review on the result
+    U-&gt;&gt;A: GET /review/groups?by=field&amp;batch_id=…, POST /review/bulk, PATCH /review/{id}
+    A-&gt;&gt;P: resolve entries (via = single | bulk), clear needs_review, record verified_by
+    U-&gt;&gt;A: GET /documents/batch/{id}/export
+    A--&gt;&gt;U: strict JSON: unverified values are null, with the machine&#x27;s reading under suggested
 </pre></figure>
-<h3 id="27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy 🟡</h3>
+<h3 id="27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</h3>
 <p>The queue used to hold one row per doubtful field: 2,000 documents with even 10 doubtful fields each is 20,000 rows, most of them correct. Three mechanisms, each built so that it <strong>adds measurement</strong> rather than removing it.</p>
 <figure class="diagram"><pre class="mermaid">
 flowchart TB
@@ -518,10 +620,56 @@ sequenceDiagram
 <td>A trusted-auto value later corrected on the Results screen writes a resolved spot-check row</td>
 <td>That is precisely the error the trust must hear about; it has no queue row of its own</td>
 </tr>
+<tr>
+<td><strong>Correct a group</strong> (<code>POST /review/bulk-correct</code>): one typed value to every entry of a value group (2 or more, one field of one template version)</td>
+<td>The value must <strong>fullmatch the field's regex</strong>, as Module 7 would; 10% are held back as audit samples; it resolves <code>via = bulk</code>, so it is never evidence. It may take a value Module 7 rejected, which is why it is the one bulk path that needs a typed value</td>
+</tr>
+<tr>
+<td><strong>Accept agreed</strong> (<code>GET /review/agreed</code>, <code>POST /review/accept-agreed</code>): the server picks spot checks the vision model read and an independent check backed (gated, confidence 89)</td>
+<td>A shortcut, not auto-approval: <strong>4 of 797 such values were wrong (0.5%, 95% upper bound ≈ 1.3%)</strong> on the 50-document batch, nowhere near 1 in 10,000, and the confirmation dialog says so. Same audit hold as any bulk accept</td>
+</tr>
+<tr>
+<td><strong>Leave blank</strong> (<code>POST /review/clear</code> with <code>field_id</code>)</td>
+<td>Removes that field's pending entries in the batch; the value stays in the result as the machine's reading and the strict export leaves it empty</td>
+</tr>
 </tbody>
 </table>
+<h4 id="what-the-queue-looks-like-on-a-large-batch-measured">What the queue looks like on a large batch (measured)</h4>
+<p>The 50 hard documents of §6.2 (1,518 fields on the 46 documents that were identified). With the vision model reading, <strong>nothing reached <code>auto</code></strong>, so every value needed either a person or one of the shortcuts above:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fields that stay in the queue (not gated, or Module 7 rejected)</td>
+<td><strong>≈ 670</strong> of 1,518</td>
+</tr>
+<tr>
+<td>Model values read <strong>and independently backed</strong> (&quot;agreed&quot;), acceptable in one click with an audit hold</td>
+<td><strong>771</strong> (latest batch)</td>
+</tr>
+<tr>
+<td>Wrong values among the agreed ones</td>
+<td>4 of 797 (0.5%)</td>
+</tr>
+<tr>
+<td>Wrong values the spot checks must catch (model reads, not gated)</td>
+<td>58 in <code>spot_check</code> + 59 in <code>review</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>A target of &quot;20–30 review items per 50 documents&quot; is not reachable at an error rate near 1 in 10,000 with this model and these documents</strong>, and the queue was not made to look shorter by lowering the bar. Two things were tried and measured before concluding that:</p>
+<ul>
+<li><strong>Tesseract as a second reader</strong> agrees with the model on only <strong>55 of 624</strong> uncertain values and is right on <strong>1 of the 117</strong> model errors, so its agreement says almost nothing: it is not a gate (§8.4).</li>
+<li><strong>Grouping</strong> helps the <em>person</em>, not the count: 224 queue entries sat in 56 repeated-value groups, 376 were singletons and 73 were blanks; only 10 of the 113 wrong values in the queue sat in a repeated group.</li>
+</ul>
+<p>What shortens the work in practice is the review <strong>shape</strong> (one field across all documents, fix and accept), Accept agreed, correcting a group once, and Leave blank. A second reader that is itself strong is the one lever left (§2.9, §10.3): two different models agreeing is worth more than a model agreeing with Tesseract, and that is measurable with <code>scripts/evaluate_reader.py</code>.</p>
 <p><strong>What this does and does not do.</strong> It cannot certify 1 error in 10,000 from a few hundred documents: that needs <strong>29,956 checked values with none wrong, per field</strong> (so a fresh install trusts nothing). It makes the evidence accrue as a by-product of normal review, and it gives the queue a short path (grouping, bulk) in the meantime. The 5% audit rate and the 30 s cache are starting figures, not measurements.</p>
-<h3 id="28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets 🟡</h3>
+<h3 id="28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</h3>
 <figure class="diagram"><pre class="mermaid">
 flowchart TD
     UP[&quot;Page, no type hint&quot;] --&gt; SC[&quot;Scan every &lt;b&gt;unarchived, non-hint-only&lt;/b&gt; template:&lt;br/&gt;OCR its anchor crops&quot;]
@@ -535,14 +683,79 @@ flowchart TD
 <ul>
 <li><strong>A part is its own template</strong>, drawn on a sample of the part (or created in one click from selected fields of an existing template: <em>New template from some of these fields</em>, which copies the chosen fields, optionally the chosen anchors, the checks whose fields were all kept, and the nearby landmarks). It never refers back to the whole-form template; the relationship is derived at match time from anchor containment, not stored.</li>
 <li><strong><code>hints.is_part</code></strong> marks a part. Left to automatic detection it needs <strong>at least two anchors</strong> (one label would match too many pages); with <code>hint_only</code> it can be chosen by hand with one.</li>
-<li><strong><code>hints.min_anchors_matching</code></strong> (new): require N of M anchors instead of all, with 2 ≤ N ≤ M. It lets one smudged or cut-off label not refuse a page. It never lowers the bar below two matching labels, and field boxes that were drawn on a whole page still sit where they sat on the whole page, so a half-page scan needs boxes and anchors drawn on a half-page sample.</li>
-<li><strong>The batch status carries a "where the pages went" summary</strong> (<code>summary.by_template</code>, <code>summary.unmatched</code>), so a batch that spread over several templates, or lost pages to <code>no_match</code>, says so.</li>
+<li><strong><code>hints.yields_to</code></strong>: a template that names another stands down <strong>only when that other also passed its own anchors on this page</strong>. <code>air_waybill</code> yields to <code>air_waybill_bkk</code> because its IATA-boilerplate anchors pass every Bangkok-form scan; after the rule 9 of 9 Bangkok-form files resolve to <code>air_waybill_bkk</code> (before, each was <code>ambiguous_match</code> and the model never ran). A type hint ignores it; two templates that yield to each other stay ambiguous.</li>
+<li><strong><code>hints.min_anchors_matching</code></strong>: require N of M anchors instead of all, with 2 ≤ N ≤ M. It lets one smudged or cut-off label not refuse a page. It never lowers the bar below two matching labels, and field boxes that were drawn on a whole page still sit where they sat on the whole page, so a half-page scan needs boxes and anchors drawn on a half-page sample.</li>
+<li><strong>The batch status carries a &quot;where the pages went&quot; summary</strong> (<code>summary.by_template</code>, <code>summary.unmatched</code>), so a batch that spread over several templates, or lost pages to <code>no_match</code>, says so.</li>
 <li><strong>The rule editor</strong> (Templates &gt; Checks): lists a template's cross-field rules with a <em>Test</em> button (dry run over already-processed documents), proposes rules that held on every readable document (<code>suggest_checks</code>, at least two documents, non-degenerate), and writes new <code>product</code>/<code>sum</code>/<code>equal</code>/<code>one_of</code> rules. A suggestion is only a proposal until a person presses Add.</li>
 </ul>
-<hr>
+<h3 id="29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</h3>
+<p>The question &quot;which model reads the crops&quot; is separated from &quot;how a form is read&quot;. A template says <strong>how</strong> (<code>hints.vlm_reader</code> names a <em>profile</em> of the form's printed rules, zones and wording); an <strong>engine</strong> says <strong>who</strong> answers.</p>
+<figure class="diagram"><pre class="mermaid">
+flowchart LR
+    T[&quot;Template&lt;br/&gt;hints.vlm_reader = waybill_B&lt;br/&gt;(the FORM profile)&quot;] --&gt; RP[&quot;vlm_reader.read_page&lt;br/&gt;crops, questions,&lt;br/&gt;staged answers, gate&quot;]
+    RP --&gt; SEL{&quot;engine chosen by&lt;br/&gt;READER_ENGINE → file default → first entry&lt;br/&gt;(no file: VLM_READER_URL → &#x27;default&#x27;)&quot;}
+    subgraph reg[&quot;Registry: READER_ENGINES_FILE (JSON)&quot;]
+        E1[&quot;qwen_waybill&lt;br/&gt;kind = service&quot;]
+        E2[&quot;candidate_vlm&lt;br/&gt;kind = openai_compatible&quot;]
+    end
+    SEL --&gt; E1
+    SEL --&gt; E2
+    E1 --&gt; S1[&quot;scripts/gpu/serve_reader.py&lt;br/&gt;Qwen2.5-VL-7B + our LoRA&lt;br/&gt;POST /read&quot;]
+    E2 --&gt; S2[&quot;vLLM · SGLang · Ollama · hosted model&lt;br/&gt;POST /chat/completions with image_url&quot;]
+    S1 --&gt; R[&quot;one reply per crop,&lt;br/&gt;all-or-nothing&quot;]
+    S2 --&gt; R
+    R --&gt; RP
+</pre></figure>
+<pre><code class="language-json">{ &quot;default&quot;: &quot;qwen_waybill&quot;,
+  &quot;engines&quot;: [
+    { &quot;name&quot;: &quot;qwen_waybill&quot;, &quot;kind&quot;: &quot;service&quot;, &quot;url&quot;: &quot;http://127.0.0.1:8700&quot;, &quot;token_env&quot;: &quot;VLM_READER_TOKEN&quot; },
+    { &quot;name&quot;: &quot;candidate_vlm&quot;, &quot;kind&quot;: &quot;openai_compatible&quot;, &quot;url&quot;: &quot;http://gpu-box:8000/v1&quot;,
+      &quot;model&quot;: &quot;the-name-the-server-serves&quot;, &quot;token_env&quot;: &quot;CANDIDATE_VLM_TOKEN&quot;,
+      &quot;concurrency&quot;: 8, &quot;max_tokens&quot;: 512, &quot;extra_body&quot;: {} } ] }
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Both kinds answer one call, <code>read(items, max_new) -&gt; replies</code>; a short or malformed answer fails the <strong>whole</strong> set</td>
+<td>A page is never half read by the model and half guessed</td>
+</tr>
+<tr>
+<td>Anything unusable (no file, bad JSON, unknown kind, repeated name, a misspelt setting, no model name, server down) is <code>ReaderUnavailable</code>, which the pipeline answers by reading the page with Tesseract and saying so</td>
+<td>A broken registry is an outage of the <em>better</em> reader, not of the application</td>
+</tr>
+<tr>
+<td><code>token_env</code> names an environment variable; the file holds no secret</td>
+<td>The registry file can be committed or shared</td>
+</tr>
+<tr>
+<td>With no file, <code>VLM_READER_URL</code> / <code>VLM_READER_TOKEN</code> make one engine called <code>default</code></td>
+<td>Existing deployments keep working without a change</td>
+</tr>
+<tr>
+<td>The <code>openai_compatible</code> reader sends one crop per request, several at once (<code>concurrency</code>), keeps the answers in order, and strips a leading <code>&lt;think&gt;…&lt;/think&gt;</code> block</td>
+<td>That is how vLLM-style servers batch; a model that reasons first still yields just its answer</td>
+</tr>
+</tbody>
+</table>
+<p><strong>To try a newly published model:</strong> serve it behind an OpenAI-compatible endpoint, add an entry, then run <code>scripts/evaluate_reader.py --engine tesseract --engine qwen_waybill --engine candidate_vlm</code> on the same labelled documents. It prints, per engine and input kind, fields right, wrong values <strong>by approval tier</strong> (a wrong value in <code>auto</code> would ship; in <code>spot_check</code> it costs a person's attention), and documents per minute, then the <strong>second-reader table</strong>: where two engines give the same value, how often is it right. Only then point <code>READER_ENGINE</code> at it.</p>
+<p><strong>What a registry does not do</strong> (so nobody expects it to):</p>
+<ul>
+<li><strong>The wording of the questions is still the shipped adapter's.</strong> A different model may do better or worse with other wording; that is a measured change, not a config switch. 🟡 Per-engine prompt wording is being added in the working tree.</li>
+<li><strong>Switching engines changes who reads.</strong> The human-check evidence behind audited auto-approval was gathered on another reader (vision-read pages never get audited auto-approval anyway), and every engine's values stay <code>spot_check</code> until measured.</li>
+<li><strong>A whole-page parser is a different shape.</strong> Baidu's Unlimited-OCR (2026) is built for very long documents and returns text with page markers, no word positions as far as its README says (§10.2). It cannot replace the page-alignment and crop machinery; as a <em>crop reader</em> it is zero-shot (no adapter for our forms) and is only a candidate until the scorecard says otherwise.</li>
+<li><strong>Which engine read a page is logged</strong> (<code>VlmPage.engine</code>) but <strong>not yet stored on the result</strong>; a bake-off over live traffic needs that.</li>
+</ul>
+<p>🟡 <strong>In the working tree, not committed: measurement-based engine selection</strong> (<code>app/modules/engine_selection/</code>, migration <code>0007</code>, <code>ENGINE_*</code> settings, off unless <code>ENGINE_SELECTOR_ENABLED</code>). Its stated design: choose which engines read a template, and in what order, from stored <strong>scorecards</strong> instead of the order of the registry file; promote an engine only if it beats the incumbent on the <em>same</em> documents; take an engine out of the chain when its live, person-checked accuracy falls under its scorecard; combine two engines' answers so disagreement goes to review; and read a template with no promoted engine in cold-start mode in which nothing reaches <code>auto</code>. Every threshold there is a provisional starting value.</p>
+<hr />
 <h2 id="3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</h2>
 <h3 id="31-primary-store">3.1 Primary store</h3>
-<p><strong>PostgreSQL 17</strong>, accessed with SQLAlchemy 2.x (<code>psycopg</code> v3), migrated with Alembic (six migrations, <code>0001</code>–<code>0006</code>). The strategy is <strong>relational spine + JSONB for shape-varying documents</strong>: ids, versions, statuses and timestamps are real columns; templates, field results, queue payloads and batch results are JSONB because their shape belongs to the template/entry type, not to the schema.</p>
+<p><strong>PostgreSQL 17</strong>, accessed with SQLAlchemy 2.x (<code>psycopg</code> v3), migrated with Alembic (six committed migrations, <code>0001</code>–<code>0006</code>; 🟡 <code>0007</code>, the engine-selection tables of §2.9, is in the working tree). The strategy is <strong>relational spine + JSONB for shape-varying documents</strong>: ids, versions, statuses and timestamps are real columns; templates, field results, queue payloads and batch results are JSONB because their shape belongs to the template/entry type, not to the schema.</p>
 <h3 id="32-entity-relationship-diagram">3.2 Entity-relationship diagram</h3>
 <figure class="diagram"><pre class="mermaid">
 erDiagram
@@ -560,7 +773,7 @@ erDiagram
         int template_version &quot;exact version that ran&quot;
         timestamptz extracted_at
         string overall_status &quot;complete | needs_review&quot;
-        jsonb fields &quot;field_id → value, confidence, tier, reasons&quot;
+        jsonb fields &quot;field_id → value, confidence, tier, reasons, auto_basis, verified_by&quot;
         bytea page_image &quot;review JPEG, max 1400 px wide&quot;
     }
     REVIEW_QUEUE {
@@ -649,6 +862,8 @@ classDiagram
         hint_only : bool
         is_part : bool
         min_anchors_matching : int?
+        yields_to : str[]  &quot;template ids this one stands down for&quot;
+        vlm_reader : str?  &quot;reader profile name; opts the form in to the vision reader&quot;
     }
     Template &quot;1&quot; *-- &quot;1..*&quot; TemplateAnchor
     Template &quot;1&quot; *-- &quot;1..*&quot; TemplateField
@@ -656,7 +871,7 @@ classDiagram
     Template &quot;1&quot; *-- &quot;0..*&quot; TemplateCheck
     Template &quot;1&quot; *-- &quot;1&quot; TemplateHints
 </pre></figure>
-<p>Coordinates are <strong>page-relative fractions</strong>, not pixels, and are re-validated server-side (<code>0 ≤ x1 &lt; x2 ≤ 1</code>) regardless of what the designer UI sent. <code>min_anchors_matching</code> (2 ≤ N ≤ anchor count) relaxes "all anchors" to "N of them". <code>is_part</code> marks a template drawn on part of a form; saved for automatic detection it needs two anchors. <code>hint_only</code> removes a template from the no-hint scan (otherwise a partial template over a layout another template already covers makes every un-hinted upload <code>ambiguous_match</code>).</p>
+<p>Coordinates are <strong>page-relative fractions</strong>, not pixels, and are re-validated server-side (<code>0 ≤ x1 &lt; x2 ≤ 1</code>) regardless of what the designer UI sent. <code>min_anchors_matching</code> (2 ≤ N ≤ anchor count) relaxes &quot;all anchors&quot; to &quot;N of them&quot;. <code>is_part</code> marks a template drawn on part of a form; saved for automatic detection it needs two anchors. <code>hint_only</code> removes a template from the no-hint scan (otherwise a partial template over a layout another template already covers makes every un-hinted upload <code>ambiguous_match</code>). <code>yields_to</code> lets a template whose anchors are only shared boilerplate stand down for a more specific one that also matched (§2.8). <code>vlm_reader</code> names the reader <strong>profile</strong> (the form's printed rules, zones and wording, kept in <code>data/reader_profiles/</code>, git-ignored because it is cut from a real document); it does not name a model, which is the engine registry's job (§2.9). Changing the hint needs a new template version, which also restarts the human-check evidence counted for that version.</p>
 <h3 id="34-state-machines">3.4 State machines</h3>
 <figure class="diagram"><pre class="mermaid">
 stateDiagram-v2
@@ -724,8 +939,8 @@ stateDiagram-v2
 </tr>
 </tbody>
 </table>
-<p><strong>Rules of state that must stay true:</strong> (1) templates are append-only; (2) Modules 5/6/7 must use the exact confirmed <code>(template_id, version)</code>, never "latest"; (3) a retry resumes at the first unfinished page, because a finished page already wrote results and queue entries and redoing it would duplicate them; (4) a reviewer resolving a field clears <code>needs_review</code> but never rewrites the machine's own <code>approval_tier</code>.</p>
-<hr>
+<p><strong>Rules of state that must stay true:</strong> (1) templates are append-only; (2) Modules 5/6/7 must use the exact confirmed <code>(template_id, version)</code>, never &quot;latest&quot;; (3) a retry resumes at the first unfinished page, because a finished page already wrote results and queue entries and redoing it would duplicate them; (4) a reviewer resolving a field clears <code>needs_review</code> but never rewrites the machine's own <code>approval_tier</code>.</p>
+<hr />
 <h2 id="4-api--communication-contracts">4. API &amp; communication contracts</h2>
 <h3 id="41-communication-patterns">4.1 Communication patterns</h3>
 <table>
@@ -858,6 +1073,20 @@ stateDiagram-v2
 <td>404</td>
 </tr>
 <tr>
+<td><code>GET /documents/batch/{id}/export?strict=true</code></td>
+<td>export</td>
+<td>The batch as one JSON deliverable: per field value, status, confidence. <strong>Strict (default) leaves unverified values <code>null</code></strong> with the machine's reading under <code>suggested</code></td>
+<td>200</td>
+<td>404</td>
+</tr>
+<tr>
+<td><code>POST /documents/history/clear</code></td>
+<td>housekeeping</td>
+<td>Delete batches, their documents, results and pending entries; keep resolved entries and the results they point at. Body <code>{&quot;confirm&quot;: true}</code></td>
+<td>200 counts</td>
+<td><strong>409</strong> while any document is queued/processing/retrying, 422 without <code>confirm</code></td>
+</tr>
+<tr>
 <td><code>POST /templates/suggest-checks</code></td>
 <td>3</td>
 <td>Propose cross-field rules that held on every readable processed document of a template</td>
@@ -900,11 +1129,11 @@ stateDiagram-v2
 <td>404</td>
 </tr>
 <tr>
-<td><code>GET /review?status=&amp;entry_type=</code></td>
+<td><code>GET /review?status=&amp;entry_type=&amp;batch_id=</code></td>
 <td>9</td>
-<td>List queue entries (default <code>pending</code>)</td>
+<td>List queue entries (default <code>pending</code>), optionally only what one batch left</td>
 <td>200</td>
-<td></td>
+<td>404 unknown batch</td>
 </tr>
 <tr>
 <td><code>PATCH /review/{id}</code></td>
@@ -914,9 +1143,9 @@ stateDiagram-v2
 <td>404, 422 (missing the field for that entry type)</td>
 </tr>
 <tr>
-<td><code>GET /review/groups?by=value or document, &amp;template_id=, &amp;limit=, &amp;offset=</code></td>
+<td><code>GET /review/groups?by=field or value or document, &amp;batch_id=, &amp;template_id=, &amp;include_rejected=, &amp;limit=, &amp;offset=</code></td>
 <td>9+</td>
-<td>Pending value entries grouped (same value across documents, or per document)</td>
+<td>Pending entries grouped: <strong>one field across documents</strong> (<code>field</code>), the same value across documents (<code>value</code>), or every pending field of one document. <code>include_rejected</code> adds Module 7 rejections, each group saying whether it can be accepted</td>
 <td>200 <code>{by, total, groups[]}</code></td>
 <td>422 (bad <code>by</code>)</td>
 </tr>
@@ -926,6 +1155,34 @@ stateDiagram-v2
 <td>Accept many spot checks; server-enforced eligibility; random audit sample held back</td>
 <td>200 <code>{accepted[], held_for_audit[]}</code></td>
 <td><strong>422</strong> <code>{refused: {id: reason}}</code> (nothing applied)</td>
+</tr>
+<tr>
+<td><code>POST /review/bulk-correct</code></td>
+<td>9+</td>
+<td>One typed value for every entry of a value group; must fullmatch the field's regex; 10% held back as audit; <code>via = bulk</code></td>
+<td>200</td>
+<td><strong>422</strong> (value fails the field's format, mixed fields or versions, an audit sample)</td>
+</tr>
+<tr>
+<td><code>GET /review/agreed?batch_id=</code></td>
+<td>9+</td>
+<td>How many spot checks the model read <strong>and</strong> an independent check backed (what the server would accept)</td>
+<td>200</td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST /review/accept-agreed</code></td>
+<td>9+</td>
+<td>Bulk accept exactly those, with the audit hold. The client sends no ids: the server picks</td>
+<td>200 <code>{accepted[], held_for_audit[]}</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST /review/clear</code></td>
+<td>housekeeping</td>
+<td>Delete <strong>pending</strong> review entries: all, one <code>batch_id</code>, and/or one <code>field_id</code> (Leave blank). Body <code>{&quot;confirm&quot;: true}</code>. Resolved entries stay</td>
+<td>200 <code>{deleted, by_type}</code></td>
+<td>422 without <code>confirm</code>, 404 unknown batch</td>
 </tr>
 <tr>
 <td><code>GET /review/evidence?target=&amp;confidence=</code></td>
@@ -957,15 +1214,60 @@ stateDiagram-v2
       &quot;confidence&quot;: 96.0,                    // Tesseract word confidence, or 100 for PDF text
       &quot;needs_review&quot;: false,
       &quot;approval_tier&quot;: &quot;auto&quot;,              // auto | spot_check | review  (machine's call)
+      &quot;auto_basis&quot;: null,                    // &quot;trusted_field&quot; when audited auto-approval promoted it
+      &quot;verified_by&quot;: null,                   // &quot;person&quot; | &quot;bulk&quot; once a human settled it
       &quot;reasons&quot;: []                          // e.g. [&quot;format_invalid&quot;, &quot;check_digit_invalid&quot;,
     },                                       //       &quot;cross_check_failed:&lt;label&gt;&quot;, &quot;low_confidence&quot;]
     &quot;gross_weight&quot;: { &quot;...&quot;: &quot;...&quot; }
   }
 }
 </code></pre>
-<p>A consumer should treat only <code>approval_tier == "auto"</code> (or a field a human has resolved) as usable without review.</p>
+<p>A consumer should treat only <code>approval_tier == &quot;auto&quot;</code> (or a field a human has resolved) as usable without review.</p>
+<h4 id="the-batch-export-get-documentsbatchidexport">The batch export (<code>GET /documents/batch/{id}/export</code>)</h4>
+<p>For a person who wants one file per upload, not one call per result. Every field carries a <strong>status</strong> saying why it may be trusted:</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Emitted in strict mode</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>confirmed</code></td>
+<td>a person resolved it one at a time, or corrected it</td>
+<td>✔ value</td>
+</tr>
+<tr>
+<td><code>accepted</code></td>
+<td>accepted from a group (bulk), so not an independent look</td>
+<td>✔ value</td>
+</tr>
+<tr>
+<td><code>auto</code></td>
+<td>validated and at or above the threshold, or trusted by audited auto-approval</td>
+<td>✔ value</td>
+</tr>
+<tr>
+<td><code>unverified</code></td>
+<td>nobody checked it and no rule vouched for it (including <strong>every</strong> value the vision model read until someone settles it)</td>
+<td><strong><code>null</code></strong>, with the machine's reading under <code>suggested</code></td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-jsonc">{ &quot;batch_id&quot;: &quot;618b37b3…&quot;, &quot;strict&quot;: true, &quot;generated_at&quot;: &quot;2026-11-03T…&quot;,
+  &quot;summary&quot;: { &quot;documents&quot;: 50, &quot;fields&quot;: 1518, &quot;emitted&quot;: 0, &quot;withheld&quot;: 1518,
+               &quot;emitted_basis&quot;: { &quot;confirmed&quot;: 0, &quot;accepted&quot;: 0, &quot;auto&quot;: 0, &quot;unverified&quot;: 1518 }, &quot;unrecognised_pages&quot;: 4 },
+  &quot;documents&quot;: [ { &quot;filename&quot;: &quot;demo_b_00__digital.pdf&quot;, &quot;status&quot;: &quot;completed&quot;,
+    &quot;pages&quot;: [ { &quot;recognised&quot;: true, &quot;template_id&quot;: &quot;air_waybill_bkk&quot;, &quot;template_version&quot;: 3, &quot;reader&quot;: &quot;vlm&quot;,
+      &quot;complete&quot;: false,
+      &quot;fields&quot;: { &quot;awb_number&quot;: { &quot;value&quot;: null, &quot;status&quot;: &quot;unverified&quot;, &quot;confidence&quot;: 89.0,
+                                  &quot;suggested&quot;: &quot;176-97333504&quot;, &quot;reasons&quot;: [] } } } ] } ] }
+</code></pre>
+<p><code>strict=false</code> emits every value with its status. Nothing is guessed in either mode: a page whose type was not recognised is listed as <code>{recognised: false, reason}</code> with no fields. Reviewing is what turns <code>withheld</code> into <code>emitted</code>; that is why the review shape of §2.5 matters.</p>
 <h3 id="44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</h3>
-<p><strong>Wire format.</strong> FastAPI <code>HTTPException</code> bodies are <code>{"detail": ...}</code>, where <code>detail</code> is one of:</p>
+<p><strong>Wire format.</strong> FastAPI <code>HTTPException</code> bodies are <code>{&quot;detail&quot;: ...}</code>, where <code>detail</code> is one of:</p>
 <table>
 <thead>
 <tr>
@@ -1008,13 +1310,14 @@ flowchart TD
 </pre></figure>
 <p>Other failure rules:</p>
 <ul>
-<li><strong>RQ runs a job's failure callback on <em>every</em> failed attempt</strong>, so <code>on_failure</code> cannot mean "finally failed". The job asks <code>get_current_job().should_retry</code> instead.</li>
+<li><strong>RQ runs a job's failure callback on <em>every</em> failed attempt</strong>, so <code>on_failure</code> cannot mean &quot;finally failed&quot;. The job asks <code>get_current_job().should_retry</code> instead.</li>
 <li><strong>Partial enqueue</strong>: if Redis dies mid-submit, documents already queued still run; the rest are marked <code>failed</code> with <code>could not be queued: …</code> and the API returns <strong>503</strong> naming how many were queued.</li>
+<li><strong>A reader engine that is down is not an error either.</strong> A dead SSH tunnel hangs rather than refuses, so connecting has its own 10 s limit (without it every page waited the full 120 s before the Tesseract fallback ran: 130 s a page). The page is read with Tesseract, reported as <code>ocr_fallback</code>, and capped at <code>spot_check</code>.</li>
 <li><strong>Unmatched type</strong> is not an error. It is a normal outcome (<code>PageResult.confirmed = false</code> + a <code>new_template_needed</code> queue entry).</li>
 <li><strong>Page detection finding no quad</strong> is also normal (a scan has no border). The refusal that matters is downstream, in Module 5's anchors.</li>
 <li><strong>A check that cannot decide</strong> (input missing, empty or unparseable; a <code>when</code> gate closed) is <code>skipped</code>, never <code>passed</code>.</li>
 </ul>
-<hr>
+<hr />
 <h2 id="5-security-auth--environment">5. Security, auth &amp; environment</h2>
 <h3 id="51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></h3>
 <p>There is <strong>no authentication, no authorization, no user model, no CORS middleware and no rate limiting.</strong> (A search of <code>app/</code> and <code>frontend/src/</code> for auth/JWT/OAuth/CORS/middleware finds nothing outside unrelated words.) Anyone who can reach port 8080 or 8000 can upload, read every result and review crop, edit values, and save templates. That is acceptable only on a trusted local network or developer machine. <strong>It is the largest gap between this repository and a production deployment.</strong></p>
@@ -1070,6 +1373,10 @@ flowchart LR
 <td>Tesseract is invoked with image data via <code>pytesseract</code>; no user-controlled command text</td>
 </tr>
 <tr>
+<td>Reader engine traffic</td>
+<td>The field crops of a page (about 87 per scanned page) are sent to the reader engine, so <strong>business-document content leaves the host</strong>. The client sends <code>Authorization: Bearer</code> from <code>token_env</code>; the service port must be private (an SSH tunnel or a VPN), with TLS in front if it is reachable otherwise. Crops are not stored by the client; what the engine keeps is the engine operator's policy</td>
+</tr>
+<tr>
 <td>Upload retention</td>
 <td>Upload bytes are <code>NULL</code>ed from <code>batch_documents</code> once a document is terminal; review JPEGs (≤ 1400 px) <strong>are</strong> kept on <code>extraction_results</code></td>
 </tr>
@@ -1107,7 +1414,7 @@ flowchart LR
 <tr>
 <td><code>TESSERACT_CMD</code></td>
 <td><code>config.resolve_tesseract_cmd</code></td>
-<td>env → default Windows install path (file check) → <code>shutil.which("tesseract")</code></td>
+<td>env → default Windows install path (file check) → <code>shutil.which(&quot;tesseract&quot;)</code></td>
 <td>Path to the Tesseract binary</td>
 </tr>
 <tr>
@@ -1135,6 +1442,36 @@ flowchart LR
 <td>Where the dev proxy forwards (e.g. the Docker API on <code>:8010</code>)</td>
 </tr>
 <tr>
+<td><code>VLM_READER_URL</code>, <code>VLM_READER_TOKEN</code></td>
+<td><code>app/config.py</code>, <code>vlm_reader/engines.py</code></td>
+<td>unset = reader <strong>off</strong></td>
+<td>The single reader service when no registry file is used (engine <code>default</code>); the token is sent as a bearer token</td>
+</tr>
+<tr>
+<td><code>READER_ENGINES_FILE</code>, <code>READER_ENGINE</code></td>
+<td><code>vlm_reader/engines.py</code></td>
+<td>unset</td>
+<td>The JSON registry of named engines and which one is active (§2.9). Tokens inside it are env-var <strong>names</strong> (<code>token_env</code>)</td>
+</tr>
+<tr>
+<td><code>VLM_READER_TIMEOUT_S</code>, <code>VLM_READER_CONNECT_TIMEOUT_S</code>, <code>VLM_READER_CROPS_PER_REQUEST</code></td>
+<td><code>app/config.py</code></td>
+<td>120, 10, 24</td>
+<td>Per-request limits (a service answers 24 crops in ≈ 7 s); the short connect limit is what stops a dead tunnel from costing 130 s a page</td>
+</tr>
+<tr>
+<td><code>VLM_READER_PROFILE_DIR</code></td>
+<td><code>vlm_reader/profile.py</code></td>
+<td><code>data/reader_profiles</code></td>
+<td>Where the per-form reader profiles are (git-ignored, bind-mounted read-only by compose)</td>
+</tr>
+<tr>
+<td><code>VLM_GATED_CONFIDENCE</code>, <code>VLM_UNGATED_CONFIDENCE</code></td>
+<td><code>app/config.py</code></td>
+<td>89, 70</td>
+<td>The fixed confidences a vision-read value gets (§2.4); 89 is under the 90 auto threshold on purpose</td>
+</tr>
+<tr>
 <td><code>IDP_FORM</code>, <code>IDP_LANDMARKS</code></td>
 <td>experiment scripts only</td>
 <td><code>B</code>, none</td>
@@ -1144,7 +1481,7 @@ flowchart LR
 </table>
 <p>Environment safety rules built into the code: the root <code>conftest.py</code> sets <code>DATABASE_URL</code> to the separate <strong><code>idp_pipeline_test</code></strong> database with <code>setdefault</code> <em>before any <code>app.*</code> import</em>, so tests can never write into the dev database; the test compose service sets it explicitly for the same reason.</p>
 <p><strong>Proposed</strong>: move <code>DATABASE_URL</code> and any future token-signing keys to Docker/Kubernetes secrets or a vault, rotate the <code>idp:idp</code> credentials, and stop publishing Postgres (<code>5433</code>) and Redis (<code>6380</code>) on host ports outside development.</p>
-<hr>
+<hr />
 <h2 id="6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</h2>
 <h3 id="61-targets-stated-versus-measured">6.1 Targets: stated versus measured</h3>
 <table>
@@ -1158,13 +1495,18 @@ flowchart LR
 <tbody>
 <tr>
 <td><strong>Error rate of auto-approved values</strong></td>
-<td>At most <strong>1 in 10,000</strong> (the user's wording; whether "per value" or "per document" was never confirmed)</td>
+<td>At most <strong>1 in 10,000</strong> (the user's wording; whether &quot;per value&quot; or &quot;per document&quot; was never confirmed)</td>
 <td><strong>Not demonstrable with the data in hand.</strong> 0 wrong among <em>N</em> gated values only bounds the true rate by about <strong>3/N</strong> at 95% confidence (rule of three). The synthetic corpus is renderings of one waybill (29 distinct values), so its 100% auto precision cannot show 99.99%</td>
 </tr>
 <tr>
 <td><strong>Throughput</strong></td>
-<td>"10,000+ documents" per batch campaign</td>
+<td>&quot;10,000+ documents&quot; per batch campaign</td>
 <td>See §6.2; ≈ 18 docs/min on a single CPU-bound host ⇒ 10,000 documents ≈ <strong>9 hours</strong>. Needs more hosts, not more workers on one</td>
+</tr>
+<tr>
+<td><strong>Throughput with the vision reader on</strong></td>
+<td>Not specified</td>
+<td><strong>≈ 29 documents an hour</strong> on one shared GPU (≈ 40 s of GPU time a page, ≈ 87 crops at ≈ 0.4 s each), against ≈ 18 a minute for the Tesseract path. 10,000 scanned documents would be ≈ 345 hours on that one card: GPU capacity, not CPU, is the limit when the reader is on</td>
 </tr>
 <tr>
 <td><strong>Concurrency</strong></td>
@@ -1244,7 +1586,81 @@ xychart-beta
 </table>
 <p>On Windows it makes no difference (2.4 vs 2.5 s). <code>runtime.configure_tesseract()</code> now sets the cap for the API, the worker and the scripts; results are identical with and without it.</p>
 <p><strong>Other measured costs</strong>: page alignment adds one whole-page OCR (≈ 1.5 s per page) <em>only</em> for templates that carry landmarks; text-native PDF pages need no OCR at all and no second preprocessing pass.</p>
-<p><strong>Accuracy</strong> (fields correct; single reference waybill + synthetic renderings; <strong>real photographed pages are mostly unmeasured</strong>): full 22-document corpus through the batch API, 22/22 classified correctly with no hint, 584/612 fields correct (text-layer 58/58, scanned 252/261, camera 274/293); auto-approved precision 100% in each tier, and all six accepted-wrong reads landed in <code>spot_check</code>. Auto share after the "no validator ⇒ never auto" rule: text-layer 66%, scanned 52%, camera 51%. On 16 <em>real</em> waybills from several printers, page alignment lifted first-page anchor recognition from <strong>1 of 16 to 12 of 16</strong>; field accuracy on non-reference layouts is much lower (see §8).</p>
+<p><strong>Accuracy</strong> (fields correct; single reference waybill + synthetic renderings; <strong>real photographed pages are mostly unmeasured</strong>): full 22-document corpus through the batch API, 22/22 classified correctly with no hint, 584/612 fields correct (text-layer 58/58, scanned 252/261, camera 274/293); auto-approved precision 100% in each tier, and all six accepted-wrong reads landed in <code>spot_check</code>. Auto share after the &quot;no validator ⇒ never auto&quot; rule: text-layer 66%, scanned 52%, camera 51%. On 16 <em>real</em> waybills from several printers, page alignment lifted first-page anchor recognition from <strong>1 of 16 to 12 of 16</strong>; field accuracy on non-reference layouts is much lower (see §8).</p>
+<p><strong>The vision reader, measured</strong> (the numbers below are from this repository's own runs; the labels for the real pages are unverified drafts, and the synthetic documents share two layouts with the adapter's training data, so they measure content and scan quality, <strong>not unseen forms</strong>):</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Real held-out pages</strong>, round-4 adapter</td>
+<td><strong>89.1%</strong> of fields right (previous adapter 89.7%: no measured gain on real new pages). The old Tesseract pipeline gets <strong>11%</strong> on the same pages</td>
+</tr>
+<tr>
+<td>Synthetic validation (adapter chosen on this only)</td>
+<td><strong>94.6%</strong> (previous adapter 92.9% on the same crops)</td>
+</tr>
+<tr>
+<td>Trial through the running API, real scanned Bangkok-form pages, with a type hint</td>
+<td>27–33 of 33 fields right per page, 33–69 s a page; 0.27–0.31 s a crop on a shared RTX 5090; saved research crops came back byte-identical (150 of 150)</td>
+</tr>
+<tr>
+<td><strong>50 distinct hard Faker waybills in one batch, no type hint, 1 worker</strong> (24 digital, 18 scanned, 8 camera photos)</td>
+<td>46 identified (25 as <code>air_waybill_bkk</code>, 20 as <code>air_waybill</code> by the model, 1 by Tesseract; 4 refused <code>no_match</code>), <strong>1,730 s wall</strong></td>
+</tr>
+<tr>
+<td>Same batch, fields right (the printed <code>HS CODE:</code> / <code>INV:</code> label the template drops on purpose is ignored when scoring)</td>
+<td><strong>1,401 of 1,518 = 92.3%</strong>: digital 760/792 (96.0%), scans 486/528 (92.0%), photos 155/198 (78.3%)</td>
+</tr>
+<tr>
+<td>Same batch, where the wrong ones sit</td>
+<td><strong>nothing at <code>auto</code></strong>, 58 wrong values in <code>spot_check</code>, 59 in <code>review</code></td>
+</tr>
+</tbody>
+</table>
+<figure class="diagram"><pre class="mermaid">
+xychart-beta
+    title &quot;Fields right by input kind, 50-document hard batch (%)&quot;
+    x-axis [&quot;text-layer PDF&quot;, &quot;scanned PDF&quot;, &quot;camera photo&quot;]
+    y-axis &quot;fields right&quot; 0 --&gt; 100
+    bar [96.0, 92.0, 78.3]
+</pre></figure>
+<p>What the fixes in the last days were worth, each measured on the batch or pages named:</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Before → after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A <strong>doubtful text layer</strong> goes to the model (24 hard digital pages)</td>
+<td>320 → 738 of 792 fields right; wrong values at <code>auto</code> 10 → 0</td>
+</tr>
+<tr>
+<td>The reader <strong>reuses Module 5's alignment</strong> when its own refit fails (8 noisy scans and photos)</td>
+<td>26 → 206 of 264 fields right; 7 of the 8 pages moved from Tesseract to the model</td>
+</tr>
+<tr>
+<td><code>air_waybill</code> <strong>yields to</strong> <code>air_waybill_bkk</code></td>
+<td>every Bangkok scan was <code>ambiguous_match</code> and never reached the model; 9 of 9 now resolve</td>
+</tr>
+<tr>
+<td><strong>Cap <code>ocr_fallback</code> pages at <code>spot_check</code></strong></td>
+<td>4 wrong values at confidence 93–96 had reached <code>auto</code>; none now</td>
+</tr>
+<tr>
+<td>Scoring ignores the dropped printed label</td>
+<td>1,361 → 1,401 right: the 40 &quot;misses&quot; were label-only differences, not misreads</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Reading these honestly:</strong> every value in the batch above needs a person, because the model's fixed confidence is under the auto threshold. What a person has to catch is the 58 + 59 wrong values among roughly 670 queued ones; the gated 89 values are right about 99.5% of the time, which is the figure to weigh against &quot;1 in 10,000&quot; (§6.1).</p>
 <h3 id="63-scalability-limits">6.3 Scalability limits</h3>
 <figure class="diagram"><pre class="mermaid">
 flowchart LR
@@ -1264,6 +1680,7 @@ flowchart LR
 <li><strong>Multiple API replicas racing to migrate</strong>: the container <code>CMD</code> runs <code>alembic upgrade head</code> at start. The Dockerfile notes this should become an init container/one-shot job before running more than one replica.</li>
 <li><strong>Blob storage in Postgres</strong> is a deliberate simplicity trade (API and worker share only the DB). At high volume, move uploads and review JPEGs to object storage (S3/MinIO) and keep a key in the row.</li>
 <li><strong>Worker scaling beyond 6 is untested</strong>; Redis is verified only at Redis 7 inside the compose stack, single instance.</li>
+<li><strong>GPU capacity</strong> is the first limit once the reader is on: ≈ 29 documents an hour per shared card, and the crops leave the host. More throughput means more engines or a faster one (the registry makes adding one a config change, §2.9); the OpenAI-compatible reader already sends several crops at once.</li>
 <li><strong>Windows workers</strong> fall back to <code>SimpleWorker</code> (no fork), so a hung job is only cut off by a timer thread. Use the Linux image for production.</li>
 </ul>
 <h3 id="64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</h3>
@@ -1278,6 +1695,10 @@ flowchart LR
 <tr>
 <td><strong>Application logging</strong></td>
 <td>✅ Python <code>logging</code>, logger <code>app</code>, INFO level, to stderr (<code>runtime.configure_logging</code>). Per page it logs the deskew angle, method and whether it was applied, and the alignment summary (landmarks matched, scale, shift, rms). Uvicorn's own loggers are separate</td>
+</tr>
+<tr>
+<td><strong>Which reader read a page</strong></td>
+<td>✅ <code>PageResult.reader</code> (<code>text_layer</code>, <code>vlm</code>, <code>ocr</code>, <code>ocr_fallback</code>) is returned and stored in the batch result; the engine name and gate counts are logged (<code>vision reader waybill_B via engine qwen_waybill: 33 fields, 21 gated, 0 blank</code>). The engine is <strong>not yet stored on the extraction result</strong></td>
 </tr>
 <tr>
 <td><strong>Per-document audit</strong></td>
@@ -1301,12 +1722,12 @@ flowchart LR
 </tr>
 <tr>
 <td><strong>Quality monitoring</strong></td>
-<td>✅ Offline scripts: <code>evaluate_accuracy.py</code>, <code>evaluate_batch.py</code> (through a running API), <code>evaluate_deskew.py</code>, <code>evaluate_forms.py</code></td>
+<td>✅ Offline scripts: <code>evaluate_accuracy.py</code>, <code>evaluate_batch.py</code> (through a running API), <code>evaluate_deskew.py</code>, <code>evaluate_forms.py</code>, <strong><code>evaluate_reader.py</code></strong> (the same documents through each reader engine: fields right by input kind, wrong values by approval tier, docs/min, and the two-engine agreement table), <code>export_batch_json.py</code> (a finished batch → per-field extract and a right/wrong scorecard)</td>
 </tr>
 </tbody>
 </table>
 <p><strong>Proposed</strong> minimum: a <code>/healthz</code> + <code>/readyz</code> pair (DB + Redis checks), <code>prometheus-fastapi-instrumentator</code> plus RQ queue-depth and per-tier counters (auto / spot_check / review rate is the single most useful business metric), Sentry for exceptions, and structured JSON logs carrying <code>batch_id</code>, <code>document_id</code> and <code>template_id</code> on every line.</p>
-<hr>
+<hr />
 <h2 id="7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</h2>
 <table>
 <thead>
@@ -1323,10 +1744,10 @@ flowchart LR
 <tr>
 <td>1</td>
 <td>Extraction approach</td>
-<td><strong>User-marked coordinate templates</strong> with Tesseract / PDF text</td>
-<td>ML layout models, LLM-only extraction</td>
-<td>Predictable, auditable, no training data needed, every miss is explainable; matches "refuse and flag"</td>
-<td>Brittle when a form drifts: needed alignment (ADR 5) and still needs one template per printed layout</td>
+<td><strong>User-marked coordinate templates</strong>; the PDF text layer, a vision model reading template-guided crops, and Tesseract as the fallback</td>
+<td>ML layout models, LLM-only whole-page extraction</td>
+<td>Predictable, auditable, every miss is explainable; the template says where, so the model only has to read a crop and cannot invent a location; matches &quot;refuse and flag&quot;</td>
+<td>Brittle when a form drifts: needed alignment (ADR 5) and still needs one template per printed layout; the model needs a GPU machine</td>
 </tr>
 <tr>
 <td>2</td>
@@ -1443,7 +1864,7 @@ flowchart LR
 <tr>
 <td>16</td>
 <td>Read errors</td>
-<td><strong>Never "correct" a read</strong>; edge-trimming of rule fragments only (and template-declared selection)</td>
+<td><strong>Never &quot;correct&quot; a read</strong>; edge-trimming of rule fragments only (and template-declared selection)</td>
 <td>Post-hoc spell/OCR correction</td>
 <td>A confident wrong value is the worst outcome; corrections would hide misreads</td>
 <td>More values land in review</td>
@@ -1452,7 +1873,7 @@ flowchart LR
 <td>17</td>
 <td>Review volume</td>
 <td><strong>Grouped view + server-enforced bulk accept + random audit sample</strong></td>
-<td>A client-side "accept all" button; reviewing every row</td>
+<td>A client-side &quot;accept all&quot; button; reviewing every row</td>
 <td>The UI cannot be the safety net; an audit sample keeps bulk-accepted values measured</td>
 <td>A person can still wave a crop sheet through; the audit sample is what catches that statistically</td>
 </tr>
@@ -1482,33 +1903,129 @@ flowchart LR
 </tr>
 <tr>
 <td>21</td>
-<td>Experimental reader gate</td>
-<td><strong>Auto only if (two readers agree OR an arithmetic check) AND format passes</strong></td>
-<td>Trusting the VLM's answer</td>
-<td>A prompt that contained a valid example number was copied by the model on clipped crops (found and removed); agreement is what survives that</td>
-<td>Every field costs a second read</td>
+<td>Vision-reader gate</td>
+<td><strong>A value is gated only if (a second reader agrees OR an arithmetic fact holds) AND its format passes; gated gets a fixed 89, anything else 70, both under the 90 auto line</strong></td>
+<td>Trusting the model's answer; its self-reported confidence (it reports none)</td>
+<td>A prompt that contained a valid example number was copied by the model on clipped crops (found and removed); agreement is what survives that. Gate precision measured 0 wrong of 236 on real pages but 2 of 955 on synthetic arithmetic-gated fields</td>
+<td>Every model value is a spot check until someone raises the number or trust is earned; the review burden is real (§2.7)</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Which model reads</td>
+<td><strong>A named engine in a registry file</strong>, two kinds (our <code>/read</code> service, any OpenAI-compatible server) behind one all-or-nothing call</td>
+<td>A client hard-wired to one model; one model per template in code</td>
+<td>A newly published model should be a config entry plus a scorecard, not a release; both kinds look identical to the pipeline</td>
+<td>The question wording is still the shipped adapter's, each engine's trust must be measured, and the engine is not yet stored per result</td>
+</tr>
+<tr>
+<td>23</td>
+<td>Reader failure</td>
+<td><strong>Fall back to Tesseract, say so (<code>ocr_fallback</code>), cap the page at <code>spot_check</code></strong></td>
+<td>Fail the page; fall back silently</td>
+<td>A dead GPU must not stop a batch, and the fallback measured 4 wrong values at confidence 93–96</td>
+<td>On scans and photos accuracy falls to Tesseract's until the engine is back</td>
+</tr>
+<tr>
+<td>24</td>
+<td>Doubtful text layers</td>
+<td><strong>Route a text-layer page to the vision reader when Module 7 rejects anything on it</strong></td>
+<td>Trust the layer whenever it exists</td>
+<td>A layer that sits off its cells reads a neighbour's words and the alignment cannot see it: 320 → 738 of 792 fields right, wrong at <code>auto</code> 10 → 0</td>
+<td>≈ 40 s of GPU per routed page</td>
+</tr>
+<tr>
+<td>25</td>
+<td>Second reader</td>
+<td><strong>A second <em>model</em>, to be measured, not Tesseract</strong></td>
+<td>Tesseract agreement as a gate</td>
+<td>Tesseract agreed with the model on only 55 of 624 uncertain values and was right on 1 of 117 model errors</td>
+<td>The queue stays near 670 of 1,518 fields until a strong second engine is measured (§10.3)</td>
+</tr>
+<tr>
+<td>26</td>
+<td>JSON output</td>
+<td><strong>Strict export: unverified values are <code>null</code>, with the reading beside them</strong></td>
+<td>Emit everything with a flag</td>
+<td>Downstream systems act on emitted values, so only checked or rule-vouched ones are emitted</td>
+<td>A fresh batch exports mostly <code>null</code> until it has been reviewed</td>
+</tr>
+<tr>
+<td>27</td>
+<td>Review shape</td>
+<td><strong>By field across one upload; correct a group; accept agreed; leave a field blank</strong>, with server-side eligibility and an audit hold</td>
+<td>One-by-one review; a client-side &quot;accept all&quot;</td>
+<td>One field across documents is the cheapest thing for a person to scan; the safety stays on the server</td>
+<td>Does <strong>not</strong> reach 20–30 items per 50 documents (§2.7); that needs a stronger second reader, not a nicer screen</td>
 </tr>
 </tbody>
 </table>
-<hr>
+<hr />
 <h2 id="8-how-the-technology-works-right-now">8. How the technology works right now</h2>
-<h3 id="81-what-is-shipped-versus-experimental">8.1 What is shipped versus experimental</h3>
+<h3 id="81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</h3>
 <figure class="diagram"><pre class="mermaid">
 flowchart TB
-    subgraph shipped[&quot;✅ SHIPPED PATH (the application)&quot;]
-        direction LR
-        A1[&quot;Ingestion&quot;] --&gt; A2[&quot;Preprocess&lt;br/&gt;2-pass&quot;] --&gt; A3[&quot;Anchors&lt;br/&gt;+ 🟡 alignment&quot;] --&gt; A4[&quot;Template boxes →&lt;br/&gt;text layer or Tesseract&quot;] --&gt; A5[&quot;Validate&lt;br/&gt;+ tiers&quot;] --&gt; A6[&quot;Results + Review queue&quot;]
-    end
-    subgraph exp[&quot;🧪 EXPERIMENT (scripts + GPU box; NOT in the app)&quot;]
-        direction LR
-        B1[&quot;Template-guided crops&lt;br/&gt;3 widening levels&lt;br/&gt;0 / 0.02 / 0.04&quot;] --&gt; B2[&quot;Qwen2.5-VL-7B&lt;br/&gt;+ LoRA fine-tune&quot;] --&gt; B3[&quot;Staged read:&lt;br/&gt;first window whose answer&lt;br/&gt;passes the format wins&quot;] --&gt; B4[&quot;Gate: auto only if&lt;br/&gt;(2 readers agree OR arithmetic check)&lt;br/&gt;AND format passes&quot;]
-    end
-    shipped -. &quot;same templates,&lt;br/&gt;same validation rules&quot; .- exp
+    P1[&quot;Ingestion → preprocess → anchors → alignment&lt;br/&gt;(the application, every page)&quot;] --&gt; Q{&quot;Which reader?&quot;}
+    Q -- &quot;text layer that validates&quot; --&gt; V7[&quot;Module 7: validate + tiers&quot;]
+    Q -- &quot;scan or photo,&lt;br/&gt;template opts in, engine up&quot; --&gt; VR[&quot;Vision reader:&lt;br/&gt;crops → engine → staged answer → gate&quot;]
+    Q -- &quot;engine down,&lt;br/&gt;or template not opted in&quot; --&gt; TS[&quot;Tesseract&quot;]
+    VR --&gt; V7
+    TS --&gt; V7
+    V7 --&gt; OUT[&quot;Results · review queue · strict batch export&quot;]
+    VR -.-&gt; ENG[[&quot;Reader engine (a registry entry, on a GPU machine):&lt;br/&gt;service = Qwen2.5-VL-7B + LoRA, or any OpenAI-compatible server&quot;]]
+    RES[[&quot;🧪 Research tooling, not the running app:&lt;br/&gt;make_train_set, synth_bkk, scripts/gpu trainer,&lt;br/&gt;score_samples, score_vlm, evaluate_reader&quot;]] -.-&gt; ENG
 </pre></figure>
+<p>The previous version of this document called the vision reader experimental and not wired in. That changed: it is committed, wired into Module 6, opt-in per template and off until an engine is configured. What remains research is the <em>training</em> side.</p>
 <h3 id="82-committed-versus-uncommitted">8.2 Committed versus uncommitted</h3>
-<p>Latest commit: <code>698ccf4</code> <em>Add page alignment so templates survive A4 pages, scan margins and other printers</em>. The working tree additionally holds (🟡 tested, 512 tests pass, lint 0 errors at the last full run, <strong>not committed</strong>): the review grouping / bulk accept / evidence / audited auto-approval stack (<code>review_groups.py</code>, <code>trust.py</code>, <code>utils/stats.py</code>), part templates, most-specific-wins matching, <code>min_anchors_matching</code>, the rule editor and its two endpoints, the batch "where the pages went" summary, alignment refinements and config tunables, <strong>field read options</strong> (<code>from_field</code> / <code>extract_pattern</code> / <code>squash_spaces</code> / <code>optional</code>), the <code>blank_optional</code> spot-check reason, the Bangkok and other waybill forms (<code>scripts/waybill_forms.py</code>), the designer carrying landmarks/hints/checks through load-and-save, and the new landmark JSONs. 🧪 The experiment scripts (<code>scripts/gpu/*</code>, <code>make_train_set.py</code>, <code>score_*.py</code>, <code>proto_*.py</code>, …) are also untracked.</p>
+<p>Latest commit: <code>6877a9a</code> <em>Reader engines are configuration: a registry, an OpenAI-compatible crop reader and a scorecard script</em>. Since the previous revision of this document the following landed, each as its own commit:</p>
+<table>
+<thead>
+<tr>
+<th>Commit</th>
+<th>What it added</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>55a98f0</code>, <code>f7da552</code></td>
+<td>The vision-model reader wired into Module 6, and its experiment tooling</td>
+</tr>
+<tr>
+<td><code>d349d7d</code></td>
+<td>A 10 s connect timeout for the reader client (a dead tunnel cost 130 s a page)</td>
+</tr>
+<tr>
+<td><code>3829926</code></td>
+<td><code>hints.yields_to</code>: a boilerplate-anchored template yields to the print whose own mark also passed</td>
+</tr>
+<tr>
+<td><code>5e37b5b</code></td>
+<td>A text-native page goes to the model when its text-layer read is doubtful</td>
+</tr>
+<tr>
+<td><code>d6c68ea</code></td>
+<td><code>ocr_fallback</code> pages capped at <code>spot_check</code>; fallback pages aligned with Module 5's alignment</td>
+</tr>
+<tr>
+<td><code>99f56e5</code>, <code>7707b95</code></td>
+<td>Review scoped to a batch, correct a group at once, accept agreed model reads, clear queue and history; the Review screen redesigned</td>
+</tr>
+<tr>
+<td><code>ed6c42b</code></td>
+<td><code>hs_code</code> and <code>invoice_reference</code> scored without the printed label the template drops</td>
+</tr>
+<tr>
+<td><code>c8a3bd0</code></td>
+<td>Review by field, Leave blank, <code>verified_by</code>, the strict JSON export</td>
+</tr>
+<tr>
+<td><code>6877a9a</code></td>
+<td>The reader-engine registry, the OpenAI-compatible adapter, <code>evaluate_reader.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>🟡 <strong>In the working tree, not committed, and belonging to a separate piece of work:</strong> measurement-based engine selection (<code>app/modules/engine_selection/</code>, <code>app/models/engine_selection.py</code>, migration <code>0007</code>, <code>ENGINE_*</code> settings, per-engine prompts, <code>scripts/export_labelled.py</code>, <code>tests/test_engine_selection.py</code>) and the small edits to <code>engines.py</code>, <code>client.py</code>, <code>openai_client.py</code>, <code>reader.py</code>, <code>waybill.py</code>, <code>pipeline.py</code>, <code>review_queue.py</code>, <code>output_compiler.py</code> and <code>config.py</code> that go with it. This document describes it only as in progress.</p>
 <h3 id="83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</h3>
-<p>Template pipeline on the real documents, fields right of 33 per document, using landmark lists built from <strong>training pages only</strong> so no held-out page aligns itself:</p>
+<p>This table is the <strong>template + Tesseract/text-layer pipeline</strong> alone (fields right of 33 per document, landmark lists built from training pages only so no held-out page aligns itself). It is kept because it explains <em>why</em> the vision reader exists; the reader's own numbers are in §6.2.</p>
 <table>
 <thead>
 <tr>
@@ -1571,41 +2088,45 @@ flowchart TB
 </tr>
 </tbody>
 </table>
-<p>Reading it plainly: <strong>clean text-layer PDFs are solved; scans of the same form are not</strong>, because the drift is larger than the boxes tolerate. The one wrong auto-approved value on document 01 is exactly the failure the approval rule is meant to stop, and it is why the experimental reader's gate requires agreement or an arithmetic check.</p>
-<h3 id="84-state-of-the-experimental-reader">8.4 State of the experimental reader</h3>
+<p>Reading it plainly: <strong>clean text-layer PDFs are solved; scans of the same form were not</strong>, because the drift is larger than the boxes tolerate. Through the application with the vision reader on and a type hint, the same scanned Bangkok pages read <strong>27–33 of 33</strong> fields (§6.2), and no model-read value was auto-approved.</p>
+<h3 id="84-state-of-the-vision-reader">8.4 State of the vision reader</h3>
 <ul>
-<li><strong>Done:</strong> frozen train/test split (<code>data/real_awb/split.json</code>); synthetic training data with exact ground truth and <em>visibility-aware answers</em> (a crop that does not contain the value is labelled EMPTY, which fixed a hallucination where the model wrote <code>123,456.00</code> into crops showing only captions); <strong>noisy synthetic data</strong> (<code>--hard</code>: heavy skew, speckle, JPEG 45–70, uneven contrast) so the reader sees scans, not renders; first-round adapters for Bangkok and Mumbai (v2) and their CPU baselines.</li>
-<li><strong>Found and fixed:</strong> the prompt for the AWB field contained a <em>valid mod-7 example number</em>, and on clipped crops the model <strong>copied it</strong>. All example numbers were removed from the prompts and the training sets rebuilt. This is the reason the gate needs a second reader or an arithmetic check: a value that is well-formed and checks out can still be invented.</li>
-<li><strong>Running now (GPU box <code>10.20.37.130</code>, shared, never touched beyond this project's directory):</strong> one <strong>mixed adapter</strong> <code>wb_v3</code> (Bangkok + Mumbai, plain + hard noise + the real <em>train</em> pages repeated 3×, LoRA r = 16, 2 epochs, 1,625 steps at ≈ 6.9 s/step). A chain script scores epoch 1 (as soon as it exists, on whichever GPU has room) and epoch 2 plus the untuned model after training, on the synthetic validation sets (plain and hard) and the real train pages. <strong>Results are not in this document yet</strong>; they will be added when scoring ends.</li>
-<li><strong>Protocol:</strong> choose epoch 1 vs 2 on the <em>synthetic validation set only</em>; read the held-out real documents <strong>once</strong>, after the choice is locked.</li>
-<li><strong>Not done:</strong> integrating any VLM reader into <code>app/</code>; a reader that works on a <strong>layout it has never seen</strong> (the central open problem, see §10); layouts with no template or synthetic generator (SalamAir, Pioneer); fine-tuning Tesseract itself.</li>
-<li><strong>Running it locally:</strong> the 7B reader needs a ≈ 16 GB GPU in bf16; this laptop has an Intel iGPU and 15.7 GB RAM. §10 proposes a ≈ 1B specialist model that fits.</li>
-<li><strong>Throughput caveat:</strong> ≈ 0.2 s per crop batched ⇒ ≈ 5 s per scanned document per GPU if every field is sent, so the VLM would be called only for fields that need it.</li>
+<li><strong>Wired in:</strong> <code>app/modules/vlm_reader/</code> is part of Module 6. It runs for a scanned or photographed page of a template that opts in, for a text-layer page Module 7 rejects something on, and falls back to Tesseract (capped at <code>spot_check</code>) whenever the engine cannot be used.</li>
+<li><strong>Model:</strong> Qwen2.5-VL-7B-Instruct with a LoRA adapter, chosen on synthetic validation only. The adapter in use is <code>data/models/wb_v4_epoch3</code> (309 MB, local); the earlier <code>wb_v3_epoch2</code> is kept. Synthetic validation 94.6% (previous adapter 92.9%); real held-out pages 89.1% (previous 89.7%), i.e. no measured gain on real new pages. The old Tesseract pipeline gets 11% on the same pages.</li>
+<li><strong>Found and fixed on the way:</strong> a prompt that contained a valid mod-7 example number was <strong>copied</strong> by the model on clipped crops (examples removed, training sets rebuilt); a crop that cuts a value off is answered EMPTY in training, never with the visible part (this fixed the model writing <code>123,456.00</code> into caption-only crops); a boilerplate-anchored template made every Bangkok scan <code>ambiguous_match</code> before the model could run (<code>yields_to</code>); a dead tunnel blocked a worker for the whole read timeout (separate connect timeout); the Tesseract fallback let wrong values reach <code>auto</code> (cap).</li>
+<li><strong>Engines:</strong> the model that reads is a registry entry (§2.9). Both shipped kinds answer identically to the pipeline. <strong>No second model has been scored yet.</strong> <code>scripts/evaluate_reader.py</code> is the instrument that will do it.</li>
+<li><strong>What the GPU is for:</strong> <em>running</em> the reader on scanned pages. Training is finished and nothing about a text-layer PDF that validates needs it. The development GPU machine is a shared lab box that is not part of this project's footprint; the application is only its client.</li>
+<li><strong>Not done:</strong> a reader that works on a <strong>layout it has never seen</strong> (the central open problem, §10); layouts with no template or synthetic generator (SalamAir, Pioneer); storing the engine name on each result; per-engine prompts (in progress, §8.2); fine-tuning Tesseract itself.</li>
+<li><strong>Throughput caveat:</strong> ≈ 0.27–0.4 s per crop and ≈ 87 crops per scanned page is ≈ 40 s of GPU time a page, ≈ 29 documents an hour on one shared card (§6.1).</li>
+<li><strong>Security caveat:</strong> the crops leave the host. A bearer token, a private port and TLS in front are required before real documents are sent; the service token created for the trial has not been rotated.</li>
 </ul>
 <h3 id="85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</h3>
 <ol>
 <li><strong>Authentication/authorization and TLS</strong> (§5.1): required before any shared deployment.</li>
-<li><strong>Commit</strong> the tested uncommitted work (waiting on your go-ahead, as agreed). It is now a large diff: commit in slices (review stack, templates/detection, alignment/forms, experiment scripts).</li>
+<li><strong>Get a GPU the project controls</strong> and run the <strong>engine bake-off</strong>: the current adapter, Baidu Unlimited-OCR, PaddleOCR-VL and any other candidate, scored by <code>evaluate_reader.py</code> on the 50-document hard batch and the real pages. Decide the default engine and whether a second engine can serve as an independent reader (§10.3).</li>
 <li><strong>Verify the draft labels</strong> in <code>data/real_awb/labels/</code> (they are unverified; every accuracy figure on real documents depends on them).</li>
-<li><strong>Finish the reader evaluation</strong> (stage 1 is running); then decide, with §10's benchmark, whether the second reader is the 7B adapter or a small specialist model, and integrate it behind the same gate.</li>
-<li><strong>Auto-build landmarks at template-save time</strong> in the designer (today <code>scripts/build_landmarks.py</code> is run by hand over other real documents).</li>
+<li><strong>Shrink the queue honestly.</strong> ≈ 670 of 1,518 fields on a 50-document batch stay queued at the target error rate (§2.7). The levers that are left are a validated second reader, master-data validators (§10.3) and a grounding check, not another screen.</li>
+<li><strong>Store the engine on each result</strong> and make trust evidence engine-aware, so switching the model cannot silently inherit another model's evidence.</li>
 <li><strong>Observability</strong>: <code>/healthz</code>, metrics, error tracking, structured logs (§6.4).</li>
 <li><strong>Move blobs out of Postgres</strong> and <strong>split migrations from API start-up</strong> before scaling out.</li>
 <li><strong>More real data per layout</strong>: a handful of test documents cannot certify 1-in-10,000; the project needs hundreds of labelled real pages per layout and a gate evaluated per auto-approved value.</li>
+<li><strong>Auto-build landmarks at template-save time</strong> in the designer (today <code>scripts/build_landmarks.py</code> is run by hand over other real documents).</li>
 </ol>
-<hr>
+<hr />
 <h2 id="9-appendix">9. Appendix</h2>
 <h3 id="91-repository-map">9.1 Repository map</h3>
 <figure class="diagram"><pre class="mermaid">
 flowchart LR
     root[&quot;idp-pipeline/&quot;] --&gt; app[&quot;app/&lt;br/&gt;FastAPI + pipeline&quot;]
     root --&gt; fe[&quot;frontend/&lt;br/&gt;React console&quot;]
-    root --&gt; alembic[&quot;alembic/versions/&lt;br/&gt;0001–0006&quot;]
-    root --&gt; scripts[&quot;scripts/&lt;br/&gt;seed, evaluate, build corpora,&lt;br/&gt;waybill_forms, 🧪 gpu/&quot;]
-    root --&gt; tests[&quot;tests/&lt;br/&gt;512 tests, real-OCR tests,&lt;br/&gt;fixtures/ git-ignored&quot;]
+    root --&gt; alembic[&quot;alembic/versions/&lt;br/&gt;0001–0006 (🟡 0007 in the tree)&quot;]
+    root --&gt; scripts[&quot;scripts/&lt;br/&gt;seed, evaluate (incl. evaluate_reader),&lt;br/&gt;build corpora and the demo batch,&lt;br/&gt;export_batch_json, waybill_forms, 🧪 gpu/&quot;]
+    root --&gt; config[&quot;config/&lt;br/&gt;reader_engines.example.json&quot;]
+    root --&gt; data[&quot;data/ (git-ignored)&lt;br/&gt;reader_profiles, models, corpora&quot;]
+    root --&gt; tests[&quot;tests/&lt;br/&gt;596 tests, real-OCR tests,&lt;br/&gt;fixtures/ git-ignored&quot;]
     root --&gt; docker[&quot;Dockerfile · docker-compose*.yml&lt;br/&gt;docker/postgres-init/&quot;]
     root --&gt; docs[&quot;CLAUDE.md · ACCURACY_REPORT.md&lt;br/&gt;idp-phase1-master-reference.pdf&lt;br/&gt;architecture.md&quot;]
-    app --&gt; modules[&quot;modules/ (the 9 modules + batch + alignment + checks + pipeline)&quot;]
+    app --&gt; modules[&quot;modules/ (the 9 modules + batch + alignment + checks + pipeline&lt;br/&gt;+ vlm_reader/ + review_groups + trust + export + housekeeping)&quot;]
     app --&gt; models[&quot;models/ (SQLAlchemy)&quot;]
     app --&gt; schemas[&quot;schemas/ (Pydantic)&quot;]
     app --&gt; cfg[&quot;config.py (every tunable, with its measurement)&lt;br/&gt;db.py · job_queue.py · runtime.py · worker.py&quot;]
@@ -1656,8 +2177,12 @@ flowchart LR
 <td>pytest (real Tesseract in some), httpx; separate <code>idp_pipeline_test</code> database</td>
 </tr>
 <tr>
-<td>🧪 Experiment</td>
-<td>Qwen2.5-VL-7B-Instruct, PEFT LoRA, shared 2 × 32 GB GPU box over SSH</td>
+<td>Vision reader (opt-in)</td>
+<td>Qwen2.5-VL-7B-Instruct + LoRA served by <code>scripts/gpu/serve_reader.py</code> (FastAPI, on a GPU machine), or any OpenAI-compatible server (vLLM, SGLang, Ollama, hosted); <code>httpx</code> client; engines named in <code>READER_ENGINES_FILE</code></td>
+</tr>
+<tr>
+<td>🧪 Research</td>
+<td>PEFT LoRA training scripts, shared GPU box over SSH</td>
 </tr>
 </tbody>
 </table>
@@ -1671,6 +2196,11 @@ docker compose up -d --scale worker=3                         # more batch worke
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000   # no auto-reload
 npm --prefix frontend run dev -- --port 5173
 .\.venv\Scripts\python.exe -m app.worker                          # needs Redis
+
+# the model that reads: pick an engine (config/reader_engines.example.json), then score it
+$env:READER_ENGINES_FILE = &quot;config\reader_engines.json&quot;; $env:READER_ENGINE = &quot;qwen_waybill&quot;
+.\.venv\Scripts\python.exe scripts\evaluate_reader.py --images-dir data\demo_50 --ground-truth data\demo_50\ground_truth.json --engine tesseract --engine qwen_waybill
+.\.venv\Scripts\python.exe scripts\export_batch_json.py --api http://localhost:8000 --batch-id ID --out data\demo_50_results --wait
 
 # quality
 .\.venv\Scripts\python.exe -m pytest -q
@@ -1730,9 +2260,41 @@ node frontend/scripts/check_contrast.mjs
 <td><strong>Hint-only template</strong></td>
 <td>A template used only with an explicit <code>type_hint</code>, excluded from the no-hint scan</td>
 </tr>
+<tr>
+<td><strong>Reader engine</strong></td>
+<td>A named entry in the registry file: which model answers the field crops, and how to reach it</td>
+</tr>
+<tr>
+<td><strong>Reader profile</strong></td>
+<td>A form's printed rules, zones and wording (<code>hints.vlm_reader</code>), distinct from the engine</td>
+</tr>
+<tr>
+<td><strong>Gated value</strong></td>
+<td>A model read that a second reader agrees with, or an arithmetic fact backs, and whose format passes; gets confidence 89, still below the auto line</td>
+</tr>
+<tr>
+<td><strong><code>ocr_fallback</code></strong></td>
+<td>The page wanted the vision reader, Tesseract read it instead; capped at <code>spot_check</code></td>
+</tr>
+<tr>
+<td><strong>Verified by</strong></td>
+<td>Who settled a field: <code>person</code> (one at a time), <code>bulk</code> (accepted from a group)</td>
+</tr>
+<tr>
+<td><strong>Strict export</strong></td>
+<td>The batch JSON that leaves unverified values <code>null</code> and puts the machine's reading under <code>suggested</code></td>
+</tr>
+<tr>
+<td><strong>Audit sample</strong></td>
+<td>A random share of a bulk action held back for one-by-one checking; only those count as evidence</td>
+</tr>
+<tr>
+<td><strong>Accept agreed</strong></td>
+<td>Bulk-accept the model reads that an independent check also backed (still 0.5% wrong on the hard batch)</td>
+</tr>
 </tbody>
 </table>
-<hr>
+<hr />
 <h2 id="10-research-survey-and-recommended-direction">10. Research survey and recommended direction</h2>
 <blockquote>
 <p><strong>How to read this section.</strong> I searched for recent work on exactly the problems this project has. Most findings below come from <strong>paper abstracts and search snippets, not full reads</strong>, and several are preprints; numbers are quoted as the sources state them. Vendor claims (including the air-waybill vendors) are marketing, not benchmarks. Treat each item as a lead to verify against the paper, then against <em>your</em> documents.</p>
@@ -1777,7 +2339,12 @@ flowchart LR
 <tr>
 <td><strong>Multi-signal confidence</strong></td>
 <td><a href="https://arxiv.org/pdf/2606.24420">Beyond Logprobs</a> uses value agreement across calls, neighbourhood text overlap and spatial centroid divergence from OCR boxes, and flags values with <strong>no grounding in any OCR token</strong>; <a href="https://arxiv.org/abs/2510.00276">SafePassage</a> grounds LLM outputs against the source text with an aligner (reported up to 85% fewer hallucinations); repeated-run consensus catches unstable values but costs latency and misses systematic mistakes</td>
-<td>Exactly the failure you found (the copied example AWB): a <strong>grounding check</strong> (is the value actually present in the page OCR near that box?) is cheap, independent of the model, and catches inventions. Add it as a third signal beside "two readers agree"</td>
+<td>Exactly the failure you found (the copied example AWB): a <strong>grounding check</strong> (is the value actually present in the page OCR near that box?) is cheap, independent of the model, and catches inventions. Add it as a third signal beside &quot;two readers agree&quot;</td>
+</tr>
+<tr>
+<td><strong>Whole-page parsers (Baidu Unlimited-OCR)</strong></td>
+<td><a href="https://github.com/baidu/Unlimited-OCR">Unlimited-OCR</a> (MIT, v2 released 2026-10-27) is a long-document parser served with vLLM/SGLang: it turns a document into text, with <strong>no word boxes</strong> and no adapter for any form of ours</td>
+<td>It cannot be a <em>page</em> reader here (the pipeline needs positions to cut fields) but can be tried as a <strong>zero-shot crop reader</strong> through the OpenAI-compatible adapter. It is a candidate until <code>evaluate_reader.py</code> scores it on our crops; its marketing says nothing about air waybills</td>
 </tr>
 <tr>
 <td><strong>Small specialist readers</strong></td>
@@ -1787,7 +2354,7 @@ flowchart LR
 <tr>
 <td><strong>Unseen layouts</strong></td>
 <td><a href="https://arxiv.org/pdf/2507.09531">VDInstruct</a> argues earlier layout-aware models need task-specific fine-tuning and fail on unseen layouts, and targets zero-shot extraction; <a href="https://arxiv.org/pdf/2307.10551">PPN/P2Net</a> does zero- and few-shot pointer-based extraction; a design-space study (<a href="https://arxiv.org/pdf/2502.18179">2502.18179</a>) finds well-configured general LLMs can match specialised models; Google's Glean (2022) generalises with candidate generation, scoring and assignment</td>
-<td>The literature's answer to "any waybill" is <strong>candidate generation + scoring</strong>, not one fixed box per field: find the printed caption, look to its right/below, propose candidates, score them. That is your caption-based localisation idea, and it has precedent</td>
+<td>The literature's answer to &quot;any waybill&quot; is <strong>candidate generation + scoring</strong>, not one fixed box per field: find the printed caption, look to its right/below, propose candidates, score them. That is your caption-based localisation idea, and it has precedent</td>
 </tr>
 <tr>
 <td><strong>Cheap labels</strong></td>
@@ -1811,7 +2378,7 @@ flowchart LR
 </tr>
 </tbody>
 </table>
-<h3 id="103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what "done" means</h3>
+<h3 id="103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</h3>
 <figure class="diagram"><pre class="mermaid">
 quadrantChart
     title Ideas by effort and payoff
@@ -1835,10 +2402,10 @@ quadrantChart
 <li><strong>Master-data validators (highest payoff, lowest cost).</strong> A field with no validator is never <code>auto</code>, and most waybill fields have no regex. Many of them <em>can</em> be validated against known lists: airline prefix to carrier (176 = Emirates; the full IATA prefix table), airport and IATA city codes, ISO currency, units of measure, incoterms, rate-class letters, HS code structure, AWB check digit (done), dates in range, weight × rate = total (done). Each validator turns a never-auto field into a field that can be <code>auto</code> with a <em>checked</em> shape. Done = the share of fields that have a validator is measured before and after, and no accepted wrong value appears in the corpus.</li>
 <li><strong>Grounding check.</strong> After any read (VLM or otherwise), require that the value's characters actually occur in the page OCR within the field's box (± a margin), using a fuzzy match. A value the reader <em>invented</em> has no ink to match. This directly closes the failure you found with the copied AWB. Done = on the clipped-crop test set the invented values are rejected and no correct value is.</li>
 <li><strong>A gold set of real pages.</strong> Everything else is limited by this. 16 documents cannot certify anything; the project needs hundreds of <strong>verified</strong> labels per layout, with a document-level split and the draft labels checked by a second person. Use the active-selection idea to label the fields where readers disagree first. Done = 200+ real pages per top layout, labels double-checked, frozen split.</li>
-<li><strong>Benchmark a ≈ 1B specialist reader</strong> (PaddleOCR-VL-1.6, GLM-OCR) on the 16 real waybills, cell by cell, against Tesseract and the 7B adapter. If it matches the 7B on crops, you get a reader that runs on this laptop and in Docker without a GPU server. Done = a table of per-field accuracy and wrong-confident counts for each reader.</li>
+<li><strong>Benchmark other readers</strong> (PaddleOCR-VL-1.6, GLM-OCR, Baidu Unlimited-OCR as a crop reader) through the engine registry on the same labelled documents as the current adapter: <code>evaluate_reader.py</code> prints fields right by input kind, wrong values by approval tier and docs/minute for each, and a second-reader table (where two engines agree, how often is it right). The instrument exists (§2.9); what is missing is a GPU to run candidates on. If a ≈ 1B model matches the 7B on crops you get a reader that runs without a GPU server, and if two strong engines agree you may finally get the independent second reader the queue floor (§2.7) needs. Done = that table for each engine.</li>
 <li><strong>Drift monitor with automatic trust withdrawal.</strong> Per template, track anchor scores, alignment inlier count, agreement rate and the confidence distribution with a simple sequential test; on a sustained shift, suspend <code>trusted_field</code> for that template and send its next N pages to review. Done = a simulated new-printer batch trips the alarm within a few documents.</li>
 <li><strong>Fused, calibrated score per field type.</strong> Train a small model (gradient-boosted trees or logistic regression) on per-field signals (OCR confidence, reader agreement, grounding, format pass, alignment quality, anchor scores) with the document-level split, calibrate it, and choose the auto threshold per field type with a Learn-then-Test style procedure. Done = a higher auto share than the rules at the same measured wrong-auto count on the gold set.</li>
-<li><strong>Template induction from one example.</strong> For a new layout, a document model proposes each field's box from the <em>caption text</em> (the printed label), a person confirms the boxes once in the designer, and the system derives anchors and landmarks automatically (the landmark builder exists as a script). This is the practical route to "any waybill": a new layout costs five minutes, not a new training run. Done = a new real layout reaches usable extraction after one confirmed sample.</li>
+<li><strong>Template induction from one example.</strong> For a new layout, a document model proposes each field's box from the <em>caption text</em> (the printed label), a person confirms the boxes once in the designer, and the system derives anchors and landmarks automatically (the landmark builder exists as a script). This is the practical route to &quot;any waybill&quot;: a new layout costs five minutes, not a new training run. Done = a new real layout reaches usable extraction after one confirmed sample.</li>
 <li><strong>Layout-varying synthetic data.</strong> Today's generators vary content and noise on <em>two</em> layouts. Add caption swapping, column shifts, fonts and printers (the FieldSwap idea) so a caption-based reader sees many layouts. Done = a reader trained on N layouts is measured on a held-out layout.</li>
 <li><strong>Stratified audit and canaries.</strong> Audit more where a field's bound is barely under the target, and occasionally insert a <strong>known-wrong</strong> value into the review stream to measure whether reviewers are actually looking (practitioner guidance on automation bias, not a peer-reviewed result). Done = reviewer catch rate on canaries is reported next to the evidence table.</li>
 </ol>
@@ -1849,32 +2416,33 @@ gantt
     dateFormat  YYYY-MM-DD
     axisFormat  %b %d
     section Decide with data
-    Stage 1 results (running)                 :active, s1, 2026-10-30, 1d
-    Benchmark a small specialist reader       :s2, after s1, 3d
+    Engine registry and scorecard (done)      :done, s1, 2026-11-03, 1d
+    Rent a GPU, run the engine bake-off       :active, s2, 2026-11-05, 3d
     section Make the gate stronger
-    Master-data validators                    :v1, 2026-11-02, 5d
+    Master-data validators                    :v1, 2026-11-05, 5d
     Grounding check                           :v2, after v1, 2d
     section Make accuracy provable
-    Verify draft labels, grow the gold set    :g1, 2026-11-02, 14d
+    Verify draft labels, grow the gold set    :g1, 2026-11-05, 14d
     Drift monitor + trust withdrawal          :d1, after v2, 4d
     section Any layout
     Template induction from one example       :t1, after d1, 10d
     Layout-varying synthetic data             :t2, after t1, 7d
 </pre></figure>
 <ol>
-<li><strong>Today:</strong> wait for stage 1; commit the tested work in slices (it is a large uncommitted diff, and losing it would cost more than anything below).</li>
-<li><strong>This week:</strong> (a) master-data validators and the grounding check, both cheap and both reduce wrong values <em>and</em> review volume; (b) start verifying labels and growing the gold set, because every later number depends on it; (c) run the small-reader benchmark so the reader decision rests on a table.</li>
-<li><strong>Next:</strong> the drift monitor, then template induction from one example. That pair is what makes "any waybill, or part of one" a workflow rather than a model problem.</li>
+<li><strong>Today:</strong> the work through <code>6877a9a</code> is committed; the engine-selection work in the tree is a separate piece to finish and commit on its own.</li>
+<li><strong>This week:</strong> (a) rent a GPU and run the engine bake-off so the reader decision rests on a table; (b) master-data validators and the grounding check, both cheap and both reduce wrong values <em>and</em> review volume; (c) start verifying labels and growing the gold set, because every later number depends on it.</li>
+<li><strong>Next:</strong> the drift monitor, then template induction from one example. That pair is what makes &quot;any waybill, or part of one&quot; a workflow rather than a model problem.</li>
 <li><strong>Stop doing:</strong> training a 7B adapter per layout; adding a layout to the app before it has a verified sample; reading accuracy off the 16 documents and calling it a rate.</li>
 </ol>
 <h3 id="105-what-cannot-be-promised">10.5 What cannot be promised</h3>
 <ul>
 <li><strong>1 error in 10,000 cannot be demonstrated on the data in hand.</strong> It needs ≈ 30,000 individually checked values per field with none wrong, per template version, and the evidence is only as honest as the people producing it.</li>
-<li><strong>A layout the system has never seen will be refused or sent to review until someone confirms it once.</strong> That is the intended behaviour; "any layout, flawlessly, with no one involved" is not something the literature or any vendor demonstrates.</li>
+<li><strong>A layout the system has never seen will be refused or sent to review until someone confirms it once.</strong> That is the intended behaviour; &quot;any layout, flawlessly, with no one involved&quot; is not something the literature or any vendor demonstrates.</li>
 <li><strong>Everything in §10.2 beyond the repository's own measurements is unverified here:</strong> read the papers before relying on a figure.</li>
 </ul>
 <h3 id="106-sources">10.6 Sources</h3>
-<p><a href="https://arxiv.org/pdf/2609.20110">Perception, Layout, and Validation (2609.20110)</a> · <a href="https://arxiv.org/abs/2608.14639">Valid Per-Field Selective Risk Control (2608.14639)</a> · <a href="https://arxiv.org/abs/2110.01052">Learn then Test (2110.01052)</a> · <a href="https://link.springer.com/10.1007/s10032-026-00572-y">Conformal prediction for KIE, IJDAR 2026</a> · <a href="https://arxiv.org/pdf/2606.24420">Beyond Logprobs (2606.24420)</a> · <a href="https://arxiv.org/abs/2510.00276">SafePassage (2510.00276)</a> · <a href="https://arxiv.org/pdf/2606.03264">PaddleOCR-VL-1.6 (2606.03264)</a> · <a href="https://blog.roboflow.com/best-open-source-ocr-models/">Best open-source OCR models, Roboflow</a> · <a href="https://arxiv.org/pdf/2507.09531">VDInstruct (2507.09531)</a> · <a href="https://arxiv.org/pdf/2307.10551">PPN (2307.10551)</a> · <a href="https://arxiv.org/pdf/2502.18179">Information extraction design space (2502.18179)</a> · <a href="https://physics.paperswithcode.com/paper/radically-lower-data-labeling-costs-for">Selective labeling for visually rich documents</a> · <a href="https://arxiv.org/pdf/2404.00488">NAT (2404.00488)</a> · <a href="https://arxiv.org/pdf/2606.11949">Online shift detection and conformal adaptation (2606.11949)</a> · <a href="https://arxiv.org/abs/2602.13848">Conformal test martingales (2602.13848)</a> · <a href="https://arxiv.org/pdf/2603.26415">KMM-CP (2603.26415)</a> · <a href="https://arxiv.org/pdf/2202.03673">Calibrated Learning to Defer (2202.03673)</a> · <a href="https://arxiv.org/abs/2601.05974">Human-in-the-loop with two thresholds (2601.05974)</a></p></article></main></div>
+<p><a href="https://github.com/baidu/Unlimited-OCR">Baidu Unlimited-OCR</a> · <a href="https://arxiv.org/pdf/2609.20110">Perception, Layout, and Validation (2609.20110)</a> · <a href="https://arxiv.org/abs/2608.14639">Valid Per-Field Selective Risk Control (2608.14639)</a> · <a href="https://arxiv.org/abs/2110.01052">Learn then Test (2110.01052)</a> · <a href="https://link.springer.com/10.1007/s10032-026-00572-y">Conformal prediction for KIE, IJDAR 2026</a> · <a href="https://arxiv.org/pdf/2606.24420">Beyond Logprobs (2606.24420)</a> · <a href="https://arxiv.org/abs/2510.00276">SafePassage (2510.00276)</a> · <a href="https://arxiv.org/pdf/2606.03264">PaddleOCR-VL-1.6 (2606.03264)</a> · <a href="https://blog.roboflow.com/best-open-source-ocr-models/">Best open-source OCR models, Roboflow</a> · <a href="https://arxiv.org/pdf/2507.09531">VDInstruct (2507.09531)</a> · <a href="https://arxiv.org/pdf/2307.10551">PPN (2307.10551)</a> · <a href="https://arxiv.org/pdf/2502.18179">Information extraction design space (2502.18179)</a> · <a href="https://physics.paperswithcode.com/paper/radically-lower-data-labeling-costs-for">Selective labeling for visually rich documents</a> · <a href="https://arxiv.org/pdf/2404.00488">NAT (2404.00488)</a> · <a href="https://arxiv.org/pdf/2606.11949">Online shift detection and conformal adaptation (2606.11949)</a> · <a href="https://arxiv.org/abs/2602.13848">Conformal test martingales (2602.13848)</a> · <a href="https://arxiv.org/pdf/2603.26415">KMM-CP (2603.26415)</a> · <a href="https://arxiv.org/pdf/2202.03673">Calibrated Learning to Defer (2202.03673)</a> · <a href="https://arxiv.org/abs/2601.05974">Human-in-the-loop with two thresholds (2601.05974)</a></p>
+</article></main></div>
 <script>"use strict";var __esbuild_esm_mermaid=(()=>{var cxe=Object.create;var R1=Object.defineProperty;var uxe=Object.getOwnPropertyDescriptor;var hxe=Object.getOwnPropertyNames;var fxe=Object.getPrototypeOf,dxe=Object.prototype.hasOwnProperty;var o=(t,e)=>R1(t,"name",{value:e,configurable:!0});var M=(t,e)=>()=>(t&&(e=t(t=0)),e);var Ni=(t,e)=>()=>(e||t((e={exports:{}}).exports,e),e.exports),vr=(t,e)=>{for(var r in e)R1(t,r,{get:e[r],enumerable:!0})},Cb=(t,e,r,n)=>{if(e&&typeof e=="object"||typeof e=="function")for(let i of hxe(e))!dxe.call(t,i)&&i!==r&&R1(t,i,{get:()=>e[i],enumerable:!(n=uxe(e,i))||n.enumerable});return t},Er=(t,e,r)=>(Cb(t,e,"default"),r&&Cb(r,e,"default")),ka=(t,e,r)=>(r=t!=null?cxe(fxe(t)):{},Cb(e||!t||!t.__esModule?R1(r,"default",{value:t,enumerable:!0}):r,t)),pxe=t=>Cb(R1({},"__esModule",{value:!0}),t);var Ab=Ni((wS,TS)=>{"use strict";(function(t,e){typeof wS=="object"&&typeof TS<"u"?TS.exports=e():typeof define=="function"&&define.amd?define(e):(t=typeof globalThis<"u"?globalThis:t||self).dayjs=e()})(wS,function(){"use strict";var t=1e3,e=6e4,r=36e5,n="millisecond",i="second",a="minute",s="hour",l="day",u="week",h="month",f="quarter",d="year",p="date",m="Invalid Date",g=/^(\d{4})[-/]?(\d{1,2})?[-/]?(\d{0,2})[Tt\s]*(\d{1,2})?:?(\d{1,2})?:?(\d{1,2})?[.:]?(\d+)?$/,y=/\[([^\]]+)]|Y{1,4}|M{1,4}|D{1,2}|d{1,4}|H{1,2}|h{1,2}|a|A|m{1,2}|s{1,2}|Z{1,2}|SSS/g,v={name:"en",weekdays:"Sunday_Monday_Tuesday_Wednesday_Thursday_Friday_Saturday".split("_"),months:"January_February_March_April_May_June_July_August_September_October_November_December".split("_"),ordinal:o(function(k){var R=["th","st","nd","rd"],S=k%100;return"["+k+(R[(S-20)%10]||R[S]||R[0])+"]"},"ordinal")},x=o(function(k,R,S){var O=String(k);return!O||O.length>=R?k:""+Array(R+1-O.length).join(S)+k},"m"),b={s:x,z:o(function(k){var R=-k.utcOffset(),S=Math.abs(R),O=Math.floor(S/60),N=S%60;return(R<=0?"+":"-")+x(O,2,"0")+":"+x(N,2,"0")},"z"),m:o(function k(R,S){if(R.date()<S.date())return-k(S,R);var O=12*(S.year()-R.year())+(S.month()-R.month()),N=R.clone().add(O,h),P=S-N<0,F=R.clone().add(O+(P?-1:1),h);return+(-(O+(S-N)/(P?N-F:F-N))||0)},"t"),a:o(function(k){return k<0?Math.ceil(k)||0:Math.floor(k)},"a"),p:o(function(k){return{M:h,y:d,w:u,d:l,D:p,h:s,m:a,s:i,ms:n,Q:f}[k]||String(k||"").toLowerCase().replace(/s$/,"")},"p"),u:o(function(k){return k===void 0},"u")},w="en",_={};_[w]=v;var T="$isDayjsObject",E=o(function(k){return k instanceof I||!(!k||!k[T])},"S"),L=o(function k(R,S,O){var N;if(!R)return w;if(typeof R=="string"){var P=R.toLowerCase();_[P]&&(N=P),S&&(_[P]=S,N=P);var F=R.split("-");if(!N&&F.length>1)return k(F[0])}else{var B=R.name;_[B]=R,N=B}return!O&&N&&(w=N),N||!O&&w},"t"),C=o(function(k,R){if(E(k))return k.clone();var S=typeof R=="object"?R:{};return S.date=k,S.args=arguments,new I(S)},"O"),A=b;A.l=L,A.i=E,A.w=function(k,R){return C(k,{locale:R.$L,utc:R.$u,x:R.$x,$offset:R.$offset})};var I=function(){function k(S){this.$L=L(S.locale,null,!0),this.parse(S),this.$x=this.$x||S.x||{},this[T]=!0}o(k,"M");var R=k.prototype;return R.parse=function(S){this.$d=function(O){var N=O.date,P=O.utc;if(N===null)return new Date(NaN);if(A.u(N))return new Date;if(N instanceof Date)return new Date(N);if(typeof N=="string"&&!/Z$/i.test(N)){var F=N.match(g);if(F){var B=F[2]-1||0,$=(F[7]||"0").substring(0,3);return P?new Date(Date.UTC(F[1],B,F[3]||1,F[4]||0,F[5]||0,F[6]||0,$)):new Date(F[1],B,F[3]||1,F[4]||0,F[5]||0,F[6]||0,$)}}return new Date(N)}(S),this.init()},R.init=function(){var S=this.$d;this.$y=S.getFullYear(),this.$M=S.getMonth(),this.$D=S.getDate(),this.$W=S.getDay(),this.$H=S.getHours(),this.$m=S.getMinutes(),this.$s=S.getSeconds(),this.$ms=S.getMilliseconds()},R.$utils=function(){return A},R.isValid=function(){return this.$d.toString()!==m},R.isSame=function(S,O){var N=C(S);return this.startOf(O)<=N&&N<=this.endOf(O)},R.isAfter=function(S,O){return C(S)<this.startOf(O)},R.isBefore=function(S,O){return this.endOf(O)<C(S)},R.$g=function(S,O,N){return A.u(S)?this[O]:this.set(N,S)},R.unix=function(){return Math.floor(this.valueOf()/1e3)},R.valueOf=function(){return this.$d.getTime()},R.startOf=function(S,O){var N=this,P=!!A.u(O)||O,F=A.p(S),B=o(function(ee,J){var H=A.w(N.$u?Date.UTC(N.$y,J,ee):new Date(N.$y,J,ee),N);return P?H:H.endOf(l)},"l"),$=o(function(ee,J){return A.w(N.toDate()[ee].apply(N.toDate("s"),(P?[0,0,0,0]:[23,59,59,999]).slice(J)),N)},"$"),z=this.$W,W=this.$M,j=this.$D,K="set"+(this.$u?"UTC":"");switch(F){case d:return P?B(1,0):B(31,11);case h:return P?B(1,W):B(0,W+1);case u:var ie=this.$locale().weekStart||0,Q=(z<ie?z+7:z)-ie;return B(P?j-Q:j+(6-Q),W);case l:case p:return $(K+"Hours",0);case s:return $(K+"Minutes",1);case a:return $(K+"Seconds",2);case i:return $(K+"Milliseconds",3);default:return this.clone()}},R.endOf=function(S){return this.startOf(S,!1)},R.$set=function(S,O){var N,P=A.p(S),F="set"+(this.$u?"UTC":""),B=(N={},N[l]=F+"Date",N[p]=F+"Date",N[h]=F+"Month",N[d]=F+"FullYear",N[s]=F+"Hours",N[a]=F+"Minutes",N[i]=F+"Seconds",N[n]=F+"Milliseconds",N)[P],$=P===l?this.$D+(O-this.$W):O;if(P===h||P===d){var z=this.clone().set(p,1);z.$d[B]($),z.init(),this.$d=z.set(p,Math.min(this.$D,z.daysInMonth())).$d}else B&&this.$d[B]($);return this.init(),this},R.set=function(S,O){return this.clone().$set(S,O)},R.get=function(S){return this[A.p(S)]()},R.add=function(S,O){var N,P=this;S=Number(S);var F=A.p(O),B=o(function(W){var j=C(P);return A.w(j.date(j.date()+Math.round(W*S)),P)},"y");if(F===h)return this.set(h,this.$M+S);if(F===d)return this.set(d,this.$y+S);if(F===l)return B(1);if(F===u)return B(7);var $=(N={},N[a]=e,N[s]=r,N[i]=t,N)[F]||1,z=this.$d.getTime()+S*$;return A.w(z,this)},R.subtract=function(S,O){return this.add(-1*S,O)},R.format=function(S){var O=this,N=this.$locale();if(!this.isValid())return N.invalidDate||m;var P=S||"YYYY-MM-DDTHH:mm:ssZ",F=A.z(this),B=this.$H,$=this.$m,z=this.$M,W=N.weekdays,j=N.months,K=N.meridiem,ie=o(function(J,H,q,Z){return J&&(J[H]||J(O,P))||q[H].slice(0,Z)},"h"),Q=o(function(J){return A.s(B%12||12,J,"0")},"d"),ee=K||function(J,H,q){var Z=J<12?"AM":"PM";return q?Z.toLowerCase():Z};return P.replace(y,function(J,H){return H||function(q){switch(q){case"YY":return String(O.$y).slice(-2);case"YYYY":return A.s(O.$y,4,"0");case"M":return z+1;case"MM":return A.s(z+1,2,"0");case"MMM":return ie(N.monthsShort,z,j,3);case"MMMM":return ie(j,z);case"D":return O.$D;case"DD":return A.s(O.$D,2,"0");case"d":return String(O.$W);case"dd":return ie(N.weekdaysMin,O.$W,W,2);case"ddd":return ie(N.weekdaysShort,O.$W,W,3);case"dddd":return W[O.$W];case"H":return String(B);case"HH":return A.s(B,2,"0");case"h":return Q(1);case"hh":return Q(2);case"a":return ee(B,$,!0);case"A":return ee(B,$,!1);case"m":return String($);case"mm":return A.s($,2,"0");case"s":return String(O.$s);case"ss":return A.s(O.$s,2,"0");case"SSS":return A.s(O.$ms,3,"0");case"Z":return F}return null}(J)||F.replace(":","")})},R.utcOffset=function(){return 15*-Math.round(this.$d.getTimezoneOffset()/15)},R.diff=function(S,O,N){var P,F=this,B=A.p(O),$=C(S),z=($.utcOffset()-this.utcOffset())*e,W=this-$,j=o(function(){return A.m(F,$)},"D");switch(B){case d:P=j()/12;break;case h:P=j();break;case f:P=j()/3;break;case u:P=(W-z)/6048e5;break;case l:P=(W-z)/864e5;break;case s:P=W/r;break;case a:P=W/e;break;case i:P=W/t;break;default:P=W}return N?P:A.a(P)},R.daysInMonth=function(){return this.endOf(h).$D},R.$locale=function(){return _[this.$L]},R.locale=function(S,O){if(!S)return this.$L;var N=this.clone(),P=L(S,O,!0);return P&&(N.$L=P),N},R.clone=function(){return A.w(this.$d,this)},R.toDate=function(){return new Date(this.valueOf())},R.toJSON=function(){return this.isValid()?this.toISOString():null},R.toISOString=function(){return this.$d.toISOString()},R.toString=function(){return this.$d.toUTCString()},k}(),D=I.prototype;return C.prototype=D,[["$ms",n],["$s",i],["$m",a],["$H",s],["$W",l],["$M",h],["$y",d],["$D",p]].forEach(function(k){D[k[1]]=function(R){return this.$g(R,k[0],k[1])}}),C.extend=function(k,R){return k.$i||(k(R,I,C),k.$i=!0),C},C.locale=L,C.isDayjs=E,C.unix=function(k){return C(1e3*k)},C.en=_[w],C.Ls=_,C.p={},C})});var EF,jc,Y,M1,bo,ht=M(()=>{"use strict";EF=ka(Ab(),1),jc={trace:0,debug:1,info:2,warn:3,error:4,fatal:5},Y={trace:o((...t)=>{},"trace"),debug:o((...t)=>{},"debug"),info:o((...t)=>{},"info"),warn:o((...t)=>{},"warn"),error:o((...t)=>{},"error"),fatal:o((...t)=>{},"fatal")},M1=o(function(t="fatal"){let e=jc.fatal;typeof t=="string"?t.toLowerCase()in jc&&(e=jc[t]):typeof t=="number"&&(e=t),Y.trace=()=>{},Y.debug=()=>{},Y.info=()=>{},Y.warn=()=>{},Y.error=()=>{},Y.fatal=()=>{},e<=jc.fatal&&(Y.fatal=console.error?console.error.bind(console,bo("FATAL"),"color: orange"):console.log.bind(console,"\x1B[35m",bo("FATAL"))),e<=jc.error&&(Y.error=console.error?console.error.bind(console,bo("ERROR"),"color: orange"):console.log.bind(console,"\x1B[31m",bo("ERROR"))),e<=jc.warn&&(Y.warn=console.warn?console.warn.bind(console,bo("WARN"),"color: orange"):console.log.bind(console,"\x1B[33m",bo("WARN"))),e<=jc.info&&(Y.info=console.info?console.info.bind(console,bo("INFO"),"color: lightblue"):console.log.bind(console,"\x1B[34m",bo("INFO"))),e<=jc.debug&&(Y.debug=console.debug?console.debug.bind(console,bo("DEBUG"),"color: lightgreen"):console.log.bind(console,"\x1B[32m",bo("DEBUG"))),e<=jc.trace&&(Y.trace=console.debug?console.debug.bind(console,bo("TRACE"),"color: lightgreen"):console.log.bind(console,"\x1B[32m",bo("TRACE")))},"setLogLevel"),bo=o(t=>`%c${(0,EF.default)().format("ss.SSS")} : ${t} : `,"format")});var mxe,Z0,kS,SF,_b=M(()=>{"use strict";mxe=Object.freeze({left:0,top:0,width:16,height:16}),Z0=Object.freeze({rotate:0,vFlip:!1,hFlip:!1}),kS=Object.freeze({...mxe,...Z0}),SF=Object.freeze({...kS,body:"",hidden:!1})});var gxe,CF,AF=M(()=>{"use strict";_b();gxe=Object.freeze({width:null,height:null}),CF=Object.freeze({...gxe,...Z0})});var Lb,ES,Db,_F=M(()=>{"use strict";Lb=/^[a-z0-9]+(-[a-z0-9]+)*$/,ES=o((t,e,r,n="")=>{let i=t.split(":");if(t.slice(0,1)==="@"){if(i.length<2||i.length>3)return null;n=i.shift().slice(1)}if(i.length>3||!i.length)return null;if(i.length>1){let l=i.pop(),u=i.pop(),h={provider:i.length>0?i[0]:n,prefix:u,name:l};return e&&!Db(h)?null:h}let a=i[0],s=a.split("-");if(s.length>1){let l={provider:n,prefix:s.shift(),name:s.join("-")};return e&&!Db(l)?null:l}if(r&&n===""){let l={provider:n,prefix:"",name:a};return e&&!Db(l,r)?null:l}return null},"stringToIcon"),Db=o((t,e)=>t?!!((t.provider===""||t.provider.match(Lb))&&(e&&t.prefix===""||t.prefix.match(Lb))&&t.name.match(Lb)):!1,"validateIconName")});function LF(t,e){let r={};!t.hFlip!=!e.hFlip&&(r.hFlip=!0),!t.vFlip!=!e.vFlip&&(r.vFlip=!0);let n=((t.rotate||0)+(e.rotate||0))%4;return n&&(r.rotate=n),r}var DF=M(()=>{"use strict";o(LF,"mergeIconTransformations")});function SS(t,e){let r=LF(t,e);for(let n in SF)n in Z0?n in t&&!(n in r)&&(r[n]=Z0[n]):n in e?r[n]=e[n]:n in t&&(r[n]=t[n]);return r}var NF=M(()=>{"use strict";_b();DF();o(SS,"mergeIconData")});function RF(t,e){let r=t.icons,n=t.aliases||Object.create(null),i=Object.create(null);function a(s){if(r[s])return i[s]=[];if(!(s in i)){i[s]=null;let l=n[s]&&n[s].parent,u=l&&a(l);u&&(i[s]=[l].concat(u))}return i[s]}return o(a,"resolve"),(e||Object.keys(r).concat(Object.keys(n))).forEach(a),i}var MF=M(()=>{"use strict";o(RF,"getIconsTree")});function IF(t,e,r){let n=t.icons,i=t.aliases||Object.create(null),a={};function s(l){a=SS(n[l]||i[l],a)}return o(s,"parse"),s(e),r.forEach(s),SS(t,a)}function CS(t,e){if(t.icons[e])return IF(t,e,[]);let r=RF(t,[e])[e];return r?IF(t,e,r):null}var OF=M(()=>{"use strict";NF();MF();o(IF,"internalGetIconData");o(CS,"getIconData")});function AS(t,e,r){if(e===1)return t;if(r=r||100,typeof t=="number")return Math.ceil(t*e*r)/r;if(typeof t!="string")return t;let n=t.split(yxe);if(n===null||!n.length)return t;let i=[],a=n.shift(),s=vxe.test(a);for(;;){if(s){let l=parseFloat(a);isNaN(l)?i.push(a):i.push(Math.ceil(l*e*r)/r)}else i.push(a);if(a=n.shift(),a===void 0)return i.join("");s=!s}}var yxe,vxe,PF=M(()=>{"use strict";yxe=/(-?[0-9.]*[0-9]+[0-9.]*)/g,vxe=/^-?[0-9.]*[0-9]+[0-9.]*$/g;o(AS,"calculateSize")});function xxe(t,e="defs"){let r="",n=t.indexOf("<"+e);for(;n>=0;){let i=t.indexOf(">",n),a=t.indexOf("</"+e);if(i===-1||a===-1)break;let s=t.indexOf(">",a);if(s===-1)break;r+=t.slice(i+1,a).trim(),t=t.slice(0,n).trim()+t.slice(s+1)}return{defs:r,content:t}}function bxe(t,e){return t?"<defs>"+t+"</defs>"+e:e}function BF(t,e,r){let n=xxe(t);return bxe(n.defs,e+n.content+r)}var FF=M(()=>{"use strict";o(xxe,"splitSVGDefs");o(bxe,"mergeDefsAndContent");o(BF,"wrapSVGContent")});function _S(t,e){let r={...kS,...t},n={...CF,...e},i={left:r.left,top:r.top,width:r.width,height:r.height},a=r.body;[r,n].forEach(y=>{let v=[],x=y.hFlip,b=y.vFlip,w=y.rotate;x?b?w+=2:(v.push("translate("+(i.width+i.left).toString()+" "+(0-i.top).toString()+")"),v.push("scale(-1 1)"),i.top=i.left=0):b&&(v.push("translate("+(0-i.left).toString()+" "+(i.height+i.top).toString()+")"),v.push("scale(1 -1)"),i.top=i.left=0);let _;switch(w<0&&(w-=Math.floor(w/4)*4),w=w%4,w){case 1:_=i.height/2+i.top,v.unshift("rotate(90 "+_.toString()+" "+_.toString()+")");break;case 2:v.unshift("rotate(180 "+(i.width/2+i.left).toString()+" "+(i.height/2+i.top).toString()+")");break;case 3:_=i.width/2+i.left,v.unshift("rotate(-90 "+_.toString()+" "+_.toString()+")");break}w%2===1&&(i.left!==i.top&&(_=i.left,i.left=i.top,i.top=_),i.width!==i.height&&(_=i.width,i.width=i.height,i.height=_)),v.length&&(a=BF(a,'<g transform="'+v.join(" ")+'">',"</g>"))});let s=n.width,l=n.height,u=i.width,h=i.height,f,d;s===null?(d=l===null?"1em":l==="auto"?h:l,f=AS(d,u/h)):(f=s==="auto"?u:s,d=l===null?AS(f,h/u):l==="auto"?h:l);let p={},m=o((y,v)=>{wxe(v)||(p[y]=v.toString())},"setAttr");m("width",f),m("height",d);let g=[i.left,i.top,u,h];return p.viewBox=g.join(" "),{attributes:p,viewBox:g,body:a}}var wxe,zF=M(()=>{"use strict";_b();AF();PF();FF();wxe=o(t=>t==="unset"||t==="undefined"||t==="none","isUnsetKeyword");o(_S,"iconToSVG")});function LS(t,e=kxe){let r=[],n;for(;n=Txe.exec(t);)r.push(n[1]);if(!r.length)return t;let i="suffix"+(Math.random()*16777216|Date.now()).toString(16);return r.forEach(a=>{let s=typeof e=="function"?e(a):e+(Exe++).toString(),l=a.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");t=t.replace(new RegExp('([#;"])('+l+')([")]|\\.[a-z])',"g"),"$1"+s+i+"$3")}),t=t.replace(new RegExp(i,"g"),""),t}var Txe,kxe,Exe,GF=M(()=>{"use strict";Txe=/\sid="(\S+)"/g,kxe="IconifyId"+Date.now().toString(16)+(Math.random()*16777216|0).toString(16),Exe=0;o(LS,"replaceIDs")});function DS(t,e){let r=t.indexOf("xlink:")===-1?"":' xmlns:xlink="http://www.w3.org/1999/xlink"';for(let n in e)r+=" "+n+'="'+e[n]+'"';return'<svg xmlns="http://www.w3.org/2000/svg"'+r+">"+t+"</svg>"}var $F=M(()=>{"use strict";o(DS,"iconToHTML")});var UF=Ni((lst,VF)=>{"use strict";var J0=1e3,ep=J0*60,tp=ep*60,Ff=tp*24,Sxe=Ff*7,Cxe=Ff*365.25;VF.exports=function(t,e){e=e||{};var r=typeof t;if(r==="string"&&t.length>0)return Axe(t);if(r==="number"&&isFinite(t))return e.long?Lxe(t):_xe(t);throw new Error("val is not a non-empty string or a valid number. val="+JSON.stringify(t))};function Axe(t){if(t=String(t),!(t.length>100)){var e=/^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(t);if(e){var r=parseFloat(e[1]),n=(e[2]||"ms").toLowerCase();switch(n){case"years":case"year":case"yrs":case"yr":case"y":return r*Cxe;case"weeks":case"week":case"w":return r*Sxe;case"days":case"day":case"d":return r*Ff;case"hours":case"hour":case"hrs":case"hr":case"h":return r*tp;case"minutes":case"minute":case"mins":case"min":case"m":return r*ep;case"seconds":case"second":case"secs":case"sec":case"s":return r*J0;case"milliseconds":case"millisecond":case"msecs":case"msec":case"ms":return r;default:return}}}}o(Axe,"parse");function _xe(t){var e=Math.abs(t);return e>=Ff?Math.round(t/Ff)+"d":e>=tp?Math.round(t/tp)+"h":e>=ep?Math.round(t/ep)+"m":e>=J0?Math.round(t/J0)+"s":t+"ms"}o(_xe,"fmtShort");function Lxe(t){var e=Math.abs(t);return e>=Ff?Nb(t,e,Ff,"day"):e>=tp?Nb(t,e,tp,"hour"):e>=ep?Nb(t,e,ep,"minute"):e>=J0?Nb(t,e,J0,"second"):t+" ms"}o(Lxe,"fmtLong");function Nb(t,e,r,n){var i=e>=r*1.5;return Math.round(t/r)+" "+n+(i?"s":"")}o(Nb,"plural")});var WF=Ni((ust,HF)=>{"use strict";function Dxe(t){r.debug=r,r.default=r,r.coerce=u,r.disable=a,r.enable=i,r.enabled=s,r.humanize=UF(),r.destroy=h,Object.keys(t).forEach(f=>{r[f]=t[f]}),r.names=[],r.skips=[],r.formatters={};function e(f){let d=0;for(let p=0;p<f.length;p++)d=(d<<5)-d+f.charCodeAt(p),d|=0;return r.colors[Math.abs(d)%r.colors.length]}o(e,"selectColor"),r.selectColor=e;function r(f){let d,p=null,m,g;function y(...v){if(!y.enabled)return;let x=y,b=Number(new Date),w=b-(d||b);x.diff=w,x.prev=d,x.curr=b,d=b,v[0]=r.coerce(v[0]),typeof v[0]!="string"&&v.unshift("%O");let _=0;v[0]=v[0].replace(/%([a-zA-Z%])/g,(E,L)=>{if(E==="%%")return"%";_++;let C=r.formatters[L];if(typeof C=="function"){let A=v[_];E=C.call(x,A),v.splice(_,1),_--}return E}),r.formatArgs.call(x,v),(x.log||r.log).apply(x,v)}return o(y,"debug"),y.namespace=f,y.useColors=r.useColors(),y.color=r.selectColor(f),y.extend=n,y.destroy=r.destroy,Object.defineProperty(y,"enabled",{enumerable:!0,configurable:!1,get:o(()=>p!==null?p:(m!==r.namespaces&&(m=r.namespaces,g=r.enabled(f)),g),"get"),set:o(v=>{p=v},"set")}),typeof r.init=="function"&&r.init(y),y}o(r,"createDebug");function n(f,d){let p=r(this.namespace+(typeof d>"u"?":":d)+f);return p.log=this.log,p}o(n,"extend");function i(f){r.save(f),r.namespaces=f,r.names=[],r.skips=[];let d,p=(typeof f=="string"?f:"").split(/[\s,]+/),m=p.length;for(d=0;d<m;d++)p[d]&&(f=p[d].replace(/\*/g,".*?"),f[0]==="-"?r.skips.push(new RegExp("^"+f.slice(1)+"$")):r.names.push(new RegExp("^"+f+"$")))}o(i,"enable");function a(){let f=[...r.names.map(l),...r.skips.map(l).map(d=>"-"+d)].join(",");return r.enable(""),f}o(a,"disable");function s(f){if(f[f.length-1]==="*")return!0;let d,p;for(d=0,p=r.skips.length;d<p;d++)if(r.skips[d].test(f))return!1;for(d=0,p=r.names.length;d<p;d++)if(r.names[d].test(f))return!0;return!1}o(s,"enabled");function l(f){return f.toString().substring(2,f.toString().length-2).replace(/\.\*\?$/,"*")}o(l,"toNamespace");function u(f){return f instanceof Error?f.stack||f.message:f}o(u,"coerce");function h(){console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`.")}return o(h,"destroy"),r.enable(r.load()),r}o(Dxe,"setup");HF.exports=Dxe});var YF=Ni((Us,Rb)=>{"use strict";Us.formatArgs=Rxe;Us.save=Mxe;Us.load=Ixe;Us.useColors=Nxe;Us.storage=Oxe();Us.destroy=(()=>{let t=!1;return()=>{t||(t=!0,console.warn("Instance method `debug.destroy()` is deprecated and no longer does anything. It will be removed in the next major version of `debug`."))}})();Us.colors=["#0000CC","#0000FF","#0033CC","#0033FF","#0066CC","#0066FF","#0099CC","#0099FF","#00CC00","#00CC33","#00CC66","#00CC99","#00CCCC","#00CCFF","#3300CC","#3300FF","#3333CC","#3333FF","#3366CC","#3366FF","#3399CC","#3399FF","#33CC00","#33CC33","#33CC66","#33CC99","#33CCCC","#33CCFF","#6600CC","#6600FF","#6633CC","#6633FF","#66CC00","#66CC33","#9900CC","#9900FF","#9933CC","#9933FF","#99CC00","#99CC33","#CC0000","#CC0033","#CC0066","#CC0099","#CC00CC","#CC00FF","#CC3300","#CC3333","#CC3366","#CC3399","#CC33CC","#CC33FF","#CC6600","#CC6633","#CC9900","#CC9933","#CCCC00","#CCCC33","#FF0000","#FF0033","#FF0066","#FF0099","#FF00CC","#FF00FF","#FF3300","#FF3333","#FF3366","#FF3399","#FF33CC","#FF33FF","#FF6600","#FF6633","#FF9900","#FF9933","#FFCC00","#FFCC33"];function Nxe(){if(typeof window<"u"&&window.process&&(window.process.type==="renderer"||window.process.__nwjs))return!0;if(typeof navigator<"u"&&navigator.userAgent&&navigator.userAgent.toLowerCase().match(/(edge|trident)\/(\d+)/))return!1;let t;return typeof document<"u"&&document.documentElement&&document.documentElement.style&&document.documentElement.style.WebkitAppearance||typeof window<"u"&&window.console&&(window.console.firebug||window.console.exception&&window.console.table)||typeof navigator<"u"&&navigator.userAgent&&(t=navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/))&&parseInt(t[1],10)>=31||typeof navigator<"u"&&navigator.userAgent&&navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/)}o(Nxe,"useColors");function Rxe(t){if(t[0]=(this.useColors?"%c":"")+this.namespace+(this.useColors?" %c":" ")+t[0]+(this.useColors?"%c ":" ")+"+"+Rb.exports.humanize(this.diff),!this.useColors)return;let e="color: "+this.color;t.splice(1,0,e,"color: inherit");let r=0,n=0;t[0].replace(/%[a-zA-Z%]/g,i=>{i!=="%%"&&(r++,i==="%c"&&(n=r))}),t.splice(n,0,e)}o(Rxe,"formatArgs");Us.log=console.debug||console.log||(()=>{});function Mxe(t){try{t?Us.storage.setItem("debug",t):Us.storage.removeItem("debug")}catch{}}o(Mxe,"save");function Ixe(){let t;try{t=Us.storage.getItem("debug")}catch{}return!t&&typeof process<"u"&&"env"in process&&(t=process.env.DEBUG),t}o(Ixe,"load");function Oxe(){try{return localStorage}catch{}}o(Oxe,"localstorage");Rb.exports=WF()(Us);var{formatters:Pxe}=Rb.exports;Pxe.j=function(t){try{return JSON.stringify(t)}catch(e){return"[UnexpectedJSONParseError]: "+e.message}}});var dst,qF=M(()=>{"use strict";_F();OF();zF();GF();$F();dst=ka(YF(),1)});var RS,NS,XF,Mb,Bxe,wo,Kc=M(()=>{"use strict";ht();qF();RS={body:'<g><rect width="80" height="80" style="fill: #087ebf; stroke-width: 0px;"/><text transform="translate(21.16 64.67)" style="fill: #fff; font-family: ArialMT, Arial; font-size: 67.75px;"><tspan x="0" y="0">?</tspan></text></g>',height:80,width:80},NS=new Map,XF=new Map,Mb=o(t=>{for(let e of t){if(!e.name)throw new Error('Invalid icon loader. Must have a "name" property with non-empty string value.');if(Y.debug("Registering icon pack:",e.name),"loader"in e)XF.set(e.name,e.loader);else if("icons"in e)NS.set(e.name,e.icons);else throw Y.error("Invalid icon loader:",e),new Error('Invalid icon loader. Must have either "icons" or "loader" property.')}},"registerIconPacks"),Bxe=o(async(t,e)=>{let r=ES(t,!0,e!==void 0);if(!r)throw new Error(`Invalid icon name: ${t}`);let n=r.prefix||e;if(!n)throw new Error(`Icon name must contain a prefix: ${t}`);let i=NS.get(n);if(!i){let s=XF.get(n);if(!s)throw new Error(`Icon set not found: ${r.prefix}`);try{i={...await s(),prefix:n},NS.set(n,i)}catch(l){throw Y.error(l),new Error(`Failed to load icon set: ${r.prefix}`)}}let a=CS(i,r.name);if(!a)throw new Error(`Icon not found: ${t}`);return a},"getRegisteredIconData"),wo=o(async(t,e)=>{let r;try{r=await Bxe(t,e?.fallbackPrefix)}catch(a){Y.error(a),r=RS}let n=_S(r,e);return DS(LS(n.body),n.attributes)},"getIconSVG")});function Ib(t){for(var e=[],r=1;r<arguments.length;r++)e[r-1]=arguments[r];var n=Array.from(typeof t=="string"?[t]:t);n[n.length-1]=n[n.length-1].replace(/\r?\n([\t ]*)$/,"");var i=n.reduce(function(l,u){var h=u.match(/\n([\t ]+|(?!\s).)/g);return h?l.concat(h.map(function(f){var d,p;return(p=(d=f.match(/[\t ]/g))===null||d===void 0?void 0:d.length)!==null&&p!==void 0?p:0})):l},[]);if(i.length){var a=new RegExp(`
 [	 ]{`+Math.min.apply(Math,i)+"}","g");n=n.map(function(l){return l.replace(a,`
 `)})}n[0]=n[0].replace(/^\r?\n/,"");var s=n[0];return e.forEach(function(l,u){var h=s.match(/(?:^|\n)( *)$/),f=h?h[1]:"",d=l;typeof l=="string"&&l.includes(`

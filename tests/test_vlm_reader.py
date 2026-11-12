@@ -62,7 +62,18 @@ def test_every_template_field_set_member_has_a_zone():
 
 
 def test_the_tightest_window_that_passes_its_format_wins():
-    assert D.staged(NUMBER, {0: "1,432.00", 1: "9,999.00", 2: "9,999.00"}) == ("1,432.00", 0, True)
+    # the wider windows do not agree with each other, so nothing outvotes the tight one
+    assert D.staged(NUMBER, {0: "1,432.00", 1: "9,999.00", 2: "7,777.00"}) == ("1,432.00", 0, True)
+    assert D.staged(NUMBER, {0: "1,432.00", 1: "9,999.00", 2: ""}) == ("1,432.00", 0, True)
+
+
+def test_two_wider_windows_that_agree_outvote_a_tight_window_sitting_on_a_neighbour():
+    # the tight window was cut on the cell beside the field: a well-formed wrong value; both wider windows reach the real one
+    assert D.staged(NUMBER, {0: "173.00", 1: "47,276.00", 2: "47,276.00"}) == ("47,276.00", 1, True)
+    # ... but only a FORMAT-VALID answer outvotes it
+    assert D.staged(NUMBER, {0: "173.00", 1: "ABC", 2: "ABC"}) == ("173.00", 0, True)
+    # ... and nothing changes when the tight window already agrees
+    assert D.staged(NUMBER, {0: "47,276.00", 1: "47,276.00", 2: "47,276.00"}) == ("47,276.00", 0, True)
 
 
 def test_widening_is_used_only_when_the_tight_window_gave_nothing_usable():

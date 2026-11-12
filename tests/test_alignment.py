@@ -366,3 +366,18 @@ def test_an_alignment_can_be_hashed_and_compared_like_any_object():
 
     assert {a: 1}[a] == 1
     assert (a == a) is True and (a == b) is False
+
+
+def test_the_cross_terms_follow_a_tilted_page_when_enabled_and_are_absent_when_off(monkeypatch):
+    import app.modules.alignment as AL
+    lm = template_landmarks(40)
+    tilt = 0.012  # page y rises by 1.2% of the page across its whole width, x shifts the other way: a ~0.7 degree tilt
+    words = [PageWord(m.text, m.x - tilt * m.y, m.y + tilt * m.x) for m in lm]
+    monkeypatch.setattr(AL, "ALIGN_MAX_CROSS", 0.03)
+    a = fit_alignment(lm, words)
+    assert (a.kx, a.ky) == pytest.approx((-tilt, tilt), abs=0.002)
+    far = (0.80, 0.10, 0.84, 0.12)  # top right: the corner a tilt moves the most vertically
+    assert a.map_box(far)[1] == pytest.approx(0.10 + tilt * 0.82, abs=0.002)
+    monkeypatch.setattr(AL, "ALIGN_MAX_CROSS", 0.0)
+    b = fit_alignment(lm, words)
+    assert (b.kx, b.ky) == (0.0, 0.0)

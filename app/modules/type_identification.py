@@ -25,7 +25,7 @@ import pytesseract
 from PIL import Image
 from rapidfuzz import fuzz
 
-from app.config import ANCHOR_CROP_MARGIN_PX
+from app.config import ANCHOR_CROP_MARGIN_PX, ANCHOR_OFFSETS_PX, ANCHOR_RETRY_BAND
 from app.modules.alignment import Alignment, PageWord, fit_alignment, read_page_words
 from app.modules.template_store import get_latest_template, list_known_doc_types
 from app.schemas.template import TemplateAnchor, TemplateOut
@@ -58,10 +58,19 @@ def _score_anchor(image: Image.Image, anchor: TemplateAnchor) -> float:
     template has a space. Measured on 16 real waybills this alone lifted the first anchor from
     59-69 to 70+ on pages whose boxes were already in the right place.
     """
-    box = clamped_crop_box(anchor.bbox, image.width, image.height, ANCHOR_CROP_MARGIN_PX)
-    crop = image.crop(box)
-    text = " ".join(pytesseract.image_to_string(crop).split())
-    return fuzz.ratio(text.lower(), " ".join(anchor.text.split()).lower())
+    expected = " ".join(anchor.text.split()).lower()
+    best = 0.0
+    for dx, dy in ANCHOR_OFFSETS_PX:
+        x0, y0, x1, y1 = anchor.bbox
+        shifted = anchor.bbox if (dx, dy) == (0, 0) else (x0 + dx / image.width, y0 + dy / image.height, x1 + dx / image.width, y1 + dy / image.height)
+        crop = image.crop(clamped_crop_box(shifted, image.width, image.height, ANCHOR_CROP_MARGIN_PX))
+        text = " ".join(pytesseract.image_to_string(crop).split())
+        best = max(best, fuzz.ratio(text.lower(), expected))
+        if best >= anchor.match_threshold * 100:  # passed: the offsets only ever rescue a failing anchor, never a passing one
+            break
+        if best < anchor.match_threshold * 100 - ANCHOR_RETRY_BAND:  # nowhere near: a different form, not a pixel grid, so no retries
+            break
+    return best
 
 
 def _check_template(

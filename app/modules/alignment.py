@@ -43,6 +43,7 @@ from app.config import (
     ALIGN_LOCAL_MIN_NEIGHBOURS,
     ALIGN_LOCAL_RADIUS,
     ALIGN_MATCH_RATIO,
+    ALIGN_MAX_CROSS,
     ALIGN_MIN_LANDMARK_FRACTION,
     ALIGN_MIN_LANDMARKS,
     ALIGN_MIN_WORD_CONF,
@@ -99,7 +100,8 @@ def read_page_words(image: Image.Image) -> list[PageWord]:
 # and a generated __hash__ raise; an Alignment is compared by identity, like the page it describes.
 @dataclass(frozen=True, eq=False)
 class Alignment:
-    """Template frame -> this page. page = scale * template + shift, per axis, plus a local nudge."""
+    """Template frame -> this page. page x = sx * x + kx * y + tx, page y = sy * y + ky * x + ty, plus a local nudge.
+    kx and ky are the cross terms a small page tilt leaves (ky ~ tilt, kx ~ -tilt, as page fractions); 0 when the fit has none."""
 
     sx: float
     tx: float
@@ -109,6 +111,12 @@ class Alignment:
     rms: float  # leftover of those after the global fit, as a fraction of the page
     matched: tuple[int, ...]  # indices into the template's landmark list
     _rows: np.ndarray  # one row per matched landmark: template x, y, page x, y
+    kx: float = 0.0
+    ky: float = 0.0
+
+    def _global(self, x, y):
+        """Where the global fit puts template point(s) (x, y) on the page."""
+        return self.sx * x + self.kx * y + self.tx, self.sy * y + self.ky * x + self.ty
 
     def map_box(self, box: BBox) -> BBox:
         """A template box moved to where it sits on this page (clamped to the page)."""
@@ -124,8 +132,9 @@ class Alignment:
             # three outvotes one mismatched pair (a typed "bangkok" paired with an address word). A
             # distance-weighted version with a two-landmark minimum let the nearest bad pair win and refused
             # 4 of 10 labelled pages; this one refuses 1 (a different print) - see ALIGN_LOCAL_MIN_NEIGHBOURS.
-            dx = float(np.median(rows[near, 2] - (self.sx * rows[near, 0] + self.tx)))
-            dy = float(np.median(rows[near, 3] - (self.sy * rows[near, 1] + self.ty)))
+            gx, gy = self._global(rows[near, 0], rows[near, 1])
+            dx = float(np.median(rows[near, 2] - gx))
+            dy = float(np.median(rows[near, 3] - gy))
 
         def clamp(v: float) -> float:
             return min(1.0, max(0.0, v))
@@ -139,8 +148,10 @@ class Alignment:
             lo = min(lo, 1.0 - _MIN_EXTENT)
             return lo, lo + _MIN_EXTENT
 
-        nx0, nx1 = at_least_a_sliver(clamp(self.sx * x0 + self.tx + dx), clamp(self.sx * x1 + self.tx + dx))
-        ny0, ny1 = at_least_a_sliver(clamp(self.sy * y0 + self.ty + dy), clamp(self.sy * y1 + self.ty + dy))
+        # the cross terms move a box as a whole (by where its centre sits), they do not skew its edges
+        cross_x, cross_y = self.kx * cy, self.ky * cx
+        nx0, nx1 = at_least_a_sliver(clamp(self.sx * x0 + cross_x + self.tx + dx), clamp(self.sx * x1 + cross_x + self.tx + dx))
+        ny0, ny1 = at_least_a_sliver(clamp(self.sy * y0 + cross_y + self.ty + dy), clamp(self.sy * y1 + cross_y + self.ty + dy))
         return (nx0, ny0, nx1, ny1)
 
     def summary(self) -> dict:
@@ -150,6 +161,8 @@ class Alignment:
             "scale_y": round(self.sy, 4),
             "shift_x": round(self.tx, 4),
             "shift_y": round(self.ty, 4),
+            "cross_x": round(self.kx, 4),
+            "cross_y": round(self.ky, 4),
             "rms": round(self.rms, 5),
         }
 
@@ -220,20 +233,39 @@ def fit_alignment(
     if not (lo <= sx <= hi and lo <= sy <= hi):
         return None
 
+    # The cross terms: a page that is still tilted after deskew puts every row a little lower on one side than the other, which a
+    # scale and a shift per axis cannot follow. Refit the inliers with them, keeping the result only when it stays a small tilt (a
+    # large cross term is a different layout bending the fit, not a tilt) and does not lose landmarks.
+    kx = ky = 0.0
+    if ALIGN_MAX_CROSS > 0:
+        ok2 = ok
+        for _ in range(2):
+            A = np.c_[P[ok2, 0], P[ok2, 1], np.ones(ok2.sum())]
+            fx, fy = np.linalg.lstsq(A, P[ok2, 2], rcond=None)[0], np.linalg.lstsq(A, P[ok2, 3], rcond=None)[0]
+            ok2 = (np.abs(fx[0] * P[:, 0] + fx[1] * P[:, 1] + fx[2] - P[:, 2]) < ALIGN_RANSAC_TOL) & (np.abs(fy[1] * P[:, 1] + fy[0] * P[:, 0] + fy[2] - P[:, 3]) < ALIGN_RANSAC_TOL)
+        if (abs(fx[1]) <= ALIGN_MAX_CROSS and abs(fy[0]) <= ALIGN_MAX_CROSS and lo <= fx[0] <= hi and lo <= fy[1] <= hi
+                and len(set(ids[ok2])) >= max(needed, len(set(ids[ok])))):
+            sx, kx, tx, ky, sy, ty = float(fx[0]), float(fx[1]), float(fx[2]), float(fy[0]), float(fy[1]), float(fy[2])
+            ok = ok2
+
+    def where(k):
+        return sx * P[k, 0] + kx * P[k, 1] + tx, sy * P[k, 1] + ky * P[k, 0] + ty
+
     # One correspondence per landmark: the page word closest to where the model puts it.
     chosen: dict[int, tuple[float, int]] = {}
     for k in np.where(ok)[0]:
-        err = abs(sx * P[k, 0] + tx - P[k, 2]) + abs(sy * P[k, 1] + ty - P[k, 3])
+        px_, py_ = where(k)
+        err = abs(px_ - P[k, 2]) + abs(py_ - P[k, 3])
         if ids[k] not in chosen or err < chosen[ids[k]][0]:
             chosen[ids[k]] = (err, int(k))
     if len(chosen) < needed:
         return None
     order = sorted(chosen)
     rows = P[[chosen[i][1] for i in order]]
-    rms = float(np.sqrt(np.mean((sx * rows[:, 0] + tx - rows[:, 2]) ** 2 + (sy * rows[:, 1] + ty - rows[:, 3]) ** 2)))
+    rms = float(np.sqrt(np.mean((sx * rows[:, 0] + kx * rows[:, 1] + tx - rows[:, 2]) ** 2 + (sy * rows[:, 1] + ky * rows[:, 0] + ty - rows[:, 3]) ** 2)))
     return Alignment(
         sx=float(sx), tx=float(tx), sy=float(sy), ty=float(ty),
-        landmarks=len(order), rms=rms, matched=tuple(order), _rows=rows,
+        landmarks=len(order), rms=rms, matched=tuple(order), _rows=rows, kx=float(kx), ky=float(ky),
     )
 
 

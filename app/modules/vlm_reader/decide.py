@@ -11,8 +11,15 @@ The model reads every crop at several windows (waybill.LEVELS: the printed cell,
              1432.0 for 1432.00, 5.00 for 5.000 - the model copied what was visible and the clipped value still passed its format);
   BLANK STAYS BLANK: when the tightest window said EMPTY, a value found only by widening is kept only if the later windows agree on
              it. Windows that disagree (7,430.00 then 500.00) are reading different neighbouring cells.
+  WIDER WINDOWS AGREE: when the two widest windows give the same format-valid answer and the pick differs from it, take that answer.
+             The tightest window is cut from the box the page alignment predicts, and a page the alignment fits loosely (a tilt it
+             has no term for, a row a little lower) leaves that window on the NEIGHBOURING cell, which then reads a well-formed wrong
+             value (173.00 for 47,276.00, THAILAND for BKK) while both wider windows, which reach the real cell, agree on the right one.
+             Measured on the saved replies of 4,739 synthetic validation fields (two forms, four sets) it fixed 29 and broke 6
+             (right 4,485 -> 4,508, wrong non-empty 202 -> 179); on the five real held-out pages 5 and 1. Of the 6 it broke, 2 were
+             spacing or punctuation differences between windows and 4 were wider windows that both misread a digit (976 for 376).
 
-Both only ever choose between the model's own answers, never edit one.
+All of them only ever choose between the model's own answers, never edit one.
 
 A staged value is GATED (the only kind that may ever be auto-approved) when a second, independent reading agrees with it - the
 word-selection reader on the page's own OCR (words.py) - or an arithmetic fact of the document holds over it (AWB check digit,
@@ -115,6 +122,10 @@ def staged(field: TemplateField, per_level: dict[int, str]) -> tuple[str, Option
         if wider > level and v != norm(value) and len(v) > len(norm(value)) and norm(value) in v and passes_format(field, v):
             value, level, valid = values[wider], wider, True
             break
+    if len(levels) >= 3:
+        w1, w2 = values[levels[1]], values[levels[2]]
+        if w1 and norm(w1) == norm(w2) and passes_format(field, w1) and norm(w1) != norm(value):
+            value, level, valid = w1, levels[1], True
     if not norm(values[levels[0]]):  # the tightest window said EMPTY, so `value` came from widening
         later = {norm(values[lv]) for lv in levels if lv > 0 and norm(values[lv])}
         if len(later) > 1:

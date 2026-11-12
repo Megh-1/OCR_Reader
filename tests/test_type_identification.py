@@ -373,3 +373,47 @@ def test_without_min_anchors_every_anchor_is_still_required(client, unique_doc_t
 @pytest.mark.parametrize("minimum", [1, 4])
 def test_min_anchors_must_be_at_least_two_and_at_most_the_anchor_count(client, unique_doc_type, minimum):
     assert _save_with_min(client, unique_doc_type, minimum).status_code == 422
+
+
+def _anchor_reads(monkeypatch, reads):
+    calls = []
+
+    def fake(crop, *a, **k):
+        calls.append(crop.size)
+        return reads[min(len(calls), len(reads)) - 1]
+
+    monkeypatch.setattr(type_identification.pytesseract, "image_to_string", fake)
+    return calls
+
+
+def test_a_near_miss_anchor_is_read_again_at_offsets_and_keeps_the_best_score(monkeypatch):
+    # the label reads 82 at its own crop and 100 at one 1 px over: a threshold of 0.85 passes it only by the retry
+    image = Image.new("RGB", (1000, 800), color=255)
+    anchor = TemplateAnchor(text="Not Negotiable Air Waybill", bbox=(0.1, 0.2, 0.5, 0.3), match_threshold=0.85)
+    calls = _anchor_reads(monkeypatch, ["Not Negotiable Air", "Not Negotiable Air Waybill"])
+    assert type_identification._score_anchor(image, anchor) == 100.0
+    assert len(calls) == 2
+
+
+def test_a_passing_anchor_is_read_once(monkeypatch):
+    image = Image.new("RGB", (1000, 800), color=255)
+    anchor = TemplateAnchor(text="Not Negotiable Air Waybill", bbox=(0.1, 0.2, 0.5, 0.3), match_threshold=0.85)
+    calls = _anchor_reads(monkeypatch, ["Not Negotiable Air Waybill"])
+    assert type_identification._score_anchor(image, anchor) == 100.0
+    assert len(calls) == 1
+
+
+def test_an_anchor_nowhere_near_its_threshold_is_not_retried(monkeypatch):
+    image = Image.new("RGB", (1000, 800), color=255)
+    anchor = TemplateAnchor(text="Not Negotiable Air Waybill", bbox=(0.1, 0.2, 0.5, 0.3), match_threshold=0.85)
+    calls = _anchor_reads(monkeypatch, ["BANGKOK THAILAND 31 MAR"])
+    assert type_identification._score_anchor(image, anchor) < 50
+    assert len(calls) == 1
+
+
+def test_retries_only_ever_add_a_pass_and_stop_after_the_listed_offsets(monkeypatch):
+    image = Image.new("RGB", (1000, 800), color=255)
+    anchor = TemplateAnchor(text="Not Negotiable Air Waybill", bbox=(0.1, 0.2, 0.5, 0.3), match_threshold=0.99)
+    calls = _anchor_reads(monkeypatch, ["Not Negotiable Air Waybil"])  # 98: never reaches 99
+    assert 90 < type_identification._score_anchor(image, anchor) < 99
+    assert len(calls) == len(config.ANCHOR_OFFSETS_PX)

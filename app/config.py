@@ -215,6 +215,15 @@ ADAPTIVE_THRESH_C: int = 11
 # MAX_UPSCALE_FACTOR above); a real-world value from one sample, not a
 # theoretically-derived constant.
 ANCHOR_CROP_MARGIN_PX: int = 40
+# Where else (dx, dy in pixels of the page image) an anchor that failed at its own position is read again, best score kept, and only
+# when its first score is within ANCHOR_RETRY_BAND points of its threshold (a near miss; a different form scores far below).
+# MEASURED on 66 waybill pages (50 demo + 16 real, no hint) plus the ID card: three valid waybills that were refused now pass
+# (demo_m_15 anchor 68.2 -> 88.5, demo_m_24 48.4 -> 70.8, real #7 67.6 -> 83.3), none changed the other way, no page became
+# ambiguous, the ID card still reads as itself; the weakest anchor of the OTHER form's template rose from 42.4 to 54.5 at most (70
+# needed). Without the retries, moving the boxes ~1 px by anything (the cross terms) refused two confirmed pages. PROVISIONAL.
+# ((0, 0),) turns it off.
+ANCHOR_OFFSETS_PX: tuple[tuple[int, int], ...] = ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1), (2, 0), (-2, 0), (0, 2), (0, -2))
+ANCHOR_RETRY_BAND: float = 30.0
 
 # Page alignment (app/modules/alignment.py) - ALL PROVISIONAL: measured on 16 real air
 # waybills from three printers plus the reference, no negative set beyond them.
@@ -259,6 +268,18 @@ ALIGN_SCALE_RANGE: tuple[float, float] = (0.75, 1.3)
 #   within 0.20, plain median, min 3         1 refused   33/54   <- this one
 #   within 0.20, plain median, min 4         1 refused   32/54
 # The one refused page in the last rows is a different print of the form (expected). PROVISIONAL: one form.
+# The global fit can also take a cross term per axis (page x moves with template y, page y with template x: what a small residual
+# page tilt does) when it stays within this many page fractions per unit (0.03 ~ 1.7 degrees). 0 = OFF, the shipped setting.
+# MEASURED at 0.03 on the 21 scanned/photographed demo waybills (652 fields with a known true position): values fully inside the
+# tightest window 614 -> 622, misses on pages tilted 0.4 degrees or more 22 -> 14, one value lost; fit rms on demo_m_02 0.0031 -> 0.0019.
+# But Module 5 outcomes on 66 pages (50 demo + 16 real waybills, no hint): 3 flipped - two confirmed pages refused (demo_m_02, a real
+# Mumbai-form scan: anchor boxes moved ~1 px and a marginal anchor, 76.5 against 70, read 0.0) and one refused page accepted (real
+# #7, 67.6 before). The anchors, not the alignment, are what is fragile there, so it stays off until anchor scoring tolerates a 1 px
+# move; set it to try again. UPDATE: with the anchor retries below (ANCHOR_OFFSETS_PX) and NO near-miss band the same 66 pages
+# lose nothing with the cross terms on, but demo_m_02's anchor read 0.0 (Tesseract's layout analysis failed on the shifted crop, not a
+# near miss), so under ANCHOR_RETRY_BAND = 30 it is still refused. Also unmeasured on real photographs and on a form with one displaced
+# block, where it moved a far box 0.006 (tests/test_alignment.py). Left off.
+ALIGN_MAX_CROSS: float = 0.0
 ALIGN_LOCAL_NEIGHBOURS: int = 8
 ALIGN_LOCAL_RADIUS: float = 0.20
 ALIGN_LOCAL_MIN_NEIGHBOURS: int = 3

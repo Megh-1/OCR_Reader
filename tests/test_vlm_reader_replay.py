@@ -37,9 +37,10 @@ pytestmark = pytest.mark.skipif(
     reason="the untracked corpus, GPU results and reader profiles are not here",
 )
 
-# document -> (right fields, gated fields) as scripts/score_vlm.py reported them for wb_v4 epoch 3
-EXPECTED_B = {"01": (27, 10), "03": (27, 14), "13": (32, 9), "14": (31, 4)}
-EXPECTED_M = {"07": (30, 13)}
+# document -> (right fields, gated fields) for wb_v4 epoch 3 with the staged rule as it ships. Before "two wider windows that agree
+# outvote the tight one" (decide.staged) they were 01: 27/10, 03: 27/14, 07: 30/13; 13 and 14 did not move.
+EXPECTED_B = {"01": (30, 15), "03": (29, 16), "13": (32, 9), "14": (31, 4)}
+EXPECTED_M = {"07": (29, 13)}
 
 
 class SavedReplies(ReaderClient):

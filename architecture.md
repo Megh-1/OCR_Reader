@@ -2,7 +2,7 @@
 
 > **What this document is.** The architecture of the IDP Pipeline repository as it exists on disk today, written from the code, `docker-compose.yml`, `app/config.py` and the Alembic migrations. Where something is *not* built (authentication, metrics, a cache), it says so instead of describing an aspiration. Measured numbers come from the comments in `app/config.py` and the project's `CLAUDE.md`; anything that is a proposal is labelled **Proposed**.
 >
-> **Last updated 2026-11-04**, after commit `380f4ee`. This revision replaces the earlier "Tesseract and the PDF text layer only" description: the vision-model reader is now part of the application and the model that reads is a configuration choice (§2.9). Anything in the working tree and not yet committed is marked 🟡 (nothing is, at this revision).
+> **Last updated 2026-11-12**, after commit `d61349c`. The vision-model reader is part of the application and the model that reads is a configuration choice (§2.9). This revision adds the *status at a glance* below, the anchor retries, the "two wider windows agree" rule and the (off) tilt term, and the error analysis of scan and photo misses (§8.6). Anything in the working tree and not yet committed is marked 🟡 (nothing is, at this revision).
 >
 > **Diagrams** are [Mermaid](https://mermaid.js.org/). They render on GitHub, GitLab, VS Code (Markdown preview with the Mermaid extension), and most Markdown viewers.
 
@@ -10,12 +10,33 @@
 
 | Tag | Meaning |
 |---|---|
-| ✅ **Built** | In the code and committed, covered by the test suite 638 tests collected and passed at the last full run, 2026-11-04 |
+| ✅ **Built** | In the code and committed, covered by the test suite (644 tests passed at the last full run, 2026-11-12) |
 | 🟡 **Uncommitted** | Built and tested, but sitting in the working tree, not yet in a commit |
 | 🧪 **Research tooling** | Training and measurement scripts (`scripts/gpu/*`, `make_train_set.py`, `score_*.py`); **not part of the running application** |
 | ⛔ **Not built** | Does not exist yet |
 
 ---
+
+## Status at a glance (read this first)
+
+**What works today.** Upload a batch (PDF, JPEG, PNG); each page is cleaned, matched to a template by its anchors, aligned to it by landmark words, read (PDF text layer, or a vision model on scans and photos, or Tesseract when the model is down), validated, given a tier (`auto` / `spot_check` / `review`) and, unless `auto`, put in a review queue a person works through by field, by value or by document. A strict JSON export emits only values a rule vouched for or a person checked. Two waybill layouts (Mumbai-form `air_waybill`, Bangkok-form `air_waybill_bkk`) and the ID card have templates.
+
+**Where it stands, in numbers** (50 hard synthetic waybills, one batch, no type hint): 46 of 50 identified; **1,401 of 1,518 fields right (92.3%)**: digital 96.0%, scans 92.0%, camera photos 78.3%. **Nothing reaches `auto` on a model-read page**, so every value on a scan or photo needs a person; 58 wrong values sit in `spot_check` and 59 in `review`. That batch predates the three changes marked ★ below; they are validated on replays, not re-run through the live stack (§6.2, §8.6).
+
+**What was done, in order** (newest last; commit hashes in §8.2):
+
+| When | Development |
+|---|---|
+| Sep 2026 | Phase 1: nine modules, tiered approval, batch queue (RQ + Redis), Docker, the React console |
+| Oct 2026 | Cross-field checks, a synthetic waybill generator, **page alignment by landmark words** (1 of 16 real waybills matched its anchors before, 12 of 16 after) |
+| 2 Nov | Field read options, the Bangkok-printer template, the rule editor, grouped review, bulk accept, **audited auto-approval**, **the vision-model reader** (Qwen2.5-VL-7B + LoRA, separate GPU service) and its first live trial |
+| 3 Nov | `yields_to` (a boilerplate-anchored template steps aside), doubtful text layers routed to the model, Tesseract-fallback pages capped at `spot_check`, review scoped to a batch, correct a group at once, accept agreed values, review by field, Leave blank, strict JSON export |
+| 4 Nov | **Reader engines are configuration** (registry, OpenAI-compatible adapter, `evaluate_reader.py`) and the **per-template engine selector** (probe, scorecards, promotion, drift, cold start) |
+| 5–12 Nov | An **error analysis of scan and photo misses**, then three fixes from it: ★ two wider windows that agree outvote a tight one (**+29 / −6** fields on 4,739 synthetic validation fields), ★ near-miss anchors retried at 1–2 px offsets (**3 valid waybills rescued, 0 lost** on 66 pages), ★ an optional tilt term in the alignment fit, built, measured and **left off** |
+
+**What is not done** (full list in §8.5): authentication and TLS (nothing is safe to share yet); a GPU the project controls and the engine bake-off (the selector has one engine to rank); a reader for a layout it has never seen; verified labels for the real documents; the review queue at the 1-in-10,000 target (≈ 670 of 1,518 fields stay queued); metrics and `/healthz`.
+
+**What to do next.** Re-run the 50-document batch through the live stack to see what the three ★ changes are worth end to end (needs the GPU tunnel); then the per-print templates for layouts whose HS code and invoice number sit in another column; then the items in §8.5 in order.
 
 ## Table of contents
 
@@ -168,13 +189,13 @@ flowchart LR
 |---|---|---|---|
 | 1 Ingestion | `ingestion.py` | Validate type (libmagic, not the extension), size (15 MB), page count (20); render PDF pages at 200 DPI; pull the embedded text layer | Invisible text (render mode 3, how OCR software makes a scan searchable) is **not** native text; coordinates go through `page.rotation_matrix` |
 | 2 Preprocessing | `preprocessing.py` | Page-quad detection + four-point warp, deskew (contour → Hough → OSD last), CLAHE, denoise, binarize, optional ruled-line removal | Produces **two renderings with identical dimensions**: binarized (anchors only) and grayscale (fields + review). Never feed one to both |
-| 5 Type ID | `type_identification.py` | OCR each template's anchor crops, fuzzy-match (rapidfuzz), require **all** anchors to pass (or `min_anchors_matching` of them, never fewer than 2) | More than one matching template is `ambiguous_match`, never a pick, **except** when one template's anchors contain all the others' (§2.8) |
-| Alignment | `alignment.py` | OCR the whole page once, match the template's landmark words, RANSAC-fit scale+shift per axis, add local median offset | Returns `None` below 12 agreeing words. The boxes that *verify* a page are the boxes that *read* it |
+| 5 Type ID | `type_identification.py` | OCR each template's anchor crops, fuzzy-match (rapidfuzz), require **all** anchors to pass (or `min_anchors_matching` of them, never fewer than 2). An anchor whose first score is a **near miss** (within `ANCHOR_RETRY_BAND` = 30 points under its threshold) is re-read at 1–2 px offsets (`ANCHOR_OFFSETS_PX`) and the best score kept; a passing anchor is read once | Anchor scores are not smooth in a 1 px shift (a score fell 76.5 → 0.0 when Tesseract's layout step failed on a shifted crop), so a good page was sometimes refused by luck. Measured on 66 pages: 3 valid waybills rescued, 0 lost, none ambiguous, the other form's weakest anchor 42.4 → 54.5 at most (70 needed). The cost of the extra reads on refused pages is not measured. More than one matching template is `ambiguous_match`, never a pick, **except** when one template's anchors contain all the others' (§2.8) |
+| Alignment | `alignment.py` | OCR the whole page once, match the template's landmark words, RANSAC-fit scale+shift per axis, add local median offset | Returns `None` below 12 agreeing words. The boxes that *verify* a page are the boxes that *read* it. An optional **tilt** (cross) term exists (`ALIGN_MAX_CROSS`, **off**): it moves more values fully inside the tightest vision window (614 → 622 of 652) but flips Module 5 outcomes (anchor boxes move ~1 px) and bends a form with one displaced block |
 | 6 Extraction | `field_extraction.py` | Per field: read PDF words inside the box, or Tesseract at PSM 4/6/7 keeping the most confident non-empty read | Only edge-trimming of rule fragments is allowed; content is never "corrected" |
 | 7 Validation | `validation.py`, `checks.py` | Regex, check digit (IATA AWB mod-7), confidence floor, cross-field checks; assigns tier | A field with no regex and no checksum is **never `auto`**, however confident |
 | 8 Output | `output_compiler.py` | Compile accepted + flagged fields into `CompiledResult`, store a JPEG of the page for review | Flagged field → `overall_status = needs_review`; accepted fields are never dropped |
 | 9 Review queue | `review_queue.py` | Three entry types; resolving a field clears `needs_review` but keeps the machine's own tier | Tiers only ever *add* caution |
-| Vision reader | `vlm_reader/` (`reader.py`, `crops.py`, `decide.py`, `words.py`, `waybill.py`, `profile.py`) | For a scanned or photographed page of a template that opts in (`hints.vlm_reader`): whole-page OCR, landmark alignment, a window per field at three widenings, one question per crop to the engine, staged answers, compared with a word reader on the page OCR | The model reports no confidence, so values get **fixed** ones (gated 89, ungated 70), which is under the auto threshold on purpose: **nothing the model reads reaches `auto`** |
+| Vision reader | `vlm_reader/` (`reader.py`, `crops.py`, `decide.py`, `words.py`, `waybill.py`, `profile.py`) | For a scanned or photographed page of a template that opts in (`hints.vlm_reader`): whole-page OCR, landmark alignment, a window per field at three widenings, one question per crop to the engine, staged answers (tightest window that passes its format; a wider window that contains it extends it; blank stays blank; **two wider windows that agree outvote a tight one**, because the tight window sits on the neighbouring cell when the alignment fits loosely), compared with a word reader on the page OCR | The model reports no confidence, so values get **fixed** ones (gated 89, ungated 70), which is under the auto threshold on purpose: **nothing the model reads reaches `auto`** |
 | Reader engines | `vlm_reader/engines.py`, `client.py`, `openai_client.py` | Resolve the active engine by name from `READER_ENGINES_FILE` (else `VLM_READER_URL`); two kinds, one `read(items) -> replies` interface | Any failure is `ReaderUnavailable`, never a crash or a half-read page; tokens come from an env var named in the file, never the file |
 | Engine selection | `engine_selection/` (`selector.py`, `probe.py`, `store.py`, `promotion.py`, `drift.py`, `agreement.py`) | Per template, choose the reader chain `[text_layer] + [model engines, best first] + [tesseract]` from stored scorecards; promote a candidate only if it beats the incumbent on the same corpus; take an engine out when live, person-checked accuracy falls under its scorecard; combine two engines so a disagreement goes to review. **Off unless `ENGINE_SELECTOR_ENABLED=1`** | Nothing is `auto` until an engine has been measured **and** promoted: the cold-start mode holds every would-be `auto` value at `spot_check` and skips audited auto-approval. Agreement only ever raises a value to gated (89), never to `auto` |
 | Review groups | `review_groups.py` | Group pending entries **by field** (one field across the upload's documents), by value, or by document; bulk accept; **correct a whole group** with one typed value; **accept agreed** model reads; the evidence report | The **server** decides what may be bulk-accepted: only a spot check with a value, never a Module 7 rejection; every bulk accept or group correction holds back a random audit sample; review is scoped to one batch |
@@ -1042,6 +1063,9 @@ What the fixes in the last days were worth, each measured on the batch or pages 
 | `air_waybill` **yields to** `air_waybill_bkk` | every Bangkok scan was `ambiguous_match` and never reached the model; 9 of 9 now resolve |
 | **Cap `ocr_fallback` pages at `spot_check`** | 4 wrong values at confidence 93–96 had reached `auto`; none now |
 | Scoring ignores the dropped printed label | 1,361 → 1,401 right: the 40 "misses" were label-only differences, not misreads |
+| ★ **Two wider windows that agree outvote a tight one** (offline replay of saved model replies, no GPU) | 4,739 synthetic validation fields: right 4,485 → 4,508, wrong non-empty 202 → 179 (**+29 / −6**); real held-out pages +5 / −1. Of the 6 broken, 2 were spacing or punctuation and 4 were both wider windows misreading the same digit |
+| ★ **Retry near-miss anchors** at 1–2 px offsets (66 waybill pages + the ID card) | 3 valid waybills refused before are recognised (`demo_m_15` 68.2 → 88.5, `demo_m_24` 48.4 → 70.8, real #7 67.6 → 83.3); 0 lost; none ambiguous |
+| ★ Tilt term in the alignment fit (21 scans and photos), **not enabled** | 614 → 622 of 652 values fully inside the tightest window, misses at tilt ≥ 0.4° 22 → 14; but with it on `demo_m_02` is refused (anchor 76.5 → 0.0) and real #1 falls to 69.2. Even combined with the retries it still loses `demo_m_02`, so it stays off |
 
 **Reading these honestly:** every value in the batch above needs a person, because the model's fixed confidence is under the auto threshold. What a person has to catch is the 58 + 59 wrong values among roughly 670 queued ones; the gated 89 values are right about 99.5% of the time, which is the figure to weigh against "1 in 10,000" (§6.1).
 
@@ -1118,6 +1142,9 @@ flowchart LR
 | 27 | Review shape | **By field across one upload; correct a group; accept agreed; leave a field blank**, with server-side eligibility and an audit hold | One-by-one review; a client-side "accept all" | One field across documents is the cheapest thing for a person to scan; the safety stays on the server | Does **not** reach 20–30 items per 50 documents (§2.7); that needs a stronger second reader, not a nicer screen |
 | 28 | Choosing the engine | **Per template, from stored scorecards on a shared corpus; promote only a candidate that beats the incumbent; drop an engine on live evidence; off by default** | A hand-ordered list in a file; one global model for every template; promoting on any better number | Models differ by layout and input kind, and a new model should earn its place on the same documents, then keep earning it. Off by default so nothing changes until someone has measured | Only as good as the corpus and the labels behind the scorecard; thresholds are provisional; it has nothing to rank until a second engine has been scored |
 | 29 | No measurement, no auto | **A template with no promoted engine reads in cold-start mode: every would-be `auto` value held at `spot_check`, audited auto-approval skipped** | Treat the first configured engine as trusted | Auto-approval is a claim about an engine on this form. Without a scorecard there is no basis for it, and the trust evidence was gathered on another reader | A new template or engine is reviewed by people until it has been measured |
+| 30 | Several windows per field | **Staged choice among the model's own answers, now including "two wider windows agree"** | Always the tightest window; a vote over all three | The tight window is cut from the aligned box and lands on the neighbouring cell when the fit is loose; both wider windows then reach the right cell. +29 / −6 fields on 4,739 synthetic validation fields | Two wider windows can misread the same digit (4 of the 6 breaks); window agreement is still **not** a gate (errors across windows are correlated) |
+| 31 | A 1 px anchor shift | **Retry a near-miss anchor at 1–2 px offsets, keep the best score** | Lower the 70 threshold; retry every anchor | Scores are unstable under a 1 px shift (76.5 → 0.0), so a valid page was refused by chance; retrying only near misses rescued 3 pages and lost none, and the false-accept margin held (54.5 vs 70) | Extra OCR on pages that fail an anchor; a score of 0 is not a near miss and is not retried (`demo_m_02`) |
+| 32 | A page tilt term | **Built, measured, left off** (`ALIGN_MAX_CROSS = 0`) | Switch it on because the geometry improves | It improves geometry (614 → 622 of 652) but moves anchor crops ~1 px and flips Module 5 outcomes; it bends a form with one displaced block | A tilted page keeps its small residual; revisit if anchor scoring becomes robust to a 1 px shift |
 
 
 ---
@@ -1143,7 +1170,7 @@ The previous version of this document called the vision reader experimental and 
 
 ### 8.2 Committed versus uncommitted
 
-Latest feature commit: `380f4ee` *Per-template engine selector: probe, measured ranking, cold start, promotion, drift, agreement and labels*. Since the previous revision of this document the following landed, each as its own commit:
+Latest feature commit: `d61349c` *Retry near-miss anchors at 1–2 px offsets, let two wider vision windows outvote a tight one, and add an (off) tilt term to alignment*. Since the vision reader was introduced the following landed, each as its own commit:
 
 | Commit | What it added |
 |---|---|
@@ -1158,8 +1185,10 @@ Latest feature commit: `380f4ee` *Per-template engine selector: probe, measured 
 | `6877a9a` | The reader-engine registry, the OpenAI-compatible adapter, `evaluate_reader.py` |
 | `17c69f2` | This document brought up to date, and `scripts/build_architecture_html.py` |
 | `380f4ee` | **Per-template engine selection** (§2.10): probe, measured ranking, cold start, promotion, drift, two-reader agreement, labelled examples, migration `0007`, per-engine prompts, `evaluate_reader.py --save --promote`, `export_labelled.py`; off unless `ENGINE_SELECTOR_ENABLED=1` |
+| `e5d28aa` | The engine selector documented |
+| `d61349c` | **Three fixes from the error analysis (§8.6):** two wider windows that agree outvote a tight one (`decide.py`); near-miss anchors retried at 1–2 px offsets (`type_identification.py`); an optional tilt term in the alignment fit, **off** (`alignment.py`, `ALIGN_MAX_CROSS`). 644 tests pass |
 
-Nothing in the working tree is uncommitted except local tooling folders (`.agents/`, `.taste-skill/`, `skills-lock.json`). The engine selector has been written and unit-tested, but **has not run against a real second model**; it is off by default, so everything above behaves as before until `ENGINE_SELECTOR_ENABLED=1`.
+Nothing in the working tree is uncommitted except local tooling folders (`.agents/`, `.taste-skill/`, `skills-lock.json`). The engine selector has been written and unit-tested, but **has not run against a real second model**; it is off by default, so everything above behaves as before until `ENGINE_SELECTOR_ENABLED=1`. The three changes in `d61349c` were validated on **offline replays** of saved model replies and on Module 5 runs, **not** by re-running the 50-document batch through the live stack and the GPU.
 
 ### 8.3 What the 16 real waybills showed
 
@@ -1199,6 +1228,31 @@ Reading it plainly: **clean text-layer PDFs are solved; scans of the same form w
 7. **Move blobs out of Postgres** and **split migrations from API start-up** before scaling out.
 8. **More real data per layout**: a handful of test documents cannot certify 1-in-10,000; the project needs hundreds of labelled real pages per layout and a gate evaluated per auto-approved value.
 9. **Auto-build landmarks at template-save time** in the designer (today `scripts/build_landmarks.py` is run by hand over other real documents).
+10. **Re-run the 50-document batch live** to measure what `d61349c` is worth end to end (3 more pages recognised; fewer neighbour-cell reads), and **measure the OCR cost** of the anchor retries on pages that are refused.
+11. **Per-print templates** for layouts whose `hs_code` / `invoice_reference` sit in another column (real #3, #7): a value outside every window cannot be fixed by a decision rule.
+12. **Make anchor scoring robust to a 1 px shift** (a failed layout analysis scores 0.0), then retry the tilt term (§8.6).
+
+### 8.6 Why scans and photos still miss (error analysis, no code changed by it)
+
+Method: the 21 identified scans and photos of the 50-document batch (synthetic, regenerated deterministically so the true degradation is known), the 5 real held-out waybills (saved model replies) and the 5 scan/photo documents never read. A miss is a wrong or empty field. The causes are assigned by rule, first match wins: label error, clipped or misaligned crop, residual skew or warp, low resolution or blur, model misread. The thresholds are provisional. Raw output is in `data/error_analysis/` (git-ignored).
+
+| Cause | Synthetic scan | Synthetic photo | Real scan | All |
+|---|---:|---:|---:|---:|
+| Clipped / misaligned crop | 15 | 0 | 11 | 26 |
+| Skew or warp | 0 | 0 | 0 | 0 |
+| Low resolution / blur | 8 | 1 | 1 | 10 |
+| Model misread | 19 | 9 | 2 | 30 |
+| Label error | 0 | 0 | 4 | 4 |
+| **Misses** | **42** | **10** | **18** | **70** of 858 fields (8.2%) |
+
+What it showed:
+
+- **The largest single cause is where the window lands, not what the model reads.** In 7 of the 18 real-page misses a wider window had the right answer that the tightest passing window overrode. That produced the "two wider windows agree" rule (ADR 30).
+- **Residual skew is not the problem.** After the pipeline's own deskew and page warp no field was left tilted by 1° or more. Tilt of 0.4–0.9° does co-occur with clipped rows, which is why the tilt term was tried (ADR 32).
+- **Of the 30 "model misreads", 11 differ only in punctuation or spacing**, 5 are an empty answer on visible text and 14 have different characters. One punctuation case is a real value error: `185.0` read as `1850`, a tenfold weight.
+- **Print overprint is not a category the rules can see.** Where the printed values sit on the form's labels (print misregistration), the geometry says "inside the window" while the crop is garbled; those misses land under "model misread".
+- **Five documents were never read**: four refused at Module 5 (anchor scores of 48–69 against a threshold of 70) and one recognised but not alignable (`demo_m_09`, read by Tesseract). The anchor retries recover `demo_m_15` and `demo_m_24`; `demo_m_07` and `demo_m_20` are not recovered by them.
+- **Caveats:** the real-page labels are unverified drafts (4 of 18 misses are draft errors); real-page causes are judged by eye; the synthetic photos are composites of one waybill layout, so the photo conclusions rest on 5 photos (165 fields).
 
 ---
 

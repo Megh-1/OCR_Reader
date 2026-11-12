@@ -41,11 +41,11 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 @media print{aside{display:none}.layout{display:block}body{background:#fff}main{padding:0}}
 </style></head>
 <body><div class="layout">
-<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li><li><a href="#210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
+<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#status-at-a-glance-read-this-first">Status at a glance (read this first)</a></li><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li><li><a href="#210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li><li><a href="#86-why-scans-and-photos-still-miss-error-analysis-no-code-changed-by-it">8.6 Why scans and photos still miss (error analysis, no code changed by it)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
 <main><article><h1 id="idp-pipeline-architecture">IDP Pipeline: Architecture</h1>
 <blockquote>
 <p><strong>What this document is.</strong> The architecture of the IDP Pipeline repository as it exists on disk today, written from the code, <code>docker-compose.yml</code>, <code>app/config.py</code> and the Alembic migrations. Where something is <em>not</em> built (authentication, metrics, a cache), it says so instead of describing an aspiration. Measured numbers come from the comments in <code>app/config.py</code> and the project's <code>CLAUDE.md</code>; anything that is a proposal is labelled <strong>Proposed</strong>.</p>
-<p><strong>Last updated 2026-11-04</strong>, after commit <code>380f4ee</code>. This revision replaces the earlier &quot;Tesseract and the PDF text layer only&quot; description: the vision-model reader is now part of the application and the model that reads is a configuration choice (§2.9). Anything in the working tree and not yet committed is marked 🟡 (nothing is, at this revision).</p>
+<p><strong>Last updated 2026-11-12</strong>, after commit <code>d61349c</code>. The vision-model reader is part of the application and the model that reads is a configuration choice (§2.9). This revision adds the <em>status at a glance</em> below, the anchor retries, the &quot;two wider windows agree&quot; rule and the (off) tilt term, and the error analysis of scan and photo misses (§8.6). Anything in the working tree and not yet committed is marked 🟡 (nothing is, at this revision).</p>
 <p><strong>Diagrams</strong> are <a href="https://mermaid.js.org/">Mermaid</a>. They render on GitHub, GitLab, VS Code (Markdown preview with the Mermaid extension), and most Markdown viewers.</p>
 </blockquote>
 <p><strong>Status legend used throughout</strong></p>
@@ -59,7 +59,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <tbody>
 <tr>
 <td>✅ <strong>Built</strong></td>
-<td>In the code and committed, covered by the test suite 638 tests collected and passed at the last full run, 2026-11-04</td>
+<td>In the code and committed, covered by the test suite (644 tests passed at the last full run, 2026-11-12)</td>
 </tr>
 <tr>
 <td>🟡 <strong>Uncommitted</strong></td>
@@ -76,6 +76,46 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 </tbody>
 </table>
 <hr />
+<h2 id="status-at-a-glance-read-this-first">Status at a glance (read this first)</h2>
+<p><strong>What works today.</strong> Upload a batch (PDF, JPEG, PNG); each page is cleaned, matched to a template by its anchors, aligned to it by landmark words, read (PDF text layer, or a vision model on scans and photos, or Tesseract when the model is down), validated, given a tier (<code>auto</code> / <code>spot_check</code> / <code>review</code>) and, unless <code>auto</code>, put in a review queue a person works through by field, by value or by document. A strict JSON export emits only values a rule vouched for or a person checked. Two waybill layouts (Mumbai-form <code>air_waybill</code>, Bangkok-form <code>air_waybill_bkk</code>) and the ID card have templates.</p>
+<p><strong>Where it stands, in numbers</strong> (50 hard synthetic waybills, one batch, no type hint): 46 of 50 identified; <strong>1,401 of 1,518 fields right (92.3%)</strong>: digital 96.0%, scans 92.0%, camera photos 78.3%. <strong>Nothing reaches <code>auto</code> on a model-read page</strong>, so every value on a scan or photo needs a person; 58 wrong values sit in <code>spot_check</code> and 59 in <code>review</code>. That batch predates the three changes marked ★ below; they are validated on replays, not re-run through the live stack (§6.2, §8.6).</p>
+<p><strong>What was done, in order</strong> (newest last; commit hashes in §8.2):</p>
+<table>
+<thead>
+<tr>
+<th>When</th>
+<th>Development</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sep 2026</td>
+<td>Phase 1: nine modules, tiered approval, batch queue (RQ + Redis), Docker, the React console</td>
+</tr>
+<tr>
+<td>Oct 2026</td>
+<td>Cross-field checks, a synthetic waybill generator, <strong>page alignment by landmark words</strong> (1 of 16 real waybills matched its anchors before, 12 of 16 after)</td>
+</tr>
+<tr>
+<td>2 Nov</td>
+<td>Field read options, the Bangkok-printer template, the rule editor, grouped review, bulk accept, <strong>audited auto-approval</strong>, <strong>the vision-model reader</strong> (Qwen2.5-VL-7B + LoRA, separate GPU service) and its first live trial</td>
+</tr>
+<tr>
+<td>3 Nov</td>
+<td><code>yields_to</code> (a boilerplate-anchored template steps aside), doubtful text layers routed to the model, Tesseract-fallback pages capped at <code>spot_check</code>, review scoped to a batch, correct a group at once, accept agreed values, review by field, Leave blank, strict JSON export</td>
+</tr>
+<tr>
+<td>4 Nov</td>
+<td><strong>Reader engines are configuration</strong> (registry, OpenAI-compatible adapter, <code>evaluate_reader.py</code>) and the <strong>per-template engine selector</strong> (probe, scorecards, promotion, drift, cold start)</td>
+</tr>
+<tr>
+<td>5–12 Nov</td>
+<td>An <strong>error analysis of scan and photo misses</strong>, then three fixes from it: ★ two wider windows that agree outvote a tight one (<strong>+29 / −6</strong> fields on 4,739 synthetic validation fields), ★ near-miss anchors retried at 1–2 px offsets (<strong>3 valid waybills rescued, 0 lost</strong> on 66 pages), ★ an optional tilt term in the alignment fit, built, measured and <strong>left off</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>What is not done</strong> (full list in §8.5): authentication and TLS (nothing is safe to share yet); a GPU the project controls and the engine bake-off (the selector has one engine to rank); a reader for a layout it has never seen; verified labels for the real documents; the review queue at the 1-in-10,000 target (≈ 670 of 1,518 fields stay queued); metrics and <code>/healthz</code>.</p>
+<p><strong>What to do next.</strong> Re-run the 50-document batch through the live stack to see what the three ★ changes are worth end to end (needs the GPU tunnel); then the per-print templates for layouts whose HS code and invoice number sit in another column; then the items in §8.5 in order.</p>
 <h2 id="table-of-contents">Table of contents</h2>
 <ol>
 <li><a href="#1-system-overview--high-level-design">System overview &amp; high-level design</a></li>
@@ -261,14 +301,14 @@ flowchart LR
 <tr>
 <td>5 Type ID</td>
 <td><code>type_identification.py</code></td>
-<td>OCR each template's anchor crops, fuzzy-match (rapidfuzz), require <strong>all</strong> anchors to pass (or <code>min_anchors_matching</code> of them, never fewer than 2)</td>
-<td>More than one matching template is <code>ambiguous_match</code>, never a pick, <strong>except</strong> when one template's anchors contain all the others' (§2.8)</td>
+<td>OCR each template's anchor crops, fuzzy-match (rapidfuzz), require <strong>all</strong> anchors to pass (or <code>min_anchors_matching</code> of them, never fewer than 2). An anchor whose first score is a <strong>near miss</strong> (within <code>ANCHOR_RETRY_BAND</code> = 30 points under its threshold) is re-read at 1–2 px offsets (<code>ANCHOR_OFFSETS_PX</code>) and the best score kept; a passing anchor is read once</td>
+<td>Anchor scores are not smooth in a 1 px shift (a score fell 76.5 → 0.0 when Tesseract's layout step failed on a shifted crop), so a good page was sometimes refused by luck. Measured on 66 pages: 3 valid waybills rescued, 0 lost, none ambiguous, the other form's weakest anchor 42.4 → 54.5 at most (70 needed). The cost of the extra reads on refused pages is not measured. More than one matching template is <code>ambiguous_match</code>, never a pick, <strong>except</strong> when one template's anchors contain all the others' (§2.8)</td>
 </tr>
 <tr>
 <td>Alignment</td>
 <td><code>alignment.py</code></td>
 <td>OCR the whole page once, match the template's landmark words, RANSAC-fit scale+shift per axis, add local median offset</td>
-<td>Returns <code>None</code> below 12 agreeing words. The boxes that <em>verify</em> a page are the boxes that <em>read</em> it</td>
+<td>Returns <code>None</code> below 12 agreeing words. The boxes that <em>verify</em> a page are the boxes that <em>read</em> it. An optional <strong>tilt</strong> (cross) term exists (<code>ALIGN_MAX_CROSS</code>, <strong>off</strong>): it moves more values fully inside the tightest vision window (614 → 622 of 652) but flips Module 5 outcomes (anchor boxes move ~1 px) and bends a form with one displaced block</td>
 </tr>
 <tr>
 <td>6 Extraction</td>
@@ -297,7 +337,7 @@ flowchart LR
 <tr>
 <td>Vision reader</td>
 <td><code>vlm_reader/</code> (<code>reader.py</code>, <code>crops.py</code>, <code>decide.py</code>, <code>words.py</code>, <code>waybill.py</code>, <code>profile.py</code>)</td>
-<td>For a scanned or photographed page of a template that opts in (<code>hints.vlm_reader</code>): whole-page OCR, landmark alignment, a window per field at three widenings, one question per crop to the engine, staged answers, compared with a word reader on the page OCR</td>
+<td>For a scanned or photographed page of a template that opts in (<code>hints.vlm_reader</code>): whole-page OCR, landmark alignment, a window per field at three widenings, one question per crop to the engine, staged answers (tightest window that passes its format; a wider window that contains it extends it; blank stays blank; <strong>two wider windows that agree outvote a tight one</strong>, because the tight window sits on the neighbouring cell when the alignment fits loosely), compared with a word reader on the page OCR</td>
 <td>The model reports no confidence, so values get <strong>fixed</strong> ones (gated 89, ungated 70), which is under the auto threshold on purpose: <strong>nothing the model reads reaches <code>auto</code></strong></td>
 </tr>
 <tr>
@@ -1807,6 +1847,18 @@ xychart-beta
 <td>Scoring ignores the dropped printed label</td>
 <td>1,361 → 1,401 right: the 40 &quot;misses&quot; were label-only differences, not misreads</td>
 </tr>
+<tr>
+<td>★ <strong>Two wider windows that agree outvote a tight one</strong> (offline replay of saved model replies, no GPU)</td>
+<td>4,739 synthetic validation fields: right 4,485 → 4,508, wrong non-empty 202 → 179 (<strong>+29 / −6</strong>); real held-out pages +5 / −1. Of the 6 broken, 2 were spacing or punctuation and 4 were both wider windows misreading the same digit</td>
+</tr>
+<tr>
+<td>★ <strong>Retry near-miss anchors</strong> at 1–2 px offsets (66 waybill pages + the ID card)</td>
+<td>3 valid waybills refused before are recognised (<code>demo_m_15</code> 68.2 → 88.5, <code>demo_m_24</code> 48.4 → 70.8, real #7 67.6 → 83.3); 0 lost; none ambiguous</td>
+</tr>
+<tr>
+<td>★ Tilt term in the alignment fit (21 scans and photos), <strong>not enabled</strong></td>
+<td>614 → 622 of 652 values fully inside the tightest window, misses at tilt ≥ 0.4° 22 → 14; but with it on <code>demo_m_02</code> is refused (anchor 76.5 → 0.0) and real #1 falls to 69.2. Even combined with the retries it still loses <code>demo_m_02</code>, so it stays off</td>
+</tr>
 </tbody>
 </table>
 <p><strong>Reading these honestly:</strong> every value in the batch above needs a person, because the model's fixed confidence is under the auto threshold. What a person has to catch is the 58 + 59 wrong values among roughly 670 queued ones; the gated 89 values are right about 99.5% of the time, which is the figure to weigh against &quot;1 in 10,000&quot; (§6.1).</p>
@@ -2122,6 +2174,30 @@ flowchart LR
 <td>Auto-approval is a claim about an engine on this form. Without a scorecard there is no basis for it, and the trust evidence was gathered on another reader</td>
 <td>A new template or engine is reviewed by people until it has been measured</td>
 </tr>
+<tr>
+<td>30</td>
+<td>Several windows per field</td>
+<td><strong>Staged choice among the model's own answers, now including &quot;two wider windows agree&quot;</strong></td>
+<td>Always the tightest window; a vote over all three</td>
+<td>The tight window is cut from the aligned box and lands on the neighbouring cell when the fit is loose; both wider windows then reach the right cell. +29 / −6 fields on 4,739 synthetic validation fields</td>
+<td>Two wider windows can misread the same digit (4 of the 6 breaks); window agreement is still <strong>not</strong> a gate (errors across windows are correlated)</td>
+</tr>
+<tr>
+<td>31</td>
+<td>A 1 px anchor shift</td>
+<td><strong>Retry a near-miss anchor at 1–2 px offsets, keep the best score</strong></td>
+<td>Lower the 70 threshold; retry every anchor</td>
+<td>Scores are unstable under a 1 px shift (76.5 → 0.0), so a valid page was refused by chance; retrying only near misses rescued 3 pages and lost none, and the false-accept margin held (54.5 vs 70)</td>
+<td>Extra OCR on pages that fail an anchor; a score of 0 is not a near miss and is not retried (<code>demo_m_02</code>)</td>
+</tr>
+<tr>
+<td>32</td>
+<td>A page tilt term</td>
+<td><strong>Built, measured, left off</strong> (<code>ALIGN_MAX_CROSS = 0</code>)</td>
+<td>Switch it on because the geometry improves</td>
+<td>It improves geometry (614 → 622 of 652) but moves anchor crops ~1 px and flips Module 5 outcomes; it bends a form with one displaced block</td>
+<td>A tilted page keeps its small residual; revisit if anchor scoring becomes robust to a 1 px shift</td>
+</tr>
 </tbody>
 </table>
 <hr />
@@ -2141,7 +2217,7 @@ flowchart TB
 </pre></figure>
 <p>The previous version of this document called the vision reader experimental and not wired in. That changed: it is committed, wired into Module 6, opt-in per template and off until an engine is configured. What remains research is the <em>training</em> side.</p>
 <h3 id="82-committed-versus-uncommitted">8.2 Committed versus uncommitted</h3>
-<p>Latest feature commit: <code>380f4ee</code> <em>Per-template engine selector: probe, measured ranking, cold start, promotion, drift, agreement and labels</em>. Since the previous revision of this document the following landed, each as its own commit:</p>
+<p>Latest feature commit: <code>d61349c</code> <em>Retry near-miss anchors at 1–2 px offsets, let two wider vision windows outvote a tight one, and add an (off) tilt term to alignment</em>. Since the vision reader was introduced the following landed, each as its own commit:</p>
 <table>
 <thead>
 <tr>
@@ -2194,9 +2270,17 @@ flowchart TB
 <td><code>380f4ee</code></td>
 <td><strong>Per-template engine selection</strong> (§2.10): probe, measured ranking, cold start, promotion, drift, two-reader agreement, labelled examples, migration <code>0007</code>, per-engine prompts, <code>evaluate_reader.py --save --promote</code>, <code>export_labelled.py</code>; off unless <code>ENGINE_SELECTOR_ENABLED=1</code></td>
 </tr>
+<tr>
+<td><code>e5d28aa</code></td>
+<td>The engine selector documented</td>
+</tr>
+<tr>
+<td><code>d61349c</code></td>
+<td><strong>Three fixes from the error analysis (§8.6):</strong> two wider windows that agree outvote a tight one (<code>decide.py</code>); near-miss anchors retried at 1–2 px offsets (<code>type_identification.py</code>); an optional tilt term in the alignment fit, <strong>off</strong> (<code>alignment.py</code>, <code>ALIGN_MAX_CROSS</code>). 644 tests pass</td>
+</tr>
 </tbody>
 </table>
-<p>Nothing in the working tree is uncommitted except local tooling folders (<code>.agents/</code>, <code>.taste-skill/</code>, <code>skills-lock.json</code>). The engine selector has been written and unit-tested, but <strong>has not run against a real second model</strong>; it is off by default, so everything above behaves as before until <code>ENGINE_SELECTOR_ENABLED=1</code>.</p>
+<p>Nothing in the working tree is uncommitted except local tooling folders (<code>.agents/</code>, <code>.taste-skill/</code>, <code>skills-lock.json</code>). The engine selector has been written and unit-tested, but <strong>has not run against a real second model</strong>; it is off by default, so everything above behaves as before until <code>ENGINE_SELECTOR_ENABLED=1</code>. The three changes in <code>d61349c</code> were validated on <strong>offline replays</strong> of saved model replies and on Module 5 runs, <strong>not</strong> by re-running the 50-document batch through the live stack and the GPU.</p>
 <h3 id="83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</h3>
 <p>This table is the <strong>template + Tesseract/text-layer pipeline</strong> alone (fields right of 33 per document, landmark lists built from training pages only so no held-out page aligns itself). It is kept because it explains <em>why</em> the vision reader exists; the reader's own numbers are in §6.2.</p>
 <table>
@@ -2284,7 +2368,76 @@ flowchart TB
 <li><strong>Move blobs out of Postgres</strong> and <strong>split migrations from API start-up</strong> before scaling out.</li>
 <li><strong>More real data per layout</strong>: a handful of test documents cannot certify 1-in-10,000; the project needs hundreds of labelled real pages per layout and a gate evaluated per auto-approved value.</li>
 <li><strong>Auto-build landmarks at template-save time</strong> in the designer (today <code>scripts/build_landmarks.py</code> is run by hand over other real documents).</li>
+<li><strong>Re-run the 50-document batch live</strong> to measure what <code>d61349c</code> is worth end to end (3 more pages recognised; fewer neighbour-cell reads), and <strong>measure the OCR cost</strong> of the anchor retries on pages that are refused.</li>
+<li><strong>Per-print templates</strong> for layouts whose <code>hs_code</code> / <code>invoice_reference</code> sit in another column (real #3, #7): a value outside every window cannot be fixed by a decision rule.</li>
+<li><strong>Make anchor scoring robust to a 1 px shift</strong> (a failed layout analysis scores 0.0), then retry the tilt term (§8.6).</li>
 </ol>
+<h3 id="86-why-scans-and-photos-still-miss-error-analysis-no-code-changed-by-it">8.6 Why scans and photos still miss (error analysis, no code changed by it)</h3>
+<p>Method: the 21 identified scans and photos of the 50-document batch (synthetic, regenerated deterministically so the true degradation is known), the 5 real held-out waybills (saved model replies) and the 5 scan/photo documents never read. A miss is a wrong or empty field. The causes are assigned by rule, first match wins: label error, clipped or misaligned crop, residual skew or warp, low resolution or blur, model misread. The thresholds are provisional. Raw output is in <code>data/error_analysis/</code> (git-ignored).</p>
+<table>
+<thead>
+<tr>
+<th>Cause</th>
+<th style="text-align:right">Synthetic scan</th>
+<th style="text-align:right">Synthetic photo</th>
+<th style="text-align:right">Real scan</th>
+<th style="text-align:right">All</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clipped / misaligned crop</td>
+<td style="text-align:right">15</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">11</td>
+<td style="text-align:right">26</td>
+</tr>
+<tr>
+<td>Skew or warp</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0</td>
+</tr>
+<tr>
+<td>Low resolution / blur</td>
+<td style="text-align:right">8</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">10</td>
+</tr>
+<tr>
+<td>Model misread</td>
+<td style="text-align:right">19</td>
+<td style="text-align:right">9</td>
+<td style="text-align:right">2</td>
+<td style="text-align:right">30</td>
+</tr>
+<tr>
+<td>Label error</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">4</td>
+<td style="text-align:right">4</td>
+</tr>
+<tr>
+<td><strong>Misses</strong></td>
+<td style="text-align:right"><strong>42</strong></td>
+<td style="text-align:right"><strong>10</strong></td>
+<td style="text-align:right"><strong>18</strong></td>
+<td style="text-align:right"><strong>70</strong> of 858 fields (8.2%)</td>
+</tr>
+</tbody>
+</table>
+<p>What it showed:</p>
+<ul>
+<li><strong>The largest single cause is where the window lands, not what the model reads.</strong> In 7 of the 18 real-page misses a wider window had the right answer that the tightest passing window overrode. That produced the &quot;two wider windows agree&quot; rule (ADR 30).</li>
+<li><strong>Residual skew is not the problem.</strong> After the pipeline's own deskew and page warp no field was left tilted by 1° or more. Tilt of 0.4–0.9° does co-occur with clipped rows, which is why the tilt term was tried (ADR 32).</li>
+<li><strong>Of the 30 &quot;model misreads&quot;, 11 differ only in punctuation or spacing</strong>, 5 are an empty answer on visible text and 14 have different characters. One punctuation case is a real value error: <code>185.0</code> read as <code>1850</code>, a tenfold weight.</li>
+<li><strong>Print overprint is not a category the rules can see.</strong> Where the printed values sit on the form's labels (print misregistration), the geometry says &quot;inside the window&quot; while the crop is garbled; those misses land under &quot;model misread&quot;.</li>
+<li><strong>Five documents were never read</strong>: four refused at Module 5 (anchor scores of 48–69 against a threshold of 70) and one recognised but not alignable (<code>demo_m_09</code>, read by Tesseract). The anchor retries recover <code>demo_m_15</code> and <code>demo_m_24</code>; <code>demo_m_07</code> and <code>demo_m_20</code> are not recovered by them.</li>
+<li><strong>Caveats:</strong> the real-page labels are unverified drafts (4 of 18 misses are draft errors); real-page causes are judged by eye; the synthetic photos are composites of one waybill layout, so the photo conclusions rest on 5 photos (165 fields).</li>
+</ul>
 <hr />
 <h2 id="9-appendix">9. Appendix</h2>
 <h3 id="91-repository-map">9.1 Repository map</h3>

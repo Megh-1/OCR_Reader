@@ -42,15 +42,16 @@ from scripts.waybill_forms import AIR_WAYBILL_BKK as TEMPLATE  # noqa: E402
 BASE = next((PROJECT_ROOT / "data" / "real_awb").glob("*/17602195281*.pdf"))
 TYPED = "hebo"  # Helvetica-Bold: the base's typed text is Arial Bold at the same metrics
 
-# (prefix, carrier as the form prints it, designator). Prefixes and names are the ones the labelled documents show.
+# (prefix, carrier as the form prints it, designator). Airline and airport names are public vocabulary. GOODS below holds descriptions invented for
+# the generator: none is a value read off a gold real waybill (scripts/check_gold_isolation.py searches for them).
 AIRLINES = [("176", "EMIRATES", "EK"), ("205", "ALL NIPPON AIRWAYS", "NH"), ("217", "THAI", "TG"), ("057", "AIR FRANCE", "AF"),
             ("514", "AIR ARABIA", "G9"), ("157", "QATAR AIRWAYS", "QR"), ("724", "SWISS WORLDCARGO", "LX"), ("312", "INDIGO", "6E")]
 DESTINATIONS = [("BEIRUT,LEBANON", "BEY"), ("DOHA,QATAR", "DOH"), ("CHICAGO, USA", "ORD"), ("LOS ANGELES, USA", "LAX"), ("ZURICH,SWITZERLAND.", "ZRH"),
                 ("FRANKFURT, GERMANY", "FRA"), ("BRUSSELS,BELGIUM", "BRU"), ("KUNMING, CHINA", "KMG"), ("SHARJAH,UAE", "SHJ"),
                 ("CHENNAI(MADRAS)", "MAA"), ("LONDON,UK", "LHR"), ("DUBAI,UAE", "DXB")]
 GOODS = [["GARMENTS,HANGERS,", "ACCESSORIES, AND SCARF"], ["CONSOL SHIPMENT AS PER", "ATTACHED MANIFEST"], ['"PERSONAL EFFECTS"'], ["ASHES"],
-         ["FROZEN COOKED PHO SOUP", "CHICKEN WITH RICE NOODLE"], ["PERISHABLE CARGO", "FRESH VEGETABLES"], ["ELECTRONIC COMPONENTS"],
-         ["AUTOMOTIVE SPARE PARTS"], ["WATCH PARTS", "STAINLESS STEEL WATCH CASES"], ["LIVE CRAB (SCYLLA SERRATA)"], ["MEDICAL EQUIPMENT PARTS"],
+         ["FROZEN SEAFOOD DUMPLINGS", "PACKED IN CARTONS"], ["FRESH CUT FLOWERS", "ROSES AND ORCHIDS"], ["ELECTRONIC COMPONENTS"],
+         ["AUTOMOTIVE SPARE PARTS"], ["WATCH PARTS", "STAINLESS STEEL WATCH CASES"], ["HANDICRAFT WOODEN ITEMS"], ["MEDICAL EQUIPMENT PARTS"],
          ["CLOTHING AND ACCESSORIES"], ["LED LIGHTING FIXTURES"], ["SOLAR INVERTER 2KW SPARES"]]
 AGENTS = ["SKX", "EWL", "RKI", "EXL", "TFC", "PAC", "AGT"]
 

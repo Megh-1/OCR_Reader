@@ -1,0 +1,101 @@
+{
+ "note": "Which real documents each committed landmark list was built from. The gold set (data/gold_real/SPLIT.json) is never a source; scripts/check_gold_isolation.py enforces it. The *_trainonly.json files are the vision reader's frozen replay inputs and are not used by the pipeline.",
+ "built": "2026-11-14",
+ "parameters": {
+  "min_docs": 3,
+  "min_landmarks": 15,
+  "tool": "scripts/build_landmarks.py"
+ },
+ "air_waybill.json": {
+  "sources": [
+   {
+    "role": "reference",
+    "file": "176060677362025-02-26-16-44AWBUploadDocument.pdf",
+    "sha256": "957d3b719c067777cdbe34d6db102ad40df998cbb197c287bfca2936a17f3986"
+   },
+   {
+    "role": "other",
+    "file": "205612904822025-01-30-09-42AWBUploadDocument.pdf",
+    "sha256": "b71462ba343b22f567508922fd06cb95d4e2b5821be2780b1939b2e6e4b3d24f"
+   },
+   {
+    "role": "other",
+    "file": "205612905262025-01-30-09-52AWBUploadDocument.pdf",
+    "sha256": "b7de9c887a820d97658650901034f9232c2cf044e09520776f7aebb6dc627b07"
+   },
+   {
+    "role": "other",
+    "file": "724765915502025-01-30-09-47AWBUploadDocument.pdf",
+    "sha256": "2ac118f2cea9e604b06a6a6c09ec36e05b71e95a979b170d8f153128818520b7"
+   },
+   {
+    "role": "other",
+    "file": "176021952812025-01-30-09-43AWBUploadDocument.pdf",
+    "sha256": "e206b28b3249b56881fb96b36217fd031f07b9a88c5b096822019b92a08c72bf"
+   },
+   {
+    "role": "other",
+    "file": "176066913222025-02-26-16-44AWBUploadDocument.pdf",
+    "sha256": "89fd8b6eb1c9faeacd556bcfbf51d8dbab023796f889fbf88738aa98ddbdd3e1"
+   },
+   {
+    "role": "other",
+    "file": "514074264362025-01-30-09-54AWBUploadDocument.pdf",
+    "sha256": "ac58997d6c889ef0cc663860a51b9f00bb8f859aab28368290967e7a155bd48b"
+   },
+   {
+    "role": "other",
+    "file": "057544027622025-01-30-09-49AWBUploadDocument.pdf",
+    "sha256": "ba2b1ecef149098c483cba963dfd550eb3b60f2eae07c3171cd0fb3a8d629767"
+   }
+  ],
+  "words": 97,
+  "previously": "130 words, built from all 15 other real documents including the gold set"
+ },
+ "air_waybill_bkk.json": {
+  "sources": [
+   {
+    "role": "reference",
+    "file": "176021952812025-01-30-09-43AWBUploadDocument.pdf",
+    "sha256": "e206b28b3249b56881fb96b36217fd031f07b9a88c5b096822019b92a08c72bf"
+   },
+   {
+    "role": "other",
+    "file": "205612904822025-01-30-09-42AWBUploadDocument.pdf",
+    "sha256": "b71462ba343b22f567508922fd06cb95d4e2b5821be2780b1939b2e6e4b3d24f"
+   },
+   {
+    "role": "other",
+    "file": "205612905262025-01-30-09-52AWBUploadDocument.pdf",
+    "sha256": "b7de9c887a820d97658650901034f9232c2cf044e09520776f7aebb6dc627b07"
+   },
+   {
+    "role": "other",
+    "file": "724765915502025-01-30-09-47AWBUploadDocument.pdf",
+    "sha256": "2ac118f2cea9e604b06a6a6c09ec36e05b71e95a979b170d8f153128818520b7"
+   },
+   {
+    "role": "other",
+    "file": "176060677362025-02-26-16-44AWBUploadDocument.pdf",
+    "sha256": "957d3b719c067777cdbe34d6db102ad40df998cbb197c287bfca2936a17f3986"
+   },
+   {
+    "role": "other",
+    "file": "176066913222025-02-26-16-44AWBUploadDocument.pdf",
+    "sha256": "89fd8b6eb1c9faeacd556bcfbf51d8dbab023796f889fbf88738aa98ddbdd3e1"
+   },
+   {
+    "role": "other",
+    "file": "514074264362025-01-30-09-54AWBUploadDocument.pdf",
+    "sha256": "ac58997d6c889ef0cc663860a51b9f00bb8f859aab28368290967e7a155bd48b"
+   },
+   {
+    "role": "other",
+    "file": "057544027622025-01-30-09-49AWBUploadDocument.pdf",
+    "sha256": "ba2b1ecef149098c483cba963dfd550eb3b60f2eae07c3171cd0fb3a8d629767"
+   }
+  ],
+  "words": 132,
+  "previously": "145 words, built from all other real documents including the gold set"
+ }
+}

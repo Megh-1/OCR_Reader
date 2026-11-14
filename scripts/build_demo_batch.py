@@ -13,6 +13,12 @@ What it is not: another airline's form. Same two layouts the model was trained o
 content and scan quality on known forms, not unseen layouts.
 
     python scripts/build_demo_batch.py --out data/demo_50 [--seed 7001]
+
+`--difficulty hardest` builds a different mix for a SEALED hold-out set: 26 Mumbai-form documents (8 injected-inconsistent digital
+files and 18 camera photos, the only form that has photos) and 24 Bangkok-form documents (10 digital, 14 scanned), i.e. 18 digital /
+14 scanned / 18 photos with 8 injected inconsistencies. The generators and their flags are unchanged. The default (`standard`) path
+makes the same documents it always did: the PDF bytes differ run to run (container timestamps) but the ground truth, the manifest
+and every page's pixels and text do not, and that was checked before and after this option was added.
 """
 
 from __future__ import annotations
@@ -38,30 +44,34 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", type=Path, default=ROOT / "data" / "demo_50")
     ap.add_argument("--seed", type=int, default=7001)
-    ap.add_argument("--per-form", type=int, default=25)
-    ap.add_argument("--inject", type=int, default=5)
+    ap.add_argument("--per-form", type=int, default=None, help="documents per form (standard: 25)")
+    ap.add_argument("--inject", type=int, default=None, help="injected-inconsistent documents (standard: 5, hardest: 8)")
+    ap.add_argument("--difficulty", choices=["standard", "hardest"], default="standard")
     args = ap.parse_args()
+    hardest = args.difficulty == "hardest"
+    n_m = args.per_form or (26 if hardest else 25)
+    n_b = args.per_form or (24 if hardest else 25)
+    args.inject = args.inject if args.inject is not None else (8 if hardest else 5)
     base_m = next((ROOT / "tests" / "fixtures").glob("17606067736*.pdf"))
     rng = random.Random(args.seed)
-    n = args.per_form
     if args.out.exists():
         shutil.rmtree(args.out)
     args.out.mkdir(parents=True)
 
     with tempfile.TemporaryDirectory() as tmp:
         m_dir, b_dir = Path(tmp) / "m", Path(tmp) / "b"
-        run("scripts/generate_synthetic_awb.py", "--base", base_m, "--out", m_dir, "--count", n, "--scans", n, "--photos", n,
+        run("scripts/generate_synthetic_awb.py", "--base", base_m, "--out", m_dir, "--count", n_m, "--scans", n_m, "--photos", n_m,
             "--inject-errors", args.inject, "--seed", args.seed, "--hard", "--varied", "--drift")
-        run("scripts/synth_bkk.py", "--out", b_dir, "--count", n, "--seed", args.seed + 1, "--hard", "--varied")
+        run("scripts/synth_bkk.py", "--out", b_dir, "--count", n_b, "--seed", args.seed + 1, "--hard", "--varied")
         truth_m = json.loads((m_dir / "ground_truth.json").read_text(encoding="utf-8"))
         truth_b = json.loads((b_dir / "ground_truth.json").read_text(encoding="utf-8"))
         injections = json.loads((m_dir / "injections.json").read_text(encoding="utf-8")) if (m_dir / "injections.json").exists() else {}
         injected = {k.split(".")[0] for k in injections}
 
         truth, kinds, picked_injections = {}, {}, {}
-        for i in range(n):  # M: digital / scan / photo, injected documents stay the digital file they were injected in
+        for i in range(n_m):  # M: digital / scan / photo, injected documents stay the digital file they were injected in
             stem = f"awb_{i:04d}"
-            variant = "" if stem in injected else rng.choice(["", "__scan", "__photo"])
+            variant = "" if stem in injected else ("__photo" if hardest else rng.choice(["", "__scan", "__photo"]))
             src = next(m_dir.glob(f"{stem}{variant}.*"))
             dst = f"demo_m_{i:02d}{variant or '__digital'}{src.suffix}"
             shutil.copy(src, args.out / dst)
@@ -69,9 +79,10 @@ def main() -> int:
             kinds[dst] = (variant or "__digital").strip("_")
             if stem in injected:
                 picked_injections[dst] = injections[f"{stem}.pdf"]
-        for i in range(n):  # B: digital or scan
+        b_plan = rng.sample([""] * 10 + ["__scan"] * 14, n_b) if hardest else []
+        for i in range(n_b):  # B: digital or scan
             stem = f"bkk_{i:04d}"
-            variant = rng.choice(["", "__scan"])
+            variant = b_plan[i] if hardest else rng.choice(["", "__scan"])
             src = b_dir / f"{stem}{variant}.pdf"
             dst = f"demo_b_{i:02d}{variant or '__digital'}.pdf"
             shutil.copy(src, args.out / dst)

@@ -336,6 +336,21 @@ TEXT_LAYER_MIN_WORD_OVERLAP: float = 0.5
 # clothes, which is why ingestion refuses to treat invisible text as native.
 TEXT_LAYER_CONFIDENCE: float = 100.0
 
+# Text-layer registration (app/modules/layer_registration.py; tesseract loop, iteration 1), ON since it was measured: DEV digital 320 -> 607 of 792
+# fields right, wrong at auto 17 -> 9 (registered values are capped at spot_check), SANITY real digital unchanged 110/132, scans and photos
+# untouched (91/561, 22/264), 5.5 -> 5.4 docs/min. The typed layer of a pre-printed form sits off its printed cells by up to ~0.025 across and ~0.04 down, zone by zone (scripts/drift.py,
+# taken from the real scans); the search window is those maxima. A field's shift is the one that puts the most typed words in boxes
+# among the fields within NEIGHBOURHOOD of it (page-height fraction), used only if it beats the unshifted position by MIN_GAIN words.
+TEXT_LAYER_REGISTRATION: bool = os.environ.get("TEXT_LAYER_REGISTRATION", "1") != "0"
+TEXT_LAYER_REG_MAX_DX: float = 0.01   # the real scans drift mostly down/up; across is a few thousandths (scripts/drift.py)
+TEXT_LAYER_REG_MAX_DY: float = 0.04
+TEXT_LAYER_REG_STEP: float = 0.0025
+TEXT_LAYER_REG_STEP_X: float = 0.005
+TEXT_LAYER_REG_NEIGHBOURHOOD: float = 0.06
+TEXT_LAYER_REG_MIN_GAIN: float = 2.0
+TEXT_LAYER_REG_FORMAT_WEIGHT: float = 2.0
+TEXT_LAYER_REG_MAX_BOX_HEIGHT: float = 0.03
+
 FIELD_CROP_MARGIN_PX: int = 0
 
 # The template schema has no per-field PSM slot, so this stands in for it:

@@ -226,6 +226,19 @@ def demote_auto(summary: ValidationSummary) -> int:
     return demoted
 
 
+def demote_fields(summary: ValidationSummary, field_ids) -> int:
+    """Caps the named accepted fields at spot_check and returns how many were auto (see demote_auto). For values read through a
+    registration shift of the text layer (layer_registration.py): the shift is chosen by geometry and format, not by anything that
+    proves the cell, so such a value is at most a spot check."""
+    demoted = 0
+    for fid in field_ids:
+        result = summary.accepted.get(fid)
+        if result is not None and result.approval_tier == "auto":
+            result.approval_tier = "spot_check"
+            demoted += 1
+    return demoted
+
+
 def cross_check_reason(outcome: CheckOutcome) -> str:
     """The reason string a failed check adds to each field it names (the label is shown to a reviewer)."""
     return f"cross_check_failed:{outcome.label}"

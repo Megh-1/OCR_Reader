@@ -24,7 +24,8 @@ from pydantic import BaseModel
 from app import config
 from app.models.text_layer import TextLayer
 from app.modules.alignment import Alignment, align_page
-from app.modules.field_extraction import FieldExtractionResult, extract_fields, extract_fields_from_text_layer
+from app.modules import layer_registration
+from app.modules.field_extraction import FieldExtractionResult, _fields_on_page, extract_fields, extract_fields_from_text_layer
 from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
@@ -36,7 +37,7 @@ from app.modules.vlm_reader.client import ReaderUnavailable
 from app.modules.review_queue import enqueue_field_review, enqueue_new_template_needed, enqueue_spot_check
 from app.modules.template_store import get_template_version
 from app.modules.type_identification import identify_document_type
-from app.modules.validation import demote_auto, has_validator, validate_fields
+from app.modules.validation import demote_auto, demote_fields, has_validator, validate_fields
 from app.schemas.extraction_result import CompiledResult
 from app.schemas.template import TemplateOut
 
@@ -101,6 +102,7 @@ class PageExtraction:
     reader: str = "ocr"  # "text_layer" | "vlm" | "ocr" | "ocr_fallback"
     engine: Optional[str] = None  # the registry engine whose model read the page (reader == "vlm")
     force_review: bool = False  # engine selection is in cold-start mode for this template: nothing on the page may reach auto
+    registered: frozenset = frozenset()  # fields read through a text-layer registration shift: at most a spot check
 
 
 def _image_size(image_bytes: bytes) -> tuple[int, int]:
@@ -154,7 +156,8 @@ def extract_page_fields(
     skip_reader = plan is not None and bool(plan.chain) and not plan.readers  # the chain has no model engine in it
     agreement = plan.agreement if plan is not None else "off"
     if text_layer is not None:
-        text_fields = extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment)
+        shifts = layer_registration.register_boxes(text_layer, _fields_on_page(template, alignment)) if config.TEXT_LAYER_REGISTRATION else {}
+        text_fields = extract_fields_from_text_layer(template.template_id, template.version, text_layer, alignment, shifts)
         # The text layer is exact, but a template's boxes read it at fixed positions: a page whose typed values sit off their cells
         # (another print of the form, a form fed through the printer off-centre) reads a neighbour's words, and the alignment cannot
         # see it because it is fitted on the printed labels. Module 7 rejecting anything - a format, a check digit, a cross-field
@@ -175,6 +178,7 @@ def extract_page_fields(
             alignment=alignment,
             reader="text_layer",
             force_review=forced,
+            registered=frozenset(shifts),
         )
     reader = "ocr"
     if vlm.enabled(template):
@@ -276,6 +280,10 @@ def process_page(
         forced_down = demote_auto(summary)
         log.info("page %d: cold-start engine chain; %d auto value(s) capped at spot_check", page_index, forced_down)
 
+    if extraction.registered:
+        shifted_down = demote_fields(summary, extraction.registered)
+        log.info("page %d: %d field(s) read through a text-layer registration shift; %d auto value(s) capped at spot_check", page_index, len(extraction.registered), shifted_down)
+
     compiled = compile_output(identification.template_id, identification.version, summary)
 
     # Audited auto-approval: a spot check on a field whose values a person has checked enough (trust.py) is approved
@@ -293,6 +301,7 @@ def process_page(
     # Audited auto-approval counts what people found when they checked a field, whoever read it. A vision-read value is a different
     # reader with a different error profile, so its spot checks stay spot checks until evidence has been gathered on ITS reads.
     trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback") and not extraction.force_review else frozenset()
+    trusted = trusted - extraction.registered  # a shifted read is not the read people checked
     audited: set[str] = set()
     for field_id, accepted in spot_checks.items():
         if field_id in trusted and spot_why(field_id, accepted) in trust.TRUSTABLE_WHY and accepted.value.strip():

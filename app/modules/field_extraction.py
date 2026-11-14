@@ -34,6 +34,7 @@ from app.config import (
 from app.models.text_layer import TextLayer, TextWord
 from app.modules.alignment import Alignment
 from app.modules.template_store import get_template_version
+from app.modules import layer_registration
 from app.schemas.template import TemplateField, TemplateOut
 from app.utils.geometry import clamped_crop_box
 
@@ -394,7 +395,7 @@ def _apply_field_options(fields: list[TemplateField], read: dict[str, FieldExtra
 
 
 def extract_fields_from_text_layer(
-    template_id: str, version: int, layer: TextLayer, alignment: Alignment | None = None
+    template_id: str, version: int, layer: TextLayer, alignment: Alignment | None = None, shifts: dict[str, tuple[float, float]] | None = None
 ) -> dict[str, FieldExtractionResult]:
     """
     Text-native counterpart of extract_fields: same exact-version lookup, same
@@ -405,6 +406,8 @@ def extract_fields_from_text_layer(
     if template is None:
         raise ValueError(f"No template found for {template_id!r} version {version} - was it deleted after Module 5 ran?")
     fields = _fields_on_page(template, alignment)
+    if shifts:  # layer registration (app/modules/layer_registration.py): these boxes are read where the typed text sits
+        fields = [f.model_copy(update={"bbox": layer_registration.shifted(f.bbox, shifts[f.id])}) if f.id in shifts else f for f in fields]
     read = {field.id: extract_field_from_text_layer(layer, field) for field in fields if field.from_field is None}
     return _apply_field_options(fields, read)
 

@@ -23,6 +23,8 @@
 
 **Where it stands, in numbers** (50 hard synthetic waybills, one batch, no type hint): 46 of 50 identified; **1,401 of 1,518 fields right (92.3%)**: digital 96.0%, scans 92.0%, camera photos 78.3%. **Nothing reaches `auto` on a model-read page**, so every value on a scan or photo needs a person; 58 wrong values sit in `spot_check` and 59 in `review`. That batch predates the three changes marked ★ below; they are validated on replays, not re-run through the live stack (§6.2, §8.6).
 
+**Tesseract-only measurement loop (paused 15 Nov, 1 change accepted; §8.7).** A separate effort improves the reader that needs no GPU and no adapter, measured on regenerated synthetic sets and 8 real "gold" waybills. Baseline on the regenerated DEV batch: 433 of 1,617 fields right (digital 40.4%, scans 16.2%, photos 8.3%), 17 wrong values at `auto`. **Text-layer registration** (iteration 1, commit `e867368`) lifted DEV digital to 607 of 792 and the batch to 720 of 1,617, with wrong-at-auto 17 -> 9. GOLD (real, unverified labels): 29 -> 32 of 165 on the 5 of 8 documents that are recognised. The loop's targets (digital >= 99.5%, scans >= 97%, zero wrong at `auto`) are **not met**; the stop rule has not fired and `docs/tesseract-final-report.md` has not been written.
+
 **What was done, in order** (newest last; commit hashes in §8.2):
 
 | When | Development |
@@ -33,6 +35,7 @@
 | 3 Nov | `yields_to` (a boilerplate-anchored template steps aside), doubtful text layers routed to the model, Tesseract-fallback pages capped at `spot_check`, review scoped to a batch, correct a group at once, accept agreed values, review by field, Leave blank, strict JSON export |
 | 4 Nov | **Reader engines are configuration** (registry, OpenAI-compatible adapter, `evaluate_reader.py`) and the **per-template engine selector** (probe, scorecards, promotion, drift, cold start) |
 | 5–12 Nov | An **error analysis of scan and photo misses**, then three fixes from it: ★ two wider windows that agree outvote a tight one (**+29 / −6** fields on 4,739 synthetic validation fields), ★ near-miss anchors retried at 1–2 px offsets (**3 valid waybills rescued, 0 lost** on 66 pages), ★ an optional tilt term in the alignment fit, built, measured and **left off** |
+| 14–15 Nov | The **Tesseract-only loop** (§8.7): gold / hold-out / dev data tiers with a leakage check, dev-pool landmark lists, a taxonomy of every wrong field, and iteration 1, **text-layer registration** (digital 320 -> 607 of 792 fields) |
 
 **What is not done** (full list in §8.5): authentication and TLS (nothing is safe to share yet); a GPU the project controls and the engine bake-off (the selector has one engine to rank); a reader for a layout it has never seen; verified labels for the real documents; the review queue at the 1-in-10,000 target (≈ 670 of 1,518 fields stay queued); metrics and `/healthz`.
 
@@ -1187,8 +1190,10 @@ Latest feature commit: `d61349c` *Retry near-miss anchors at 1–2 px offsets, l
 | `380f4ee` | **Per-template engine selection** (§2.10): probe, measured ranking, cold start, promotion, drift, two-reader agreement, labelled examples, migration `0007`, per-engine prompts, `evaluate_reader.py --save --promote`, `export_labelled.py`; off unless `ENGINE_SELECTOR_ENABLED=1` |
 | `e5d28aa` | The engine selector documented |
 | `d61349c` | **Three fixes from the error analysis (§8.6):** two wider windows that agree outvote a tight one (`decide.py`); near-miss anchors retried at 1–2 px offsets (`type_identification.py`); an optional tilt term in the alignment fit, **off** (`alignment.py`, `ALIGN_MAX_CROSS`). 644 tests pass |
+| `fb54e9b` | **Tesseract loop setup (§8.7):** gold split and `check_gold_isolation.py`, dev-pool landmark lists with `PROVENANCE.json`, clean generator pools, `build_demo_batch.py --difficulty hardest`, `loop_taxonomy.py`, `hallucination_check.py`, `evaluate_gold.py`, `cluster_real_awb.py`, the baseline write-up |
+| `e867368` | **Text-layer registration** (`layer_registration.py`, `TEXT_LAYER_REGISTRATION`, on): DEV digital fields right 320 -> 607 of 792, wrong at `auto` 17 -> 9; 650 tests pass |
 
-Nothing in the working tree is uncommitted except local tooling folders (`.agents/`, `.taste-skill/`, `skills-lock.json`). The engine selector has been written and unit-tested, but **has not run against a real second model**; it is off by default, so everything above behaves as before until `ENGINE_SELECTOR_ENABLED=1`. The three changes in `d61349c` were validated on **offline replays** of saved model replies and on Module 5 runs, **not** by re-running the 50-document batch through the live stack and the GPU.
+Nothing in the working tree is uncommitted except local tooling folders (`.agents/`, `.taste-skill/`, `skills-lock.json`) and three untracked scratch scripts of the paused loop (`scripts/_offs2.py`, `_oracle.py`, `_vote_exp.py`; §8.7). The engine selector has been written and unit-tested, but **has not run against a real second model**; it is off by default, so everything above behaves as before until `ENGINE_SELECTOR_ENABLED=1`. The three changes in `d61349c` were validated on **offline replays** of saved model replies and on Module 5 runs, **not** by re-running the 50-document batch through the live stack and the GPU.
 
 ### 8.3 What the 16 real waybills showed
 
@@ -1256,6 +1261,55 @@ What it showed:
 
 ---
 
+### 8.7 The Tesseract-only measurement loop (paused 15 Nov 2026)
+
+**What it is.** An autonomous, measured loop to improve the reader that needs no GPU and no trained adapter (`VLM_READER_URL` and `READER_ENGINE` unset, `app/modules/vlm_reader` untouched). Precision first: the primary target is **zero wrong values at `auto`**, then more correct fields, then more reaching `auto`. One change at a time behind a flag; accepted only if DEV correct fields rise (or tie with fewer wrong at non-auto), no new wrong at `auto` on DEV / SANITY / the 22-document synthetic corpus, no input kind loses more than 0.2 points, the full suite is green and per-document cost does not double. Every iteration is logged in `docs/tesseract-loop-log.md`; the three scoring scripts (`export_batch_json.py`, `evaluate_accuracy.py`, `evaluate_reader.py`) were hashed at the start and are unchanged.
+
+**Data tiers (reported separately, GOLD first).**
+
+| Tier | What | How it may be used |
+|---|---|---|
+| GOLD | 8 real waybills in `data/gold_real` (read-only, SHA-256 in `SPLIT.json`); 3 layouts unseen, 5 seen; labels are **unverified drafts** | aggregate totals only (`scripts/evaluate_gold.py`); never per-field |
+| HOLDOUT | `data/holdout_50`, 50 hardest-difficulty synthetic waybills, seed 9203, sealed (`SEALED.md`) | totals in `scorecard.json` only; images and `extracted.json` never opened |
+| DEV | `data/demo_50` (seed 7001, 24 digital / 18 scan / 8 photo) + `tests/fixtures/synthetic_awb` | tuned freely |
+| SANITY | the 8 dev-pool real waybills | per-document, never tuned to; a change may not lower them |
+
+Isolation is enforced by `scripts/check_gold_isolation.py` (hashes, landmark provenance, names and bases, exact and fuzzy identity-value search over every generator pool, template seed, landmark list, reader profile and ground truth). It found three goods descriptions in `scripts/synth_bkk.py` that were values of gold documents; they were replaced, the demo and hold-out sets regenerated (hold-out re-sealed on seed 9203), the old sets archived as `data/demo_50_old` / `data/holdout_50_old` marked CONTAMINATED, and the landmark lists rebuilt from the dev pool only (`scripts/landmarks/PROVENANCE.json`). Every number measured before that is void. The brief's "15-20 gold documents" was impossible with 16 real waybills; the split is 8 / 8 (`docs/loop-questions.md`).
+
+**Measured in** the production Docker image (Debian Tesseract 5.5.0, current source bind-mounted), through the real API path: `POST /documents/batch`, no type hint, one worker, then `export_batch_json.py --wait`.
+
+**Baseline (iteration 0, no code change),** over *identified* documents:
+
+| Tier | Identified | Fields right | Wrong at `auto` | Note |
+|---|---|---|---|---|
+| GOLD | 5 of 8 | 29 / 165 (17.6%) | 1 | 3 refused `no_match`; over all 8 documents the score is lower still |
+| HOLDOUT | 47 of 50 | 360 / 1,551 (23.2%) | 16 | digital 236/594, scan 78/462, photo 46/495 |
+| DEV | 49 of 50 | 433 / 1,617 (26.8%) | 17 | digital 320/792 (40.4%), scan 91/561 (16.2%), photo 22/264 (8.3%); 5.5 docs/min; 5.6 / 9.7 / 10.7 s per digital / scan / photo document |
+
+**Error taxonomy** (`scripts/loop_taxonomy.py`: every field that is wrong or right-but-not-`auto` gets exactly one cause; UNK must stay under 10%, it is 9.9%). Baseline, DEV: LOC 639 (419 digital), PRE 237 (178 on photos), REC 134, ML 20, FMT 14, ID 33, UNK 140; right but not auto: VAL 133, GATE 68. Details and the ten worst (field, kind) pairs: `docs/tesseract-baseline.md`. The headline: **digital pages lost 419 fields to LOC** because the typed text layer of a pre-printed form sits off the printed cells, zone by zone (the same print misregistration seen on real pages 05, 10, 11); photos lose most to PRE (the page does not OCR).
+
+**Iteration 1, accepted and committed (`e867368`): text-layer registration.** `app/modules/layer_registration.py`, `TEXT_LAYER_REG_*` in `app/config.py`, switch `TEXT_LAYER_REGISTRATION` (env, default on). For each field it searches a small grid of shifts (dy up to +-0.04, dx up to +-0.01 of the page) and scores each by the sum, over the fields within 0.06 of the page height, of (a) occupancy: a one-line box that holds a typed word, weighted by how well the word is centred, and (b) format: a field whose read at that shift is non-empty and passes its own `validation_regex`. The best shift is used only if it beats the unshifted position by 2; ties go to the smaller shift. No value and no label is looked at. A value read through a shift is capped at `spot_check` (`validation.demote_fields`) and never trusted by `trust.py`, because the shift is chosen by geometry and format, not by anything that proves the cell. Two earlier designs failed and are worth remembering: pure word coverage chose wrong shifts (320 -> 311 right) because multi-line boxes absorb words at any shift; restricting to one-line boxes and adding the format term gave 320 -> 607.
+
+| | before | after |
+|---|---|---|
+| DEV, all fields right | 433 / 1,617 | **720** / 1,617 (44.5%; 43.6% over all 50 x 33) |
+| DEV digital | 320 / 792 | **607** / 792 (76.6%) |
+| DEV scan / photo | 91/561, 22/264 | unchanged |
+| DEV wrong at `auto` | 17 | **9** (none new) |
+| SANITY (4 real text-layer dev-pool documents) | 110 / 132 | 110 / 132, no wrong at `auto` |
+| synthetic corpus (1 text-layer document) | 29 / 29 | 29 / 29 |
+| GOLD (aggregate) | 29 / 165, 1 wrong at auto | 32 / 165, 1 wrong at auto (the OCR reader) |
+| speed | 5.5 docs/min | 5.4 docs/min |
+| tests | | 650 passed |
+
+HOLDOUT has not been re-run since the baseline (the rule is one hold-out run per three accepted changes; one has been accepted).
+
+**Taxonomy after iteration 1 (DEV).** LOC 338 (digital 118, scan 187, photo 33), REC 146 (digital 49), ML 20, FMT 16, ID 33, PRE 237, UNK 140; right but not auto: VAL 181, GATE 364. The 185 digital fields still wrong are mostly LOC in the parties block (`consignee_name` 16, `shipper_name` 13, `accounting_information` 11, `airport_of_departure` 9, `total_prepaid` 8), REC and ML in multi-line addresses (`consignee_address` 19, `shipper_address` 15) and `agent_iata_code` 12.
+
+**Iteration 2, investigated and NOT applied** (analysis only; the scratch scripts `scripts/_vote_exp.py`, `_oracle.py`, `_offs2.py` are untracked). The nine remaining wrong values at `auto` on DEV: seven on OCR-read scans and photos (two amounts that lost trailing digits, `63874.` for `63874.95` and `130,242` for `130,242.00`; `TANBUL` for `ISTANBUL`; `DURALUAE` for `DUBAI,UAE`; `CUP` for `EUR`; `153.60` for `171,153.60`; `1788.00` for `391.00`) and two on digital pages (a neighbour's amount, where registration found no better shift). Six of the nine are in amount fields whose regex is `^[\d.,]{1,12}$`, which admits any well-formed or truncated number. Two cheap remedies were measured on the 36 OCR-read values that reached `auto`: a second read of the crop (Otsu, and rescaled to ~48 px) caught only 2 of 7 wrong values and disagreed on 10 right ones, because five of the seven misreads are *correlated*: the window cuts the value, so every variant reads the same truncation. An "ink touches the window edge" test flagged 3 of 7 wrong values and 7 of 35 right ones. Neither is good enough; these are window and alignment faults (LOC) that a second read cannot see, and closing them needs either cross-field arithmetic (Step 4) or windows that span the cell. **No code from iteration 2 is committed.**
+
+**State when paused.** One iteration accepted (of at most 15); the stop rule (criteria met, 3 consecutive iterations without an accepted change, or 15 iterations) has not fired, so `docs/tesseract-final-report.md` has **not** been written. The measurement stack (Docker project `idpm`) is stopped and nothing is running. Criteria: wrong at `auto` = 0 on DEV and HOLDOUT is **not met** (9 on DEV after iteration 1; 16 on HOLDOUT at baseline; 1 on GOLD); digital >= 99.5% is **not met** (76.6% on DEV); scans >= 97% is **not met** (16.2%); photos are report-only. **Not done yet:** the `evaluate_accuracy.py --sweep` and `evaluate_reader.py --engine tesseract` baselines, the 22-document corpus and SANITY through the API, the Step 2 levers for scans and photos (anchor robustness, alignment, window geometry, rule erasure and deskew, the caption-search fallback), Steps 3 and 4, and the requested re-scoring "over all documents x 33 (refused = 0)" with GOLD first plus the break-down of wrong-at-auto by reader path.
+
 ## 9. Appendix
 
 ### 9.1 Repository map
@@ -1320,6 +1374,16 @@ $env:ENGINE_SELECTOR_ENABLED = "1"                                          # th
 .\.venv\Scripts\python.exe -m pytest -q
 npm --prefix frontend run lint
 node frontend/scripts/check_contrast.mjs
+```
+
+**Tesseract loop tooling (§8.7):**
+
+```bash
+python scripts/check_gold_isolation.py                    # gold leakage check; exit 1 on a leak
+python scripts/evaluate_gold.py --api http://localhost:8010   # GOLD, aggregate totals only
+python scripts/loop_taxonomy.py --docs-dir DIR --ground-truth GT --manifest M --extracted E   # inside the app container
+python scripts/hallucination_check.py --extracted E --docs-dir DIR --ground-truth GT --out OUT [--aggregate-only]
+python scripts/evaluate_layer_registration.py --docs-dir DIR --ground-truth GT   # or --real-dev
 ```
 
 ### 9.4 Glossary

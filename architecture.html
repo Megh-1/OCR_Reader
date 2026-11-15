@@ -41,7 +41,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 @media print{aside{display:none}.layout{display:block}body{background:#fff}main{padding:0}}
 </style></head>
 <body><div class="layout">
-<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#status-at-a-glance-read-this-first">Status at a glance (read this first)</a></li><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li><li><a href="#210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li><li><a href="#86-why-scans-and-photos-still-miss-error-analysis-no-code-changed-by-it">8.6 Why scans and photos still miss (error analysis, no code changed by it)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
+<aside><p class="t">IDP Pipeline: Architecture</p><ul><li><a href="#status-at-a-glance-read-this-first">Status at a glance (read this first)</a></li><li><a href="#table-of-contents">Table of contents</a></li><li><a href="#1-system-overview--high-level-design">1. System overview &amp; high-level design</a><ul><li><a href="#11-what-the-system-does">1.1 What the system does</a></li><li><a href="#12-design-philosophy-and-paradigm">1.2 Design philosophy and paradigm</a></li><li><a href="#13-system-context">1.3 System context</a></li></ul></li><li><a href="#2-core-components--responsibilities">2. Core components &amp; responsibilities</a><ul><li><a href="#21-deployment-topology-docker-compose">2.1 Deployment topology (Docker Compose)</a></li><li><a href="#22-backend-modules-numbered-after-the-spec">2.2 Backend modules (numbered after the spec)</a></li><li><a href="#23-the-per-page-pipeline-the-core-of-the-system">2.3 The per-page pipeline (the core of the system)</a></li><li><a href="#24-approval-tiers-how-a-value-is-judged">2.4 Approval tiers: how a value is judged</a></li><li><a href="#25-frontend-architecture">2.5 Frontend architecture</a></li><li><a href="#26-end-to-end-data-flow-a-batch-upload">2.6 End-to-end data flow: a batch upload</a></li><li><a href="#27-keeping-the-review-queue-short-without-losing-accuracy">2.7 Keeping the review queue short without losing accuracy</a></li><li><a href="#28-telling-templates-apart-whole-forms-parts-of-forms-and-anchor-subsets">2.8 Telling templates apart: whole forms, parts of forms, and anchor subsets</a></li><li><a href="#29-reader-engines-changing-the-model-is-configuration">2.9 Reader engines: changing the model is configuration</a></li><li><a href="#210-choosing-the-engine-per-template-measurement-not-file-order">2.10 Choosing the engine per template: measurement, not file order</a></li></ul></li><li><a href="#3-data-architecture--schema-strategy">3. Data architecture &amp; schema strategy</a><ul><li><a href="#31-primary-store">3.1 Primary store</a></li><li><a href="#32-entity-relationship-diagram">3.2 Entity-relationship diagram</a></li><li><a href="#33-what-a-template-contains-templatein-stored-in-templatesconfig">3.3 What a template contains (<code>TemplateIn</code>, stored in <code>templates.config</code>)</a></li><li><a href="#34-state-machines">3.4 State machines</a></li><li><a href="#35-caching-layers-and-state-management-rules">3.5 Caching layers and state-management rules</a></li></ul></li><li><a href="#4-api--communication-contracts">4. API &amp; communication contracts</a><ul><li><a href="#41-communication-patterns">4.1 Communication patterns</a></li><li><a href="#42-endpoint-catalogue">4.2 Endpoint catalogue</a></li><li><a href="#43-the-json-deliverable">4.3 The JSON deliverable</a></li><li><a href="#44-error-handling-conventions-and-failure-strategy">4.4 Error-handling conventions and failure strategy</a></li></ul></li><li><a href="#5-security-auth--environment">5. Security, auth &amp; environment</a><ul><li><a href="#51-authentication-and-authorization--none-today">5.1 Authentication and authorization: <strong>⛔ none today</strong></a></li><li><a href="#52-input-handling-and-data-protection-what-is-built">5.2 Input handling and data protection (what <em>is</em> built)</a></li><li><a href="#53-secrets-and-environment-variables">5.3 Secrets and environment variables</a></li></ul></li><li><a href="#6-non-functional-requirements--scale">6. Non-functional requirements &amp; scale</a><ul><li><a href="#61-targets-stated-versus-measured">6.1 Targets: stated versus measured</a></li><li><a href="#62-measured-performance-all-from-comments-in-appconfigpy--claudemd">6.2 Measured performance (all from comments in <code>app/config.py</code> / <code>CLAUDE.md</code>)</a></li><li><a href="#63-scalability-limits">6.3 Scalability limits</a></li><li><a href="#64-logging-monitoring-and-error-tracking">6.4 Logging, monitoring and error tracking</a></li></ul></li><li><a href="#7-architecture-decision-records-adrs--trade-offs">7. Architecture decision records (ADRs) / trade-offs</a></li><li><a href="#8-how-the-technology-works-right-now">8. How the technology works right now</a><ul><li><a href="#81-what-is-shipped-and-what-is-research-tooling">8.1 What is shipped and what is research tooling</a></li><li><a href="#82-committed-versus-uncommitted">8.2 Committed versus uncommitted</a></li><li><a href="#83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</a></li><li><a href="#84-state-of-the-vision-reader">8.4 State of the vision reader</a></li><li><a href="#85-known-gaps-and-next-steps-priority-order">8.5 Known gaps and next steps (priority order)</a></li><li><a href="#86-why-scans-and-photos-still-miss-error-analysis-no-code-changed-by-it">8.6 Why scans and photos still miss (error analysis, no code changed by it)</a></li><li><a href="#87-the-tesseract-only-measurement-loop-paused-15-nov-2026">8.7 The Tesseract-only measurement loop (paused 15 Nov 2026)</a></li></ul></li><li><a href="#9-appendix">9. Appendix</a><ul><li><a href="#91-repository-map">9.1 Repository map</a></li><li><a href="#92-technology-stack-at-a-glance">9.2 Technology stack at a glance</a></li><li><a href="#93-commands">9.3 Commands</a></li><li><a href="#94-glossary">9.4 Glossary</a></li></ul></li><li><a href="#10-research-survey-and-recommended-direction">10. Research survey and recommended direction</a><ul><li><a href="#101-the-four-problems-you-actually-have">10.1 The four problems you actually have</a></li><li><a href="#102-what-the-literature-says-and-what-it-means-here">10.2 What the literature says, and what it means here</a></li><li><a href="#103-ideas-ranked-by-value-to-you--effort-each-with-what-done-means">10.3 Ideas, ranked by (value to you) ÷ (effort), each with what &quot;done&quot; means</a></li><li><a href="#104-what-to-do-now-a-sequence-not-a-menu">10.4 What to do now: a sequence, not a menu</a></li><li><a href="#105-what-cannot-be-promised">10.5 What cannot be promised</a></li><li><a href="#106-sources">10.6 Sources</a></li></ul></li></ul></aside>
 <main><article><h1 id="idp-pipeline-architecture">IDP Pipeline: Architecture</h1>
 <blockquote>
 <p><strong>What this document is.</strong> The architecture of the IDP Pipeline repository as it exists on disk today, written from the code, <code>docker-compose.yml</code>, <code>app/config.py</code> and the Alembic migrations. Where something is <em>not</em> built (authentication, metrics, a cache), it says so instead of describing an aspiration. Measured numbers come from the comments in <code>app/config.py</code> and the project's <code>CLAUDE.md</code>; anything that is a proposal is labelled <strong>Proposed</strong>.</p>
@@ -79,6 +79,7 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <h2 id="status-at-a-glance-read-this-first">Status at a glance (read this first)</h2>
 <p><strong>What works today.</strong> Upload a batch (PDF, JPEG, PNG); each page is cleaned, matched to a template by its anchors, aligned to it by landmark words, read (PDF text layer, or a vision model on scans and photos, or Tesseract when the model is down), validated, given a tier (<code>auto</code> / <code>spot_check</code> / <code>review</code>) and, unless <code>auto</code>, put in a review queue a person works through by field, by value or by document. A strict JSON export emits only values a rule vouched for or a person checked. Two waybill layouts (Mumbai-form <code>air_waybill</code>, Bangkok-form <code>air_waybill_bkk</code>) and the ID card have templates.</p>
 <p><strong>Where it stands, in numbers</strong> (50 hard synthetic waybills, one batch, no type hint): 46 of 50 identified; <strong>1,401 of 1,518 fields right (92.3%)</strong>: digital 96.0%, scans 92.0%, camera photos 78.3%. <strong>Nothing reaches <code>auto</code> on a model-read page</strong>, so every value on a scan or photo needs a person; 58 wrong values sit in <code>spot_check</code> and 59 in <code>review</code>. That batch predates the three changes marked ★ below; they are validated on replays, not re-run through the live stack (§6.2, §8.6).</p>
+<p><strong>Tesseract-only measurement loop (paused 15 Nov, 1 change accepted; §8.7).</strong> A separate effort improves the reader that needs no GPU and no adapter, measured on regenerated synthetic sets and 8 real &quot;gold&quot; waybills. Baseline on the regenerated DEV batch: 433 of 1,617 fields right (digital 40.4%, scans 16.2%, photos 8.3%), 17 wrong values at <code>auto</code>. <strong>Text-layer registration</strong> (iteration 1, commit <code>e867368</code>) lifted DEV digital to 607 of 792 and the batch to 720 of 1,617, with wrong-at-auto 17 -&gt; 9. GOLD (real, unverified labels): 29 -&gt; 32 of 165 on the 5 of 8 documents that are recognised. The loop's targets (digital &gt;= 99.5%, scans &gt;= 97%, zero wrong at <code>auto</code>) are <strong>not met</strong>; the stop rule has not fired and <code>docs/tesseract-final-report.md</code> has not been written.</p>
 <p><strong>What was done, in order</strong> (newest last; commit hashes in §8.2):</p>
 <table>
 <thead>
@@ -111,6 +112,10 @@ figure.diagram.failed pre{background:var(--code);color:var(--ink);padding:12px}
 <tr>
 <td>5–12 Nov</td>
 <td>An <strong>error analysis of scan and photo misses</strong>, then three fixes from it: ★ two wider windows that agree outvote a tight one (<strong>+29 / −6</strong> fields on 4,739 synthetic validation fields), ★ near-miss anchors retried at 1–2 px offsets (<strong>3 valid waybills rescued, 0 lost</strong> on 66 pages), ★ an optional tilt term in the alignment fit, built, measured and <strong>left off</strong></td>
+</tr>
+<tr>
+<td>14–15 Nov</td>
+<td>The <strong>Tesseract-only loop</strong> (§8.7): gold / hold-out / dev data tiers with a leakage check, dev-pool landmark lists, a taxonomy of every wrong field, and iteration 1, <strong>text-layer registration</strong> (digital 320 -&gt; 607 of 792 fields)</td>
 </tr>
 </tbody>
 </table>
@@ -2278,9 +2283,17 @@ flowchart TB
 <td><code>d61349c</code></td>
 <td><strong>Three fixes from the error analysis (§8.6):</strong> two wider windows that agree outvote a tight one (<code>decide.py</code>); near-miss anchors retried at 1–2 px offsets (<code>type_identification.py</code>); an optional tilt term in the alignment fit, <strong>off</strong> (<code>alignment.py</code>, <code>ALIGN_MAX_CROSS</code>). 644 tests pass</td>
 </tr>
+<tr>
+<td><code>fb54e9b</code></td>
+<td><strong>Tesseract loop setup (§8.7):</strong> gold split and <code>check_gold_isolation.py</code>, dev-pool landmark lists with <code>PROVENANCE.json</code>, clean generator pools, <code>build_demo_batch.py --difficulty hardest</code>, <code>loop_taxonomy.py</code>, <code>hallucination_check.py</code>, <code>evaluate_gold.py</code>, <code>cluster_real_awb.py</code>, the baseline write-up</td>
+</tr>
+<tr>
+<td><code>e867368</code></td>
+<td><strong>Text-layer registration</strong> (<code>layer_registration.py</code>, <code>TEXT_LAYER_REGISTRATION</code>, on): DEV digital fields right 320 -&gt; 607 of 792, wrong at <code>auto</code> 17 -&gt; 9; 650 tests pass</td>
+</tr>
 </tbody>
 </table>
-<p>Nothing in the working tree is uncommitted except local tooling folders (<code>.agents/</code>, <code>.taste-skill/</code>, <code>skills-lock.json</code>). The engine selector has been written and unit-tested, but <strong>has not run against a real second model</strong>; it is off by default, so everything above behaves as before until <code>ENGINE_SELECTOR_ENABLED=1</code>. The three changes in <code>d61349c</code> were validated on <strong>offline replays</strong> of saved model replies and on Module 5 runs, <strong>not</strong> by re-running the 50-document batch through the live stack and the GPU.</p>
+<p>Nothing in the working tree is uncommitted except local tooling folders (<code>.agents/</code>, <code>.taste-skill/</code>, <code>skills-lock.json</code>) and three untracked scratch scripts of the paused loop (<code>scripts/_offs2.py</code>, <code>_oracle.py</code>, <code>_vote_exp.py</code>; §8.7). The engine selector has been written and unit-tested, but <strong>has not run against a real second model</strong>; it is off by default, so everything above behaves as before until <code>ENGINE_SELECTOR_ENABLED=1</code>. The three changes in <code>d61349c</code> were validated on <strong>offline replays</strong> of saved model replies and on Module 5 runs, <strong>not</strong> by re-running the 50-document batch through the live stack and the GPU.</p>
 <h3 id="83-what-the-16-real-waybills-showed">8.3 What the 16 real waybills showed</h3>
 <p>This table is the <strong>template + Tesseract/text-layer pipeline</strong> alone (fields right of 33 per document, landmark lists built from training pages only so no held-out page aligns itself). It is kept because it explains <em>why</em> the vision reader exists; the reader's own numbers are in §6.2.</p>
 <table>
@@ -2439,6 +2452,139 @@ flowchart TB
 <li><strong>Caveats:</strong> the real-page labels are unverified drafts (4 of 18 misses are draft errors); real-page causes are judged by eye; the synthetic photos are composites of one waybill layout, so the photo conclusions rest on 5 photos (165 fields).</li>
 </ul>
 <hr />
+<h3 id="87-the-tesseract-only-measurement-loop-paused-15-nov-2026">8.7 The Tesseract-only measurement loop (paused 15 Nov 2026)</h3>
+<p><strong>What it is.</strong> An autonomous, measured loop to improve the reader that needs no GPU and no trained adapter (<code>VLM_READER_URL</code> and <code>READER_ENGINE</code> unset, <code>app/modules/vlm_reader</code> untouched). Precision first: the primary target is <strong>zero wrong values at <code>auto</code></strong>, then more correct fields, then more reaching <code>auto</code>. One change at a time behind a flag; accepted only if DEV correct fields rise (or tie with fewer wrong at non-auto), no new wrong at <code>auto</code> on DEV / SANITY / the 22-document synthetic corpus, no input kind loses more than 0.2 points, the full suite is green and per-document cost does not double. Every iteration is logged in <code>docs/tesseract-loop-log.md</code>; the three scoring scripts (<code>export_batch_json.py</code>, <code>evaluate_accuracy.py</code>, <code>evaluate_reader.py</code>) were hashed at the start and are unchanged.</p>
+<p><strong>Data tiers (reported separately, GOLD first).</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>What</th>
+<th>How it may be used</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GOLD</td>
+<td>8 real waybills in <code>data/gold_real</code> (read-only, SHA-256 in <code>SPLIT.json</code>); 3 layouts unseen, 5 seen; labels are <strong>unverified drafts</strong></td>
+<td>aggregate totals only (<code>scripts/evaluate_gold.py</code>); never per-field</td>
+</tr>
+<tr>
+<td>HOLDOUT</td>
+<td><code>data/holdout_50</code>, 50 hardest-difficulty synthetic waybills, seed 9203, sealed (<code>SEALED.md</code>)</td>
+<td>totals in <code>scorecard.json</code> only; images and <code>extracted.json</code> never opened</td>
+</tr>
+<tr>
+<td>DEV</td>
+<td><code>data/demo_50</code> (seed 7001, 24 digital / 18 scan / 8 photo) + <code>tests/fixtures/synthetic_awb</code></td>
+<td>tuned freely</td>
+</tr>
+<tr>
+<td>SANITY</td>
+<td>the 8 dev-pool real waybills</td>
+<td>per-document, never tuned to; a change may not lower them</td>
+</tr>
+</tbody>
+</table>
+<p>Isolation is enforced by <code>scripts/check_gold_isolation.py</code> (hashes, landmark provenance, names and bases, exact and fuzzy identity-value search over every generator pool, template seed, landmark list, reader profile and ground truth). It found three goods descriptions in <code>scripts/synth_bkk.py</code> that were values of gold documents; they were replaced, the demo and hold-out sets regenerated (hold-out re-sealed on seed 9203), the old sets archived as <code>data/demo_50_old</code> / <code>data/holdout_50_old</code> marked CONTAMINATED, and the landmark lists rebuilt from the dev pool only (<code>scripts/landmarks/PROVENANCE.json</code>). Every number measured before that is void. The brief's &quot;15-20 gold documents&quot; was impossible with 16 real waybills; the split is 8 / 8 (<code>docs/loop-questions.md</code>).</p>
+<p><strong>Measured in</strong> the production Docker image (Debian Tesseract 5.5.0, current source bind-mounted), through the real API path: <code>POST /documents/batch</code>, no type hint, one worker, then <code>export_batch_json.py --wait</code>.</p>
+<p><strong>Baseline (iteration 0, no code change),</strong> over <em>identified</em> documents:</p>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>Identified</th>
+<th>Fields right</th>
+<th>Wrong at <code>auto</code></th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GOLD</td>
+<td>5 of 8</td>
+<td>29 / 165 (17.6%)</td>
+<td>1</td>
+<td>3 refused <code>no_match</code>; over all 8 documents the score is lower still</td>
+</tr>
+<tr>
+<td>HOLDOUT</td>
+<td>47 of 50</td>
+<td>360 / 1,551 (23.2%)</td>
+<td>16</td>
+<td>digital 236/594, scan 78/462, photo 46/495</td>
+</tr>
+<tr>
+<td>DEV</td>
+<td>49 of 50</td>
+<td>433 / 1,617 (26.8%)</td>
+<td>17</td>
+<td>digital 320/792 (40.4%), scan 91/561 (16.2%), photo 22/264 (8.3%); 5.5 docs/min; 5.6 / 9.7 / 10.7 s per digital / scan / photo document</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Error taxonomy</strong> (<code>scripts/loop_taxonomy.py</code>: every field that is wrong or right-but-not-<code>auto</code> gets exactly one cause; UNK must stay under 10%, it is 9.9%). Baseline, DEV: LOC 639 (419 digital), PRE 237 (178 on photos), REC 134, ML 20, FMT 14, ID 33, UNK 140; right but not auto: VAL 133, GATE 68. Details and the ten worst (field, kind) pairs: <code>docs/tesseract-baseline.md</code>. The headline: <strong>digital pages lost 419 fields to LOC</strong> because the typed text layer of a pre-printed form sits off the printed cells, zone by zone (the same print misregistration seen on real pages 05, 10, 11); photos lose most to PRE (the page does not OCR).</p>
+<p><strong>Iteration 1, accepted and committed (<code>e867368</code>): text-layer registration.</strong> <code>app/modules/layer_registration.py</code>, <code>TEXT_LAYER_REG_*</code> in <code>app/config.py</code>, switch <code>TEXT_LAYER_REGISTRATION</code> (env, default on). For each field it searches a small grid of shifts (dy up to +-0.04, dx up to +-0.01 of the page) and scores each by the sum, over the fields within 0.06 of the page height, of (a) occupancy: a one-line box that holds a typed word, weighted by how well the word is centred, and (b) format: a field whose read at that shift is non-empty and passes its own <code>validation_regex</code>. The best shift is used only if it beats the unshifted position by 2; ties go to the smaller shift. No value and no label is looked at. A value read through a shift is capped at <code>spot_check</code> (<code>validation.demote_fields</code>) and never trusted by <code>trust.py</code>, because the shift is chosen by geometry and format, not by anything that proves the cell. Two earlier designs failed and are worth remembering: pure word coverage chose wrong shifts (320 -&gt; 311 right) because multi-line boxes absorb words at any shift; restricting to one-line boxes and adding the format term gave 320 -&gt; 607.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>before</th>
+<th>after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DEV, all fields right</td>
+<td>433 / 1,617</td>
+<td><strong>720</strong> / 1,617 (44.5%; 43.6% over all 50 x 33)</td>
+</tr>
+<tr>
+<td>DEV digital</td>
+<td>320 / 792</td>
+<td><strong>607</strong> / 792 (76.6%)</td>
+</tr>
+<tr>
+<td>DEV scan / photo</td>
+<td>91/561, 22/264</td>
+<td>unchanged</td>
+</tr>
+<tr>
+<td>DEV wrong at <code>auto</code></td>
+<td>17</td>
+<td><strong>9</strong> (none new)</td>
+</tr>
+<tr>
+<td>SANITY (4 real text-layer dev-pool documents)</td>
+<td>110 / 132</td>
+<td>110 / 132, no wrong at <code>auto</code></td>
+</tr>
+<tr>
+<td>synthetic corpus (1 text-layer document)</td>
+<td>29 / 29</td>
+<td>29 / 29</td>
+</tr>
+<tr>
+<td>GOLD (aggregate)</td>
+<td>29 / 165, 1 wrong at auto</td>
+<td>32 / 165, 1 wrong at auto (the OCR reader)</td>
+</tr>
+<tr>
+<td>speed</td>
+<td>5.5 docs/min</td>
+<td>5.4 docs/min</td>
+</tr>
+<tr>
+<td>tests</td>
+<td></td>
+<td>650 passed</td>
+</tr>
+</tbody>
+</table>
+<p>HOLDOUT has not been re-run since the baseline (the rule is one hold-out run per three accepted changes; one has been accepted).</p>
+<p><strong>Taxonomy after iteration 1 (DEV).</strong> LOC 338 (digital 118, scan 187, photo 33), REC 146 (digital 49), ML 20, FMT 16, ID 33, PRE 237, UNK 140; right but not auto: VAL 181, GATE 364. The 185 digital fields still wrong are mostly LOC in the parties block (<code>consignee_name</code> 16, <code>shipper_name</code> 13, <code>accounting_information</code> 11, <code>airport_of_departure</code> 9, <code>total_prepaid</code> 8), REC and ML in multi-line addresses (<code>consignee_address</code> 19, <code>shipper_address</code> 15) and <code>agent_iata_code</code> 12.</p>
+<p><strong>Iteration 2, investigated and NOT applied</strong> (analysis only; the scratch scripts <code>scripts/_vote_exp.py</code>, <code>_oracle.py</code>, <code>_offs2.py</code> are untracked). The nine remaining wrong values at <code>auto</code> on DEV: seven on OCR-read scans and photos (two amounts that lost trailing digits, <code>63874.</code> for <code>63874.95</code> and <code>130,242</code> for <code>130,242.00</code>; <code>TANBUL</code> for <code>ISTANBUL</code>; <code>DURALUAE</code> for <code>DUBAI,UAE</code>; <code>CUP</code> for <code>EUR</code>; <code>153.60</code> for <code>171,153.60</code>; <code>1788.00</code> for <code>391.00</code>) and two on digital pages (a neighbour's amount, where registration found no better shift). Six of the nine are in amount fields whose regex is <code>^[\d.,]{1,12}$</code>, which admits any well-formed or truncated number. Two cheap remedies were measured on the 36 OCR-read values that reached <code>auto</code>: a second read of the crop (Otsu, and rescaled to ~48 px) caught only 2 of 7 wrong values and disagreed on 10 right ones, because five of the seven misreads are <em>correlated</em>: the window cuts the value, so every variant reads the same truncation. An &quot;ink touches the window edge&quot; test flagged 3 of 7 wrong values and 7 of 35 right ones. Neither is good enough; these are window and alignment faults (LOC) that a second read cannot see, and closing them needs either cross-field arithmetic (Step 4) or windows that span the cell. <strong>No code from iteration 2 is committed.</strong></p>
+<p><strong>State when paused.</strong> One iteration accepted (of at most 15); the stop rule (criteria met, 3 consecutive iterations without an accepted change, or 15 iterations) has not fired, so <code>docs/tesseract-final-report.md</code> has <strong>not</strong> been written. The measurement stack (Docker project <code>idpm</code>) is stopped and nothing is running. Criteria: wrong at <code>auto</code> = 0 on DEV and HOLDOUT is <strong>not met</strong> (9 on DEV after iteration 1; 16 on HOLDOUT at baseline; 1 on GOLD); digital &gt;= 99.5% is <strong>not met</strong> (76.6% on DEV); scans &gt;= 97% is <strong>not met</strong> (16.2%); photos are report-only. <strong>Not done yet:</strong> the <code>evaluate_accuracy.py --sweep</code> and <code>evaluate_reader.py --engine tesseract</code> baselines, the 22-document corpus and SANITY through the API, the Step 2 levers for scans and photos (anchor robustness, alignment, window geometry, rule erasure and deskew, the caption-search fallback), Steps 3 and 4, and the requested re-scoring &quot;over all documents x 33 (refused = 0)&quot; with GOLD first plus the break-down of wrong-at-auto by reader path.</p>
 <h2 id="9-appendix">9. Appendix</h2>
 <h3 id="91-repository-map">9.1 Repository map</h3>
 <figure class="diagram"><pre class="mermaid">
@@ -2540,6 +2686,13 @@ $env:ENGINE_SELECTOR_ENABLED = &quot;1&quot;                                    
 .\.venv\Scripts\python.exe -m pytest -q
 npm --prefix frontend run lint
 node frontend/scripts/check_contrast.mjs
+</code></pre>
+<p><strong>Tesseract loop tooling (§8.7):</strong></p>
+<pre><code class="language-bash">python scripts/check_gold_isolation.py                    # gold leakage check; exit 1 on a leak
+python scripts/evaluate_gold.py --api http://localhost:8010   # GOLD, aggregate totals only
+python scripts/loop_taxonomy.py --docs-dir DIR --ground-truth GT --manifest M --extracted E   # inside the app container
+python scripts/hallucination_check.py --extracted E --docs-dir DIR --ground-truth GT --out OUT [--aggregate-only]
+python scripts/evaluate_layer_registration.py --docs-dir DIR --ground-truth GT   # or --real-dev
 </code></pre>
 <h3 id="94-glossary">9.4 Glossary</h3>
 <table>

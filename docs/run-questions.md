@@ -21,3 +21,4 @@ page and either confirm the label or fix it (fill verified_by in data/eval_real/
 ## GPU host
 - The account on the lab host has a 200,000-FILE quota that was already full (other folders hold ~110k files), which stopped the vLLM install; Ollama (80 files) fit. Nothing outside ~/idp_sprint was touched.
 - Ollama's default `qwen3-vl:8b` tag is the THINKING variant (all tokens spent reasoning, empty answer); the `-instruct` tag is what is served. It is a Q4_K_M quantisation (6.2 GB), not bf16.
+- Step 6 (own adapter): qwen_waybill as a crop engine was not measured on DEV: its weights are not on the GPU host inside the sprint folder and the 200k-file quota left no room to add its environment; skipped.

@@ -474,6 +474,20 @@ ENGINE_AGREEMENT_MAX_WRONG_RATE: float = 0.005  # ...and at most this share of w
 ENGINE_SHARP_MIN: float = 60.0  # Laplacian variance of the page at 1200 px wide: under this a page is `soft`
 ENGINE_SHARP_POOR: float = 20.0  # ...and under this `poor`. Both provisional: set on synthetic pages only
 VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(__file__).resolve().parent.parent / "data" / "reader_profiles"))
+
+# Page engines (app/modules/page_reader.py, page_tiers.py, page_pipeline.py): pretrained vision models that read a whole waybill page with NO
+# template. READER_PAGE_ENGINES is a comma-separated list of engine names (role "page" in READER_ENGINES_FILE), the first is the PRIMARY reader and
+# the others are second readers for agreement; empty = page mode is off and every page goes through the template path, exactly as before.
+# READER_MODE: "page_first" (the page engines read every air waybill page; a matching template adds its own read as a second reader) or
+# "template" (page mode off). READER_CROP_ENGINE: "template_path" (the template's own read, text layer or Tesseract, as a second reader when a
+# template matched) or "none". READER_PAGE_NORMALISE / _SHARPER / _HALVES / _LAYER are the variants measured on DEV (docs/reader-results.md).
+READER_MODE: str = os.environ.get("READER_MODE", "page_first")
+READER_PAGE_ENGINES: list[str] = [n.strip() for n in os.environ.get("READER_PAGE_ENGINES", "").split(",") if n.strip()]
+READER_CROP_ENGINE: str = os.environ.get("READER_CROP_ENGINE", "template_path")
+READER_PAGE_NORMALISE: bool = os.environ.get("READER_PAGE_NORMALISE", "1") != "0"
+READER_PAGE_SHARPER: bool = os.environ.get("READER_PAGE_SHARPER", "1") != "0"
+READER_PAGE_HALVES: bool = os.environ.get("READER_PAGE_HALVES", "1") != "0"
+READER_PAGE_LAYER: bool = os.environ.get("READER_PAGE_LAYER", "1") != "0"
 # The model reports no confidence, so each value gets a FIXED one (as TEXT_LAYER_CONFIDENCE does), chosen to put it in a tier:
 #   GATED    a second reader agrees, or an arithmetic check of the document holds, and the format passes. Under
 #            CONFIDENCE_AUTO_APPROVE_THRESHOLD*100 (90) on purpose: such a value is accepted but still shown to a person as a spot

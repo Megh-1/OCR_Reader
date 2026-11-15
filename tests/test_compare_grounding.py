@@ -57,3 +57,13 @@ def test_the_scorer_refuses_the_test_split():
 
     with pytest.raises(SystemExit):
         score({"docs": {}}, "test")
+
+
+def test_digital_grounding_is_whole_printed_words_punctuation_included():
+    pt = PageText(layer='tricon enterprises pvt. ltd., "freight prepaid" eap', ocr="")
+    assert pt.grounded("TRICON ENTERPRISES PVT. LTD.,")
+    assert not pt.grounded("TRICON ENTERPRISES PVT. LTD.")  # the printed comma was dropped
+    assert not pt.grounded("FREIGHT PREPAID")  # the printed quotes were dropped
+    assert pt.grounded('"FREIGHT PREPAID" EAP')
+    assert not pt.grounded("ENTERPRISES PVT")  # 'pvt' is not the printed word 'pvt.'
+    assert pt.grounded("ENTERPRISES PVT.")  # a run of whole words from the middle of the line is still on the page

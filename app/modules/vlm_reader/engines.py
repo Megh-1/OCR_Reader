@@ -54,6 +54,7 @@ class EngineSpec(BaseModel):
     max_tokens: Optional[int] = Field(default=None, ge=1)  # openai_compatible: cap on a reply
     extra_body: dict = Field(default_factory=dict)  # openai_compatible: server-specific request fields
     role: Literal["crop", "page"] = "crop"  # crop: reads template-guided crops (this module); page: reads a whole page with no template (app/modules/page_reader.py)
+    prompt_style: Literal["schema", "skeleton"] = "schema"  # page engines: the question as a JSON-schema task, or as the field skeleton OCR parsers (GLM-OCR) are trained on
     prompt_file: str = ""  # JSON {"party": ..., "goods": ..., "single": ...}: this engine's own wording of the questions (waybill.py has the shipped ones)
 
     @property
@@ -135,8 +136,8 @@ def reader_specs(registry: Optional[Registry] = None) -> list[EngineSpec]:
 
 
 def active_name(registry: Registry, name: Optional[str] = None) -> Optional[str]:
-    chosen = name or config.READER_ENGINE or registry.default or (registry.engines[0].name if registry.engines else None)
-    return chosen
+    first_crop = next((e.name for e in registry.engines if e.role == "crop"), None)  # a page engine is never the crop reader by default
+    return name or config.READER_ENGINE or registry.default or first_crop
 
 
 def get_client(name: Optional[str] = None, transport=None) -> CropReader:

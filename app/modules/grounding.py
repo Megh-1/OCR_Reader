@@ -46,12 +46,14 @@ class PageText:
         return max(scores)
 
     def grounded(self, value: str) -> bool:
-        """The rule of the tiers: digital pages need the value in the text layer, scans and photos fuzzy >= GROUNDED_FUZZY against the OCR words."""
+        """The rule of the tiers: digital pages need the value in the text layer as whole words, scans and photos fuzzy >= GROUNDED_FUZZY against the OCR words."""
         needle = _squash(value)
         if not needle:
             return False
         if self.has_layer:
-            return needle in self.layer
+            # Whole printed words, punctuation included: a reader that drops a trailing comma or the quotes round a phrase has not copied
+            # what is on the page, and a plain substring test would still find it there.
+            return re.search(r"(?<!\S)" + re.escape(needle) + r"(?!\S)", self.layer) is not None
         return self.best_score(value) >= GROUNDED_FUZZY
 
 

@@ -29,7 +29,7 @@ from app.modules.field_extraction import FieldExtractionResult, _fields_on_page,
 from app.modules.ingestion import IngestionError, IngestionMetadata, extract_text_layers, ingest_file
 from app.modules.output_compiler import compile_output, make_review_render, persist_result
 from app.modules.preprocessing import ProcessedImage, preprocess_image
-from app.modules import trust
+from app.modules import page_pipeline, trust
 from app.modules.engine_selection.probe import probe_page
 from app.modules.engine_selection.selector import ChainDecision, select_chain_for
 from app.modules.vlm_reader import reader as vlm
@@ -255,36 +255,65 @@ def process_page(
 
     identification = identify_document_type(processed.image_bytes, type_hint)
 
-    if not identification.confirmed:
+    # Page-first mode (READER_PAGE_ENGINES set): pretrained page engines read the whole page with no template, and a matching template adds
+    # its own read as a second reader. None = not usable for this page (no engine answered, or the page is not an air waybill schema), and the
+    # page goes down the ordinary template path below - capped at spot_check when it was meant to be read by the page engines.
+    page_first = None
+    if page_pipeline.enabled():
+        matched_template = get_template_version(identification.template_id, identification.version) if identification.confirmed else None
+        page_first = page_pipeline.read_page_first(
+            page_bytes, text_layer, matched_template,
+            lambda: extract_page_fields(matched_template, page_bytes, processed, text_layer, identification.alignment),
+            processed.field_image_bytes,
+        )
+
+    if page_first is None and not identification.confirmed:
         queue_id = enqueue_new_template_needed(type_hint, identification.reason)
         return PageResult(page_index=page_index, confirmed=False, reason=identification.reason, review_queue_id=queue_id)
 
-    # get_template_version, not get_latest_template - extract_fields/validate_fields
-    # both need the EXACT version Module 5 just confirmed against.
-    template = get_template_version(identification.template_id, identification.version)
+    if page_first is not None:
+        template = page_first.template
+        extraction = PageExtraction(
+            fields=page_first.crop_fields or {}, review_image_bytes=page_first.crop_review_image or processed.field_image_bytes,
+            text_native=text_layer is not None, reader="page", engine=page_first.primary_engine,
+        )
+        summary = page_first.summary
+        log.info("page %d read by page engines %s (template %s)", page_index, page_first.engines_used, template.template_id if page_first.matched else "none matched")
+    else:
+        # get_template_version, not get_latest_template - extract_fields/validate_fields
+        # both need the EXACT version Module 5 just confirmed against.
+        template = get_template_version(identification.template_id, identification.version)
 
-    # Reads from field_image_bytes, never image_bytes, on the raster path: the
-    # binarized rendering that makes anchors detectable destroys the stroke
-    # detail character recognition needs (see ProcessedImage).
-    extraction = extract_page_fields(template, page_bytes, processed, text_layer, identification.alignment)
-    if extraction.alignment is not None:
-        log.info("page %d aligned: %s", page_index, extraction.alignment.summary())
-    summary = validate_fields(template, extraction.fields)
-    if extraction.reader == "ocr_fallback":
-        # The template asks for the vision reader and could not get it: whatever Tesseract read here is at most a spot check.
-        demoted = demote_auto(summary)
-        log.info("page %d: read by Tesseract because the vision reader could not be used; %d auto value(s) capped at spot_check", page_index, demoted)
+        # Reads from field_image_bytes, never image_bytes, on the raster path: the
+        # binarized rendering that makes anchors detectable destroys the stroke
+        # detail character recognition needs (see ProcessedImage).
+        extraction = extract_page_fields(template, page_bytes, processed, text_layer, identification.alignment)
+        if extraction.alignment is not None:
+            log.info("page %d aligned: %s", page_index, extraction.alignment.summary())
+        summary = validate_fields(template, extraction.fields)
+        if page_pipeline.enabled() and page_pipeline.is_awb_schema(template):
+            # Meant to be read by page engines and none could be: whatever the template path read is at most a spot check.
+            log.info("page %d: no page engine answered; %d auto value(s) capped at spot_check", page_index, demote_auto(summary))
+        if extraction.reader == "ocr_fallback":
+            # The template asks for the vision reader and could not get it: whatever Tesseract read here is at most a spot check.
+            demoted = demote_auto(summary)
+            log.info("page %d: read by Tesseract because the vision reader could not be used; %d auto value(s) capped at spot_check", page_index, demoted)
 
-    if extraction.force_review:
-        # Engine selection has no measurement behind this template yet (cold start): whatever read the page, nothing is auto.
-        forced_down = demote_auto(summary)
-        log.info("page %d: cold-start engine chain; %d auto value(s) capped at spot_check", page_index, forced_down)
+        if extraction.force_review:
+            # Engine selection has no measurement behind this template yet (cold start): whatever read the page, nothing is auto.
+            forced_down = demote_auto(summary)
+            log.info("page %d: cold-start engine chain; %d auto value(s) capped at spot_check", page_index, forced_down)
 
-    if extraction.registered:
-        shifted_down = demote_fields(summary, extraction.registered)
-        log.info("page %d: %d field(s) read through a text-layer registration shift; %d auto value(s) capped at spot_check", page_index, len(extraction.registered), shifted_down)
+        if extraction.registered:
+            shifted_down = demote_fields(summary, extraction.registered)
+            log.info("page %d: %d field(s) read through a text-layer registration shift; %d auto value(s) capped at spot_check", page_index, len(extraction.registered), shifted_down)
 
-    compiled = compile_output(identification.template_id, identification.version, summary)
+    compiled = compile_output(template.template_id, template.version, summary)
+    if page_first is not None:
+        compiled.template_matched = page_first.matched
+        for fid, t in page_first.tiers.items():
+            cf = compiled.fields[fid]
+            cf.engines, cf.source_text, cf.grounded, cf.agreed = t.engines, t.source_text, t.grounded, t.agreed
 
     # Audited auto-approval: a spot check on a field whose values a person has checked enough (trust.py) is approved
     # as auto, bar a random few that still go to a person. Decided BEFORE the result is stored so the stored tier is
@@ -300,7 +329,7 @@ def process_page(
     spot_checks = {fid: acc for fid, acc in summary.accepted.items() if acc.approval_tier == "spot_check"}
     # Audited auto-approval counts what people found when they checked a field, whoever read it. A vision-read value is a different
     # reader with a different error profile, so its spot checks stay spot checks until evidence has been gathered on ITS reads.
-    trusted = trust.trusted_fields(identification.template_id, identification.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback") and not extraction.force_review else frozenset()
+    trusted = trust.trusted_fields(template.template_id, template.version) if spot_checks and extraction.reader not in ("vlm", "ocr_fallback", "page") and not extraction.force_review else frozenset()
     trusted = trusted - extraction.registered  # a shifted read is not the read people checked
     audited: set[str] = set()
     for field_id, accepted in spot_checks.items():

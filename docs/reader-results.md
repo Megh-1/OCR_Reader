@@ -58,3 +58,59 @@ LABELS UNVERIFIED
 | | digital | 4 | 132 | 68 | 51.5 | 0 | 0.0 | 0 | 68 | 3 |
 | | scan | 4 | 132 | 82 | 62.1 | 0 | 0.0 | 0 | 82 | 42 |
 | | all | 8 | 264 | 150 | 56.8 | 0 | 0.0 | 0 | 150 | 45 |
+
+## Tiers per configuration (Step 4), DEV
+
+LABELS UNVERIFIED
+
+| page_qwen3vl alone | kind | docs | fields | right | % right | auto | % auto | wrong@auto | right-but-flagged | hallucinations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| | digital | 4 | 132 | 119 | 90.2 | 0 | 0.0 | 0 | 119 | 2 |
+| | scan | 4 | 132 | 109 | 82.6 | 0 | 0.0 | 0 | 109 | 48 |
+| | all | 8 | 264 | 228 | 86.4 | 0 | 0.0 | 0 | 228 | 50 |
+
+LABELS UNVERIFIED
+
+| page_glmocr alone | kind | docs | fields | right | % right | auto | % auto | wrong@auto | right-but-flagged | hallucinations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| | digital | 4 | 132 | 68 | 51.5 | 0 | 0.0 | 0 | 68 | 3 |
+| | scan | 4 | 132 | 82 | 62.1 | 0 | 0.0 | 0 | 82 | 42 |
+| | all | 8 | 264 | 150 | 56.8 | 0 | 0.0 | 0 | 150 | 45 |
+
+LABELS UNVERIFIED
+
+| page_qwen3vl + page_glmocr | kind | docs | fields | right | % right | auto | % auto | wrong@auto | right-but-flagged | hallucinations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| | digital | 4 | 132 | 119 | 90.2 | 59 | 44.7 | 0 | 60 | 2 |
+| | scan | 4 | 132 | 109 | 82.6 | 47 | 35.6 | 1 | 63 | 48 |
+| | all | 8 | 264 | 228 | 86.4 | 106 | 40.2 | 1 | 123 | 50 |
+
+LABELS UNVERIFIED
+
+| page_qwen3vl + crop (template path) | kind | docs | fields | right | % right | auto | % auto | wrong@auto | right-but-flagged | hallucinations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| | digital | 4 | 132 | 119 | 90.2 | 88 | 66.7 | 0 | 31 | 2 |
+| | scan | 4 | 132 | 109 | 82.6 | 15 | 11.4 | 0 | 94 | 48 |
+| | all | 8 | 264 | 228 | 86.4 | 103 | 39.0 | 0 | 125 | 50 |
+
+LABELS UNVERIFIED
+
+| page_qwen3vl + page_glmocr + crop | kind | docs | fields | right | % right | auto | % auto | wrong@auto | right-but-flagged | hallucinations |
+|---|---|---|---|---|---|---|---|---|---|---|
+| | digital | 4 | 132 | 119 | 90.2 | 101 | 76.5 | 0 | 18 | 2 |
+| | scan | 4 | 132 | 109 | 82.6 | 52 | 39.4 | 1 | 58 | 48 |
+| | all | 8 | 264 | 228 | 86.4 | 153 | 58.0 | 1 | 76 | 50 |
+
+Tier rules (Step 4, app/modules/page_tiers.py): auto = grounded AND rules AND agreement; spot_check = rules pass but grounding or agreement is missing;
+review = a rule fails or the readers that read something disagree. Grounded = in the text layer as whole printed words (digital) or fuzzy >= 90 with the
+page's own OCR words (scan). Rules = the field regex, the AWB mod-7 check digit and the template's cross-field checks (validation.py, unchanged).
+Agreement = another reader gives the same value: the other page engine, or the template path's own read (text layer / Tesseract) when a template matched.
+
+Notes on the table above (page_qwen3vl ABCD, page_glmocr G2, crop = the template path of the baseline run):
+- With one reader and no crop engine NOTHING can be auto (the first two rows): that is the rule, not a result.
+- The one wrong value at auto in the two configurations with glm is dev doc 06 `total_other_charges_agent`: both page engines read a value, it is on the page,
+  and the draft label is BLANK and already flagged uncertain (docs/run-questions.md). If the label is wrong the figure is 0; it was not changed.
+- Word-aligned grounding was added after the first live run on DEV showed two wrong values at auto on digital pages (a dropped trailing comma and dropped
+  printed quotes, both read by both engines): a plain substring test found them in the text layer. It only ever adds caution (153 auto instead of 154).
+- The same configuration without the halves read (A+B+D): 226 right, 158 auto, 1 wrong at auto (the same field).
+- Our own adapter (qwen_waybill) as the crop engine was not measured here (see docs/run-report.md).

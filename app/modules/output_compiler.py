@@ -84,6 +84,7 @@ def persist_result(compiled_result: CompiledResult, page_image: bytes | None = N
         record = ExtractionResultRecord(
             template_id=compiled_result.template_id,
             template_version=compiled_result.version,
+            template_matched=compiled_result.template_matched,
             extracted_at=compiled_result.extracted_at,
             overall_status=compiled_result.overall_status,
             fields=fields_json,
@@ -120,6 +121,7 @@ def _record_to_compiled_result(record: ExtractionResultRecord) -> CompiledResult
     return CompiledResult(
         template_id=record.template_id,
         version=record.template_version,
+        template_matched=record.template_matched,
         extracted_at=record.extracted_at,
         overall_status=record.overall_status,
         fields=record.fields,

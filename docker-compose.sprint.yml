@@ -14,7 +14,7 @@ x-src: &src
     VLM_READER_URL: ""
     VLM_READER_TOKEN: ""
     VLM_READER_PROFILE_DIR: /app/reader_profiles
-    READER_ENGINES_FILE: /app/config/reader_engines.json
+    READER_ENGINES_FILE: /app/config/reader_engines.docker.json
     READER_ENGINE: ""
   volumes:
     - ./app:/app/app

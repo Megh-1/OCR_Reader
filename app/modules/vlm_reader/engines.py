@@ -53,12 +53,13 @@ class EngineSpec(BaseModel):
     concurrency: int = Field(default=8, ge=1, le=64)  # openai_compatible: requests in flight at once
     max_tokens: Optional[int] = Field(default=None, ge=1)  # openai_compatible: cap on a reply
     extra_body: dict = Field(default_factory=dict)  # openai_compatible: server-specific request fields
+    role: Literal["crop", "page"] = "crop"  # crop: reads template-guided crops (this module); page: reads a whole page with no template (app/modules/page_reader.py)
     prompt_file: str = ""  # JSON {"party": ..., "goods": ..., "single": ...}: this engine's own wording of the questions (waybill.py has the shipped ones)
 
     @property
     def is_reader(self) -> bool:
         """A crop reader, i.e. a model behind a URL. `tesseract` and `text_layer` are the pipeline's own paths, not something to call."""
-        return self.kind in ("service", "existing_service", "openai_compatible")
+        return self.role == "crop" and self.kind in ("service", "existing_service", "openai_compatible")
 
     @property
     def prior(self) -> int:
@@ -121,6 +122,11 @@ def load_registry() -> Registry:
     if len(set(names)) != len(names):
         raise ReaderUnavailable(f"the reader engines file {path} repeats an engine name")
     return registry
+
+
+def page_specs(registry: Optional[Registry] = None) -> list[EngineSpec]:
+    """The engines that read a whole page with no template (role "page"), in the registry's order."""
+    return [e for e in (registry or load_registry()).engines if e.role == "page" and e.kind == "openai_compatible"]
 
 
 def reader_specs(registry: Optional[Registry] = None) -> list[EngineSpec]:

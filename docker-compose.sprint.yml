@@ -14,7 +14,7 @@ x-src: &src
     VLM_READER_URL: ""
     VLM_READER_TOKEN: ""
     VLM_READER_PROFILE_DIR: /app/reader_profiles
-    READER_ENGINES_FILE: /app/config/reader_engines.docker.json
+    READER_ENGINES_FILE: ${SPRINT_ENGINES_FILE:-}  # e.g. SPRINT_ENGINES_FILE=/app/config/reader_engines.docker.json; empty = the pre-sprint app (Tesseract + text layer)
     READER_ENGINE: ""
   volumes:
     - ./app:/app/app

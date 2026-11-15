@@ -1,0 +1,32 @@
+# Sprint override: run the CURRENT source (no rebuild per edit), reach the GPU tunnels from inside the
+# containers, read the engine list from config/reader_engines.json.
+#
+#   docker compose -p idps -f docker-compose.yml -f docker-compose.sprint.yml up -d
+#
+# Inside a container `localhost` is the container; engines in config/reader_engines.json therefore point at
+# host.docker.internal (see scripts/gpu_tunnel.sh for how the tunnel is exposed to it).
+x-src: &src
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  environment: &env
+    DATABASE_URL: postgresql+psycopg://idp:idp@postgres:5432/idp_pipeline
+    REDIS_URL: redis://redis:6379/0
+    VLM_READER_URL: ""
+    VLM_READER_TOKEN: ""
+    VLM_READER_PROFILE_DIR: /app/reader_profiles
+    READER_ENGINES_FILE: /app/config/reader_engines.json
+    READER_ENGINE: ""
+  volumes:
+    - ./app:/app/app
+    - ./alembic:/app/alembic
+    - ./scripts:/app/scripts
+    - ./config:/app/config:ro
+    - ./data:/app/data:ro
+    - ./tests/fixtures:/app/tests/fixtures:ro
+    - ./data/reader_profiles:/app/reader_profiles:ro
+
+services:
+  app:
+    <<: *src
+  worker:
+    <<: *src

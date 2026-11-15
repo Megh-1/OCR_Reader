@@ -242,6 +242,25 @@ def correct_result_field(result_id: int, field_id: str, body: FieldValueUpdate) 
         return FieldResult(**updated_field)
 
 
+@router.get("/results/{result_id}/locate")
+def locate_result_field(result_id: int, field_id: str = Query(..., min_length=1)) -> dict:
+    """Where a field's source text sits on the stored page, as boxes in fractions of the page (one per printed line). Display only."""
+    from app.modules.locate import locate, page_words
+
+    with SessionLocal() as session:
+        record = session.get(ExtractionResultRecord, result_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"No result found for id {result_id}")
+    field = record.fields.get(field_id)
+    if field is None:
+        raise HTTPException(status_code=404, detail=f"Result {result_id} has no field {field_id!r}")
+    if record.page_image is None:
+        raise HTTPException(status_code=404, detail=f"Result {result_id} has no stored page image")
+    text = field.get("source_text") or field.get("value") or ""
+    boxes = locate(page_words(record.page_image), text) if text.strip() else []
+    return {"field_id": field_id, "text": text, "boxes": boxes}
+
+
 @router.get("/results/{result_id}/image")
 def get_result_image(result_id: int) -> Response:
     """The page this extraction ran against, for Module 9's review view."""

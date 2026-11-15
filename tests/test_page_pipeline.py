@@ -87,3 +87,11 @@ def test_the_export_reports_template_id_null_for_an_unmatched_page(page_mode, mo
     page = pipeline.process_page(_page(), 0, None)
     body = client.get(f"/results/{page.extraction_result_id}").json()
     assert body["template_matched"] is False
+
+
+def test_an_engine_that_did_not_answer_is_named_on_the_page_and_in_the_batch_summary(page_mode, monkeypatch):
+    monkeypatch.setattr(page_pipeline, "read_pages", lambda specs, b, t: [_read("page_a", {"awb_number": GOOD_AWB}), _read("page_b", {}, ok=False)])
+    page = pipeline.process_page(_page(), 0, None)
+    assert page.engines_down == ["page_b"]
+    from app.modules.page_pipeline import PageFirstRead  # the field exists with an empty default for a page every engine read
+    assert PageFirstRead.__dataclass_fields__["engines_down"].default_factory() == []

@@ -4,6 +4,7 @@ import { listReviewQueue } from '@/api';
 import { TierMark } from '@/components/TierBadge';
 import { Badge } from '@/components/ui/badge';
 import { TIER_TAGLINE, TIERS } from '@/lib/tiers';
+import { useAdvanced } from '@/lib/settings';
 import { cn } from '@/lib/utils';
 import BatchMonitor from '@/screens/BatchMonitor';
 import Results from '@/screens/Results';
@@ -14,12 +15,12 @@ const ROUTES = [
   { key: 'batch', label: 'Upload', Icon: ScanLine, Screen: BatchMonitor },
   { key: 'results', label: 'Results', Icon: ChartColumnBig, Screen: Results },
   { key: 'review', label: 'Review', Icon: Inbox, Screen: ReviewQueue },
-  { key: 'templates', label: 'Templates', Icon: Layers3, Screen: TemplateDesigner },
+  { key: 'templates', label: 'Templates', Icon: Layers3, Screen: TemplateDesigner, advanced: true },
 ];
 
-function parseHash() {
+function parseHash(advanced) {
   const [key, ...rest] = window.location.hash.replace(/^#\/?/, '').split('/');
-  return { key: ROUTES.some((r) => r.key === key) ? key : 'batch', param: rest.join('/') || null };
+  return { key: ROUTES.some((r) => r.key === key && (advanced || !r.advanced)) ? key : 'batch', param: rest.join('/') || null };
 }
 
 function NavItem({ route, active, queue }) {
@@ -66,14 +67,16 @@ function TierLegend() {
 }
 
 export default function App() {
-  const [route, setRoute] = useState(parseHash);
+  const [advanced, toggleAdvanced] = useAdvanced();
+  const [route, setRoute] = useState(() => parseHash(advanced));
   const [queue, setQueue] = useState({ review: 0, spot: 0, reachable: null });
 
   useEffect(() => {
-    const onHash = () => setRoute(parseHash());
+    const onHash = () => setRoute(parseHash(advanced));
+    onHash(); // also when the switch changes: leaving the Templates screen when it gets hidden
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
-  }, []);
+  }, [advanced]);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -117,13 +120,17 @@ export default function App() {
         </div>
 
         <nav aria-label="Main" className="flex flex-col gap-1 p-2 xl:p-4">
-          {ROUTES.map((r) => (
+          {ROUTES.filter((r) => advanced || !r.advanced).map((r) => (
             <NavItem key={r.key} route={r} active={r.key === route.key} queue={queue} />
           ))}
         </nav>
 
         <div className="mt-auto flex flex-col gap-4 border-t border-border p-2 xl:p-4">
           <TierLegend />
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground-secondary" title="Show the Templates screen and the Evidence tab">
+            <input type="checkbox" checked={advanced} onChange={toggleAdvanced} className="size-3.5 shrink-0" />
+            <span className="sr-only xl:not-sr-only">Advanced tools</span>
+          </label>
           <p className="flex items-center gap-2 text-xs text-foreground-secondary" role="status">
             <span aria-hidden className={cn('size-2 shrink-0 rounded-full', queue.reachable === false ? 'bg-danger-solid' : 'bg-success-solid')} />
             <span className="sr-only xl:not-sr-only">{queue.reachable === false ? 'Server unreachable' : 'Server connected'}</span>

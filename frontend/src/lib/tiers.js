@@ -46,6 +46,12 @@ export const REASONS = {
   check_digit_invalid: 'Check digit does not match',
   low_confidence: 'Confidence too low',
   enum_missing_regex: 'Template is missing a format rule',
+  // page-engine reads (app/modules/page_tiers.py)
+  blank: 'Nothing read for this field',
+  readers_disagree: 'The readers disagree',
+  not_grounded: 'Not found on the page text',
+  single_reader: 'Only one reader answered',
+  no_second_reader_value: 'The second reader gave no value',
 };
 
 // A failed cross-field check arrives as "cross_check_failed:<the check's label>".

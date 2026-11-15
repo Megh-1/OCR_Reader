@@ -27,7 +27,7 @@ A web application for an airline's cargo team: upload AWBs (PDF, scan, phone pho
 
 * Tests use the separate idp_pipeline_test database (root conftest.py sets DATABASE_URL before any app import).
 * A new backend route prefix needs an entry in both frontend/vite.config.js and frontend/nginx.conf.
-* Inside Docker, localhost is the container: reach host tunnels via host.docker.internal.
+* Inside Docker, localhost is the container: reach host tunnels via host.docker.internal. On this laptop even that fails for the GPU ssh tunnel, so the demo stack runs from the venv (scripts/run_local_stack.sh).
 * OMP_THREAD_LIMIT=1 for Tesseract in containers (runtime.configure_tesseract does it).
 * PDF invisible text (render mode 3) is OCR output, not a real text layer.
 * tests/fixtures/ and data/ hold real documents: never commit them.

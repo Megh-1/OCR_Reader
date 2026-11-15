@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dc_field
 from typing import Optional
 
 from app import config
@@ -43,6 +43,7 @@ class PageFirstRead:
     crop_fields: Optional[dict[str, FieldExtractionResult]]  # the template path's read, when it ran
     crop_review_image: Optional[bytes] = None
     crop_reader: Optional[str] = None
+    engines_down: list[str] = dc_field(default_factory=list)  # configured page engines that gave no answer for this page
 
 
 def enabled() -> bool:
@@ -132,4 +133,5 @@ def read_page_first(page_bytes: bytes, text_layer: Optional[TextLayer], matched_
         template=schema, matched=matched_template is not None, tiers=tiers, summary=build_summary(tiers), primary_engine=primary.engine,
         engines_used=[r.engine for r in reads], crop_fields=crop.fields if crop else None,
         crop_review_image=crop.review_image_bytes if crop else None, crop_reader=crop.reader if crop else None,
+        engines_down=[s.name for s in specs if s.name not in {r.engine for r in reads}],
     )

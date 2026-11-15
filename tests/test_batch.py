@@ -372,4 +372,4 @@ def test_status_summarises_where_the_pages_went(client):
                                         result={"page_count": 3, "pages": pages}, created_at=now))
         session.commit()
     body = client.get(f"/documents/batch/{batch_id}/status").json()
-    assert body["summary"] == {"pages": 3, "by_template": {"whole_form": 1, "part_form": 1}, "unmatched": {"no_match": 1}}
+    assert body["summary"] == {"pages": 3, "by_template": {"whole_form": 1, "part_form": 1}, "unmatched": {"no_match": 1}, "engines_down": {}}

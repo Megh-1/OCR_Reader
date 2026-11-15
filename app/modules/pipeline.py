@@ -61,6 +61,8 @@ class PageResult(BaseModel):
     # How the template's boxes were moved to fit this page (landmarks matched, scale, shift, rms);
     # None when they were read exactly where the template stored them.
     alignment: Optional[dict] = None
+    # Page engines that were configured and gave no answer for this page (the batch status flags them; the other engines and the template path read it)
+    engines_down: list[str] = []
 
 
 class ProcessDocumentResponse(BaseModel):
@@ -259,6 +261,7 @@ def process_page(
     # its own read as a second reader. None = not usable for this page (no engine answered, or the page is not an air waybill schema), and the
     # page goes down the ordinary template path below - capped at spot_check when it was meant to be read by the page engines.
     page_first = None
+    engines_down: list[str] = []
     if page_pipeline.enabled():
         matched_template = get_template_version(identification.template_id, identification.version) if identification.confirmed else None
         page_first = page_pipeline.read_page_first(
@@ -278,6 +281,7 @@ def process_page(
             text_native=text_layer is not None, reader="page", engine=page_first.primary_engine,
         )
         summary = page_first.summary
+        engines_down = page_first.engines_down
         log.info("page %d read by page engines %s (template %s)", page_index, page_first.engines_used, template.template_id if page_first.matched else "none matched")
     else:
         # get_template_version, not get_latest_template - extract_fields/validate_fields
@@ -293,6 +297,7 @@ def process_page(
         summary = validate_fields(template, extraction.fields)
         if page_pipeline.enabled() and page_pipeline.is_awb_schema(template):
             # Meant to be read by page engines and none could be: whatever the template path read is at most a spot check.
+            engines_down = [s.name for s in page_pipeline.configured_specs()]
             log.info("page %d: no page engine answered; %d auto value(s) capped at spot_check", page_index, demote_auto(summary))
         if extraction.reader == "ocr_fallback":
             # The template asks for the vision reader and could not get it: whatever Tesseract read here is at most a spot check.
@@ -364,6 +369,7 @@ def process_page(
         text_native=extraction.text_native,
         reader=extraction.reader,
         alignment=extraction.alignment.summary() if extraction.alignment is not None else None,
+        engines_down=engines_down,
     )
 
 

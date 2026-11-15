@@ -414,6 +414,12 @@ export default function BatchMonitor({ param, onQueueChange }) {
                         </li>
                       ))}
                     </ul>
+                    {Object.keys(batch.summary.engines_down ?? {}).length > 0 && (
+                      <p role="alert" className="mt-2 rounded-md border border-warning-border bg-warning-surface px-3 py-2 text-xs text-foreground" data-testid="engines-down">
+                        <strong>A reading engine did not answer</strong> ({Object.entries(batch.summary.engines_down).map(([name, n]) => `${name}: ${n} page${n === 1 ? '' : 's'}`).join(', ')}).
+                        The remaining engines and the standard reader read those pages instead; fewer values are approved automatically and more wait for a person.
+                      </p>
+                    )}
                     {Object.keys(batch.summary.by_template).length > 1 && (
                       <p className="mt-2 text-xs text-foreground-secondary">
                         More than one template took pages in this upload. Each page is read as exactly one template; check the split matches what you expected.

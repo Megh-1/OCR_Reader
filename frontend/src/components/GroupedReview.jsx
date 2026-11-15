@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { reasonText } from '@/lib/tiers';
+import { useAdvanced } from '@/lib/settings';
 import { cn, fmtConf } from '@/lib/utils';
 
 const SHEET = 12; // crops shown per group before "show all"
@@ -18,7 +19,7 @@ const TABS = [
   ['field', 'By field'],
   ['value', 'Same value'],
   ['document', 'By document'],
-  ['evidence', 'Evidence'],
+  ['evidence', 'Evidence', true],
 ];
 
 /** One template version per (id, version), fetched once, shared by every card. */
@@ -41,7 +42,9 @@ function useTemplates() {
 const fieldOf = (templates, g, fieldId) => templates[`${g.template_id}@${g.template_version}`]?.fields?.find((f) => f.id === fieldId);
 
 export default function GroupedReview({ batchId = null, onQueueChange }) {
-  const [tab, setTab] = useState('field');
+  const [advanced] = useAdvanced();
+  const [chosenTab, setTab] = useState('field');
+  const tab = !advanced && chosenTab === 'evidence' ? 'field' : chosenTab; // the Evidence tab is hidden with the advanced tools
   const [data, setData] = useState({ state: 'loading', by: 'value', groups: [], total: 0 });
   const [evidence, setEvidence] = useState(null);
   const [templates, needTemplates] = useTemplates();
@@ -81,7 +84,7 @@ export default function GroupedReview({ batchId = null, onQueueChange }) {
   return (
     <div className="scroll-thin flex h-full min-h-0 flex-col overflow-y-auto">
       <div role="tablist" aria-label="Group by" className="flex gap-1 border-b border-border bg-surface px-6 py-2">
-        {TABS.map(([key, label]) => (
+        {TABS.filter(([, , adv]) => advanced || !adv).map(([key, label]) => (
           <button
             key={key}
             role="tab"

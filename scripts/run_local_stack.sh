@@ -5,7 +5,7 @@
 #
 #   scripts/run_local_stack.sh start [workers=3]     scripts/run_local_stack.sh stop
 #
-# Settings (see app/config.py): READER_PAGE_ENGINES picks and orders the page engines (the first is primary); READER_PAGE_HALVES=1 adds the upper
+# Settings (see app/config.py): READER_PAGE_ENGINES picks and orders the page engines (the first is primary); READER_PAGE_HALVES=1 (the default) adds the upper
 # and lower half reads (+2 fields on DEV, ~2.5x the time per page).
 set -u
 cd "$(dirname "$0")/.."
@@ -14,7 +14,7 @@ export DATABASE_URL="${DATABASE_URL:-postgresql+psycopg://idp:idp@localhost:5433
 export REDIS_URL="${REDIS_URL:-redis://localhost:6380/0}"
 export READER_ENGINES_FILE="${READER_ENGINES_FILE:-config/reader_engines.json}"
 export READER_PAGE_ENGINES="${READER_PAGE_ENGINES:-page_qwen3vl,page_glmocr}"
-export READER_PAGE_HALVES="${READER_PAGE_HALVES:-0}"
+export READER_PAGE_HALVES="${READER_PAGE_HALVES:-1}"
 LOGDIR="${LOGDIR:-/tmp}"
 
 case "${1:-start}" in

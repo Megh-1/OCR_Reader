@@ -482,7 +482,7 @@ VLM_READER_PROFILE_DIR: str = os.environ.get("VLM_READER_PROFILE_DIR", str(Path(
 # "template" (page mode off). READER_CROP_ENGINE: "template_path" (the template's own read, text layer or Tesseract, as a second reader when a
 # template matched) or "none". READER_PAGE_NORMALISE / _SHARPER / _HALVES / _LAYER are the variants measured on DEV (docs/reader-results.md).
 READER_MODE: str = os.environ.get("READER_MODE", "page_first")
-READER_PAGE_ENGINES: list[str] = [n.strip() for n in os.environ.get("READER_PAGE_ENGINES", "").split(",") if n.strip()]
+READER_PAGE_ENGINES: list[str] = [n.strip() for n in os.environ.get("READER_PAGE_ENGINES", "page_qwen3vl,page_glmocr").split(",") if n.strip()]
 READER_CROP_ENGINE: str = os.environ.get("READER_CROP_ENGINE", "template_path")
 READER_PAGE_NORMALISE: bool = os.environ.get("READER_PAGE_NORMALISE", "1") != "0"
 READER_PAGE_SHARPER: bool = os.environ.get("READER_PAGE_SHARPER", "1") != "0"

@@ -114,3 +114,26 @@ Notes on the table above (page_qwen3vl ABCD, page_glmocr G2, crop = the template
   printed quotes, both read by both engines): a plain substring test found them in the text layer. It only ever adds caution (153 auto instead of 154).
 - The same configuration without the halves read (A+B+D): 226 right, 158 auto, 1 wrong at auto (the same field).
 - Our own adapter (qwen_waybill) as the crop engine was not measured here (see docs/run-report.md).
+
+## Default configuration (Step 5), DEV only, labels UNVERIFIED
+
+Rule: most correct fields with zero wrong at auto; tie -> more auto. All rows are the same 8 real dev documents x 33 fields = 264 (4 digital, 4 scan, no photos).
+
+| configuration | how measured | right | auto | wrong@auto | time, 8 docs, 3 workers |
+|---|---|---|---|---|---|
+| current app before the sprint (Tesseract / template path) | live, Step 2 | 137 | 80 | see baseline table | - |
+| qwen3vl alone (ABCD) | offline replay | 228 | 0 (one reader: nothing can be auto) | 0 | - |
+| qwen3vl + template path | **live** through the API | 228 | 110 (41.7%) | 0 | 804 s |
+| qwen3vl + glmocr + template path | **live** through the API | 228 | **153 (58.0%)** | **0** | 906 s |
+| qwen3vl + glmocr + template path | offline replay of saved reads | 228 | 153 | 1 (doc 06 `total_other_charges_agent`, label blank and already flagged uncertain) | - |
+| glmocr alone (G2) | offline | 150 | 0 | 0 | - |
+
+Chosen default (app/config.py, config/reader_engines.json): `READER_MODE=page_first`, `READER_PAGE_ENGINES=page_qwen3vl,page_glmocr` (qwen is the primary
+reader: it reads 228, GLM-OCR 150), `READER_CROP_ENGINE=template_path`, variants A+B+C+D on (`READER_PAGE_HALVES=1`).
+Why: qwen alone, qwen + template path and qwen + glmocr + template path all read the same 228 fields right; the third has the most at auto (153 vs 110)
+and no wrong value at auto in the live run. GLM-OCR does not improve what is read; it is the second opinion that lets more fields be auto.
+Cost: the second page engine adds about 100 s per 8 documents (+13%) because the two engines run in parallel on different models.
+Caveats: (1) all labels are unverified drafts, so every figure moves if a label is wrong; (2) the offline replay of the same configuration shows one
+wrong-at-auto on a field whose draft label is blank, the live run does not: treat "0" as "0 on this live run, 1 on the replay"; (3) scans: 109 of 132 right
+but only 46 auto (34.8%), the rest wait for a person; (4) the halves variant adds 2 fields at about 2.5x the time per page; (5) the engines are page
+engines of a pretrained model, nothing was trained or tuned on test/. Our own Qwen2.5-VL adapter as a crop engine was not measured (run-report).

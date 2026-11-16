@@ -215,6 +215,8 @@ def batch_status(batch_id: str) -> BatchStatusResponse:
             partial = record.result or {}
             for page in partial.get("pages", []):
                 summary.pages += 1
+                for engine in page.get("engines_down") or []:
+                    summary.engines_down[engine] = summary.engines_down.get(engine, 0) + 1
                 if page.get("confirmed"):
                     name = (page.get("result") or {}).get("template_id", "?")
                     summary.by_template[name] = summary.by_template.get(name, 0) + 1

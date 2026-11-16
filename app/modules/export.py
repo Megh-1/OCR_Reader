@@ -60,7 +60,7 @@ def export_batch(batch_id: str, strict: bool = Query(True)) -> dict:
         result_ids = [p["extraction_result_id"] for d in docs for p in (d.result or {}).get("pages", []) if p.get("extraction_result_id")]
         records = {
             r.id: r
-            for r in session.execute(select(ExtractionResultRecord.id, ExtractionResultRecord.template_id, ExtractionResultRecord.template_version, ExtractionResultRecord.fields).where(ExtractionResultRecord.id.in_(result_ids))).all()
+            for r in session.execute(select(ExtractionResultRecord.id, ExtractionResultRecord.template_id, ExtractionResultRecord.template_version, ExtractionResultRecord.template_matched, ExtractionResultRecord.fields).where(ExtractionResultRecord.id.in_(result_ids))).all()
         } if result_ids else {}
 
         counts = {"confirmed": 0, "accepted": 0, "auto": 0, "unverified": 0}
@@ -78,7 +78,8 @@ def export_batch(batch_id: str, strict: bool = Query(True)) -> dict:
                     counts[f["status"]] += 1
                 pages.append(
                     {
-                        "recognised": True, "template_id": rec.template_id, "template_version": rec.template_version,
+                        "recognised": True, "template_id": rec.template_id if rec.template_matched else None,
+                        "template_version": rec.template_version if rec.template_matched else None,
                         "reader": page.get("reader"), "result_id": rid,
                         "complete": all(f["status"] != "unverified" for f in fields.values()),
                         "fields": fields,

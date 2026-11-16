@@ -157,7 +157,7 @@ function ResultDetail({ detail }) {
     <div className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg text-foreground">
-          Document #{id} <span className="font-normal text-foreground-secondary">· {result.template_id} v{result.version}</span>
+          Document #{id} <span className="font-normal text-foreground-secondary">· {result.template_matched === false ? `${result.template_id} · read without a template` : `${result.template_id} v${result.version}`}</span>
         </h2>
         <Badge tone={status.tone}>{status.label}</Badge>
         <span className="text-xs text-foreground-subtle">{new Date(result.extracted_at).toLocaleString()}</span>
@@ -254,8 +254,23 @@ function FieldRow({ resultId, field: f, meta, onSaved }) {
       </td>
       <td className="px-4 py-2 align-top">
         <TierBadge tier={f.approval_tier} size="sm" />
+        <Evidence field={f} />
       </td>
     </tr>
+  );
+}
+
+/** Which readers produced the value and the two checks behind an auto-approval (page-engine reads only; older results carry none). */
+function Evidence({ field: f }) {
+  if (!f.engines?.length && f.grounded == null && f.agreed == null) return null;
+  const check = (ok, yes, no, unknown) => (ok == null ? unknown : ok ? yes : no);
+  return (
+    <span className="mt-1 block text-xs text-foreground-secondary" data-testid="field-evidence">
+      {f.engines?.length > 0 && <span className="block break-words">{f.engines.join(' + ')}</span>}
+      <span className="block">
+        {check(f.grounded, 'on the page', 'not on the page', 'page not checked')} · {check(f.agreed, 'readers agree', 'readers disagree', 'no second reader')}
+      </span>
+    </span>
   );
 }
 

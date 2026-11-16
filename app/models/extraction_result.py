@@ -2,7 +2,7 @@ from datetime import datetime
 
 from typing import Optional
 
-from sqlalchemy import DateTime, Integer, LargeBinary, String
+from sqlalchemy import Boolean, DateTime, Integer, LargeBinary, String, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,8 @@ class ExtractionResultRecord(Base):
     template_version: Mapped[int] = mapped_column(Integer, nullable=False)
     extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     overall_status: Mapped[str] = mapped_column(String, nullable=False)
+    # False when the page was read by the page engines with no template that matched it (template_id is then the base schema's id).
+    template_matched: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
     fields: Mapped[dict] = mapped_column(JSONB, nullable=False)
     # A review-sized JPEG render of the page this ran against, so Module 9's
     # reviewer sees the actual document. Nullable - rows predating this

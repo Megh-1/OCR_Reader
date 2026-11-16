@@ -18,6 +18,7 @@ import { ConfidenceGauge } from '@/components/ConfidenceGauge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FieldCrop } from '@/components/FieldCrop';
 import GroupedReview from '@/components/GroupedReview';
+import { PageHighlight } from '@/components/PageHighlight';
 import { TierBadge, TierMark } from '@/components/TierBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -454,6 +455,7 @@ function FieldDetail({ entry, context, position, onMove, onResolved }) {
   const inputRef = useRef(null);
 
   const field = context?.template?.fields.find((f) => f.id === p.field_id);
+  const pageFirst = Boolean(context?.result?.fields?.[p.field_id]?.engines?.length); // read by page engines: show the whole page, not a template box
   const confidence = p.confidence ?? context?.result?.fields?.[p.field_id]?.confidence ?? null;
   const contra = isContradiction(entry);
 
@@ -556,6 +558,11 @@ function FieldDetail({ entry, context, position, onMove, onResolved }) {
             <CardHeader>
               <CardTitle>Where it was read from</CardTitle>
             </CardHeader>
+            {pageFirst ? (
+              <div className="bg-surface-sunken p-4">
+                <PageHighlight resultId={p.extraction_result_id} fieldId={p.field_id} tier={tier} sourceText={context?.result?.fields?.[p.field_id]?.source_text} />
+              </div>
+            ) : (
             <div className="flex flex-col gap-4 bg-surface-sunken p-4">
               <div className="overflow-hidden rounded-md border border-border bg-white">
                 {field ? (
@@ -573,6 +580,7 @@ function FieldDetail({ entry, context, position, onMove, onResolved }) {
                 </div>
               )}
             </div>
+            )}
           </Card>
 
           <div className="flex flex-col gap-4">

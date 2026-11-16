@@ -60,6 +60,7 @@ export const getTemplateVersion = (templateId, version) =>
 export const listResults = (limit = 60) => requestJson(`/results?limit=${limit}`);
 export const getExtractionResult = (resultId) => requestJson(`/results/${resultId}`);
 export const resultImageUrl = (resultId) => `/results/${resultId}/image`;
+export const locateResultField = (resultId, fieldId) => requestJson(`/results/${resultId}/locate?field_id=${encodeURIComponent(fieldId)}`);
 
 export function correctResultField(resultId, fieldId, value) {
   return requestJson(`/results/${resultId}/fields/${encodeURIComponent(fieldId)}`, {

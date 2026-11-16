@@ -50,6 +50,7 @@ class BatchTemplateSummary(BaseModel):
     pages: int = 0
     by_template: dict[str, int] = {}  # template_id -> pages read with it
     unmatched: dict[str, int] = {}  # Module 5's reason (no_match, ambiguous_match, unknown_type_hint) -> pages
+    engines_down: dict[str, int] = {}  # page engine -> pages it gave no answer for (those pages were read by the remaining engines and the template path)
 
 
 class BatchStatusResponse(BaseModel):
